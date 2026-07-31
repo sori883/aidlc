@@ -1,0 +1,26 @@
+{
+  "name": "aidlc",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "agent:check": "tsx core/tools/aidlc-agent-loader.ts check",
+    "graph:check": "tsx core/tools/aidlc-graph.ts compile --check",
+    "graph:compile": "tsx core/tools/aidlc-graph.ts compile",
+    "graph:resolve": "tsx core/tools/aidlc-graph.ts resolve",
+    "rule:check": "tsx core/tools/aidlc-rule-loader.ts check",
+    "sensor:check": "tsx core/tools/aidlc-sensor-loader.ts check",
+    "scope:check": "tsx core/tools/aidlc-scope-loader.ts check",
+    "stage:check": "tsx core/tools/aidlc-stage-loader.ts check",
+    "test": "tsx --test tests/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.2",
+    "tsx": "4.23.1",
+    "typescript": "7.0.2"
+  }
+}
