@@ -33,6 +33,7 @@ import {
   validateScopeGridDefinitions,
   validateStageScopeReferences,
 } from "./aidlc-scope-loader.ts";
+import { activeSpace, workspaceRoot } from "./aidlc-workspace.ts";
 
 export interface CompiledStage extends Omit<LoadedStage, "sourcePath"> {
   rules_in_context: RuleResolution[];
@@ -210,6 +211,39 @@ export function resolvePlanForScope(
       phase: stage.phase,
       action: entry.stages[stage.slug] === "EXECUTE" ? "EXECUTE" : "SKIP",
     }));
+}
+
+/** Resolve the active Intent's upstream v2 plan location. */
+export function resolvedPlanPath(projectDir: string): string {
+  const projectRoot = resolve(projectDir);
+  const space = activeSpace(projectRoot);
+  const intentsRoot = join(workspaceRoot(projectRoot), "spaces", space, "intents");
+  let intent = "";
+  try {
+    intent = readFileSync(join(intentsRoot, "active-intent"), "utf8").trim();
+  } catch {
+    throw new Error(
+      `No active intent in space "${space}". Birth or switch an intent first.`,
+    );
+  }
+  if (intent.length === 0) {
+    throw new Error(`Active intent pointer is empty in space "${space}"`);
+  }
+  return join(intentsRoot, intent, ".aidlc-plan.json");
+}
+
+/** Persist a scope plan under the active Intent, matching upstream v2. */
+export function writeResolvedPlanForScope(
+  scope: string,
+  projectDir: string,
+  options: ResolveOptions = {},
+): string {
+  const path = resolvedPlanPath(projectDir);
+  writeFileAtomic(
+    path,
+    `${JSON.stringify(resolvePlanForScope(scope, options), null, 2)}\n`,
+  );
+  return path;
 }
 
 /** Return only the stages that execute for a scope, in numeric stage order. */
@@ -394,22 +428,44 @@ function runCli(): void {
       return;
     }
 
-    if (
-      command === "resolve" &&
-      args.length >= 1 &&
-      args.slice(1).every((arg) => arg === "--stdout")
-    ) {
+    if (command === "resolve" && args.length >= 1) {
       const scope = args[0];
       if (scope === undefined) throw new Error("scope is required");
-      process.stdout.write(
-        `${JSON.stringify(resolvePlanForScope(scope), null, 2)}\n`,
-      );
+      const remaining = args.slice(1);
+      let projectDir = ".";
+      let stdout = false;
+      for (let index = 0; index < remaining.length; index += 1) {
+        const arg = remaining[index];
+        if (arg === "--stdout") {
+          stdout = true;
+          continue;
+        }
+        if (arg === "--project") {
+          const value = remaining[index + 1];
+          if (value === undefined || value.startsWith("--")) {
+            throw new Error("--project requires a project directory");
+          }
+          projectDir = value;
+          index += 1;
+          continue;
+        }
+        throw new Error(
+          "Usage: aidlc-graph resolve <scope> [--project <project-dir>] [--stdout]",
+        );
+      }
+      if (stdout) {
+        process.stdout.write(
+          `${JSON.stringify(resolvePlanForScope(scope), null, 2)}\n`,
+        );
+        return;
+      }
+      console.log(writeResolvedPlanForScope(scope, projectDir));
       return;
     }
 
     console.error(
       "Usage: aidlc-graph compile [--check]\n" +
-        "       aidlc-graph resolve <scope> [--stdout]",
+        "       aidlc-graph resolve <scope> [--project <project-dir>] [--stdout]",
     );
     process.exitCode = 1;
   } catch (error) {
