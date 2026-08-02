@@ -13,10 +13,14 @@ import {
   loadCompiledScopeGrid,
   loadCompiledStageGraph,
   resolvePlanForScope,
+  resolvedPlanPath,
   subgraphForScope,
   validateStageDependencies,
   writeCompiledStageGraph,
+  writeResolvedPlanForScope,
 } from "../core/tools/aidlc-graph.ts";
+import { birthIntent } from "../core/tools/aidlc-intent.ts";
+import { initializeWorkspace } from "../core/tools/aidlc-workspace.ts";
 import type { LoadedStage } from "../core/tools/aidlc-stage-loader.ts";
 
 test("compiles all stages with resolved rules and sensors", () => {
@@ -157,6 +161,21 @@ test("resolver rejects an unknown scope", () => {
   assert.throws(
     () => resolvePlanForScope("missing-scope"),
     /Unknown scope: "missing-scope"\. Valid scopes:/,
+  );
+});
+
+test("writes the resolved plan under the active Intent", () => {
+  const projectDir = mkdtempSync(join(tmpdir(), "aidlc-plan-"));
+  initializeWorkspace(projectDir);
+  const born = birthIntent(projectDir, "Payment API", "default", "mvp");
+
+  const path = writeResolvedPlanForScope("mvp", projectDir);
+
+  assert.equal(path, join(born.recordDir, ".aidlc-plan.json"));
+  assert.equal(resolvedPlanPath(projectDir), path);
+  assert.deepEqual(
+    JSON.parse(readFileSync(path, "utf8")),
+    resolvePlanForScope("mvp"),
   );
 });
 
