@@ -8,12 +8,21 @@
     "graph:check": "tsx core/tools/aidlc-graph.ts compile --check",
     "graph:compile": "tsx core/tools/aidlc-graph.ts compile",
     "graph:resolve": "tsx core/tools/aidlc-graph.ts resolve",
+    "intent:birth": "tsx core/tools/aidlc-intent.ts birth",
+    "intent:list": "tsx core/tools/aidlc-intent.ts list",
+    "intent:switch": "tsx core/tools/aidlc-intent.ts switch",
     "rule:check": "tsx core/tools/aidlc-rule-loader.ts check",
     "sensor:check": "tsx core/tools/aidlc-sensor-loader.ts check",
     "scope:check": "tsx core/tools/aidlc-scope-loader.ts check",
+    "space:create": "tsx core/tools/aidlc-space.ts create",
+    "space:list": "tsx core/tools/aidlc-space.ts list",
+    "space:switch": "tsx core/tools/aidlc-space.ts switch",
     "stage:check": "tsx core/tools/aidlc-stage-loader.ts check",
     "test": "tsx --test tests/**/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "workspace:detect": "tsx core/tools/aidlc-workspace-detect.ts detect",
+    "workspace:init": "tsx core/tools/aidlc-workspace.ts init",
+    "workspace:migrate": "tsx core/tools/aidlc-workspace-migrate.ts migrate"
   },
   "dependencies": {
     "yaml": "2.9.0"
