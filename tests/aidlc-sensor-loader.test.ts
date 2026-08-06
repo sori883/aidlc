@@ -76,11 +76,28 @@ test("rejects an unknown sensor reference", () => {
   );
 });
 
-test("rejects a sensor filename that differs from its id", () => {
+test("ignores non-prefixed files and rejects a prefixed filename/id mismatch", () => {
   const sensorsDir = mkdtempSync(join(tmpdir(), "aidlc-sensors-"));
   writeFileSync(join(sensorsDir, "wrong-name.md"), SENSOR_MARKDOWN);
+  assert.deepEqual(loadSensors(sensorsDir), []);
+  writeFileSync(join(sensorsDir, "aidlc-other.md"), SENSOR_MARKDOWN);
   assert.throws(
     () => loadSensors(sensorsDir),
     /filename must be "aidlc-sample.md"/,
   );
+});
+
+test("tolerates additive manifest fields but reserves blocking severity", () => {
+  const sensorsDir = mkdtempSync(join(tmpdir(), "aidlc-sensors-"));
+  writeFileSync(
+    join(sensorsDir, "aidlc-sample.md"),
+    SENSOR_MARKDOWN.replace("category: test", "category: test\ncool_new_field: value"),
+  );
+  assert.equal(loadSensors(sensorsDir)[0]?.id, "sample");
+
+  writeFileSync(
+    join(sensorsDir, "aidlc-sample.md"),
+    SENSOR_MARKDOWN.replace("default_severity: advisory", "default_severity: blocking"),
+  );
+  assert.throws(() => loadSensors(sensorsDir), /blocking is reserved/);
 });

@@ -5,7 +5,7 @@ import {
   statSync,
 } from "node:fs";
 import { basename, join, posix, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseDocument } from "yaml";
 import {
   type LoadedStage,
@@ -13,7 +13,7 @@ import {
 } from "./aidlc-stage-loader.ts";
 
 export type SensorKind = "deterministic";
-export type SensorSeverity = "advisory" | "blocking";
+export type SensorSeverity = "advisory";
 
 export interface SensorDefinition {
   id: string;
@@ -21,11 +21,11 @@ export interface SensorDefinition {
   command: string;
   default_severity: SensorSeverity;
   description: string;
-  category: string;
+  category?: string;
   matches?: string;
   input_schema: Record<string, unknown>;
   output_schema: Record<string, unknown>;
-  timeout_seconds: number;
+  timeout_seconds?: number;
   instructions: string;
   sourcePath: string;
 }
@@ -36,20 +36,10 @@ export interface SensorResolution {
   matches?: string;
 }
 
-const DEFAULT_SENSORS_DIR = resolve("core/sensors");
+const MODULE_DIR = resolve(fileURLToPath(new URL(".", import.meta.url)));
+const DEFAULT_SENSORS_DIR = resolve(MODULE_DIR, "../sensors");
 const SENSOR_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const FRONTMATTER_KEYS = new Set([
-  "id",
-  "kind",
-  "command",
-  "default_severity",
-  "description",
-  "category",
-  "matches",
-  "input_schema",
-  "output_schema",
-  "timeout_seconds",
-]);
+const SENSOR_FILE_PATTERN = /^aidlc-([a-z][a-z0-9-]*)\.md$/;
 
 function fail(context: string, message: string): never {
   throw new Error(`${context}: ${message}`);
@@ -97,12 +87,6 @@ function parseSensorMarkdown(source: string, sourcePath: string): SensorDefiniti
     );
   }
   const record = asRecord(document.toJS(), `${sourcePath} frontmatter`);
-  const unknownKeys = Object.keys(record).filter(
-    (key) => !FRONTMATTER_KEYS.has(key),
-  );
-  if (unknownKeys.length > 0) {
-    fail(sourcePath, `unknown frontmatter field(s): ${unknownKeys.join(", ")}`);
-  }
 
   const id = asString(record.id, `${sourcePath}.id`);
   if (!SENSOR_ID_PATTERN.test(id)) {
@@ -120,21 +104,34 @@ function parseSensorMarkdown(source: string, sourcePath: string): SensorDefiniti
     record.default_severity,
     `${sourcePath}.default_severity`,
   );
-  if (severity !== "advisory" && severity !== "blocking") {
-    fail(`${sourcePath}.default_severity`, "must be advisory or blocking");
+  if (severity !== "advisory") {
+    fail(
+      `${sourcePath}.default_severity`,
+      "must be advisory; blocking is reserved for a future release",
+    );
   }
-  if (
-    typeof record.timeout_seconds !== "number" ||
-    !Number.isInteger(record.timeout_seconds) ||
-    record.timeout_seconds < 1
-  ) {
-    fail(`${sourcePath}.timeout_seconds`, "must be a positive integer");
+  if (record.timeout_seconds !== undefined) {
+    if (
+      typeof record.timeout_seconds !== "number" ||
+      !Number.isInteger(record.timeout_seconds) ||
+      record.timeout_seconds < 1
+    ) {
+      fail(`${sourcePath}.timeout_seconds`, "must be a positive integer");
+    }
   }
 
-  const inputSchema = asRecord(record.input_schema, `${sourcePath}.input_schema`);
-  const outputSchema = asRecord(record.output_schema, `${sourcePath}.output_schema`);
-  validateSchemaNode(inputSchema, `${sourcePath}.input_schema`);
-  validateSchemaNode(outputSchema, `${sourcePath}.output_schema`);
+  const inputSchema = record.input_schema === undefined
+    ? {}
+    : asRecord(record.input_schema, `${sourcePath}.input_schema`);
+  const outputSchema = record.output_schema === undefined
+    ? {}
+    : asRecord(record.output_schema, `${sourcePath}.output_schema`);
+  if (record.input_schema !== undefined) {
+    validateSchemaNode(inputSchema, `${sourcePath}.input_schema`);
+  }
+  if (record.output_schema !== undefined) {
+    validateSchemaNode(outputSchema, `${sourcePath}.output_schema`);
+  }
   const instructions = (match[2] ?? "").trim();
   if (instructions === "") fail(sourcePath, "sensor instructions must not be empty");
 
@@ -144,15 +141,22 @@ function parseSensorMarkdown(source: string, sourcePath: string): SensorDefiniti
     command: asString(record.command, `${sourcePath}.command`),
     default_severity: severity,
     description: asString(record.description, `${sourcePath}.description`),
-    category: asString(record.category, `${sourcePath}.category`),
     input_schema: inputSchema,
     output_schema: outputSchema,
-    timeout_seconds: record.timeout_seconds,
     instructions,
     sourcePath,
   };
+  if (record.category !== undefined) {
+    if (typeof record.category !== "string") {
+      fail(`${sourcePath}.category`, "must be a string");
+    }
+    sensor.category = record.category;
+  }
   if (record.matches !== undefined) {
     sensor.matches = asString(record.matches, `${sourcePath}.matches`);
+  }
+  if (record.timeout_seconds !== undefined) {
+    sensor.timeout_seconds = record.timeout_seconds as number;
   }
   return sensor;
 }
@@ -166,7 +170,7 @@ export function loadSensors(sensorsDir = DEFAULT_SENSORS_DIR): SensorDefinition[
   const sensors: SensorDefinition[] = [];
   const seen = new Map<string, string>();
   for (const filename of readdirSync(absoluteDir)
-    .filter((entry) => entry.endsWith(".md"))
+    .filter((entry) => SENSOR_FILE_PATTERN.test(entry))
     .sort()) {
     const sourcePath = join(absoluteDir, filename);
     const sensor = parseSensorMarkdown(
