@@ -5,7 +5,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   loadAgents,
   validateStageAgentReferences,
@@ -77,8 +77,12 @@ export interface CompileOptions extends LoadStagesOptions {
   scopesDir?: string;
 }
 
-const DEFAULT_GRAPH_PATH = resolve("core/aidlc-common/data/stage-graph.json");
-const DEFAULT_SCOPE_GRID_PATH = resolve("core/aidlc-common/data/scope-grid.json");
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+const DEFAULT_GRAPH_PATH = resolve(MODULE_DIR, "../aidlc-common/data/stage-graph.json");
+const DEFAULT_SCOPE_GRID_PATH = resolve(
+  MODULE_DIR,
+  "../aidlc-common/data/scope-grid.json",
+);
 
 const FIELD_ORDER = [
   "slug",
