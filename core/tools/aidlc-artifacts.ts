@@ -23,10 +23,13 @@ import {
   stateFilePath,
 } from "./aidlc-state.ts";
 import { activeSpace, workspaceRoot } from "./aidlc-workspace.ts";
+import type { UnitKind } from "./aidlc-unit-graph.ts";
 
 export interface ArtifactResolutionOptions {
   unit?: string;
   repo?: string;
+  unitKind?: UnitKind;
+  singlePass?: boolean;
 }
 
 export interface ArtifactProducer {
@@ -121,13 +124,14 @@ function standardArtifactPath(
   stage: CompiledStage,
   artifact: string,
   unit?: string,
+  singlePass = false,
 ): string {
   const recordDir = activeIntentRecordDir(projectDir);
   const safeArtifact = safeArtifactName(artifact);
   const safeUnit = unit === undefined
     ? UNIT_PLACEHOLDER
     : safePathSegment(unit, "Unit name");
-  const absolute = stage.for_each === "unit-of-work"
+  const absolute = stage.for_each === "unit-of-work" && !singlePass
     ? join(
         recordDir,
         stage.phase,
@@ -203,7 +207,28 @@ export function artifactOutputPaths(
   if (stage.slug === "reverse-engineering") {
     return codeKnowledgePaths(projectDir, artifact, options);
   }
-  return [standardArtifactPath(projectDir, stage, artifact, options.unit)];
+  return [standardArtifactPath(
+    projectDir,
+    stage,
+    artifact,
+    options.unit,
+    options.singlePass,
+  )];
+}
+
+/** Apply a Stage's optional per-kind output matrix for one Unit. */
+export function producedArtifactsForUnit(
+  stage: CompiledStage,
+  artifacts: readonly string[],
+  kind?: UnitKind,
+): string[] {
+  if (kind === undefined || stage.produces_kinds === undefined) {
+    return [...artifacts];
+  }
+  return artifacts.filter((artifact) => {
+    const kinds = stage.produces_kinds?.[artifact];
+    return kinds === undefined || kinds.includes(kind);
+  });
 }
 
 function consumedArtifactPaths(
@@ -221,6 +246,19 @@ function consumedArtifactPaths(
     };
   }
   if (producer.for_each === "unit-of-work" && options.unit === undefined) {
+    if (options.singlePass) {
+      const candidates = [standardArtifactPath(
+        projectDir,
+        producer,
+        artifact,
+        undefined,
+        true,
+      )];
+      return {
+        candidates,
+        present: candidates.filter((path) => existsSync(resolve(projectDir, path))),
+      };
+    }
     const present = concretePerUnitPaths(projectDir, producer, artifact);
     return {
       candidates: present.length > 0
@@ -261,6 +299,13 @@ export function resolveStageArtifacts(
         `Stage "${stage.slug}" consumes unknown artifact "${consume.artifact}"`,
       );
     }
+    const producerKinds = producer.stage.produces_kinds?.[consume.artifact];
+    if (
+      options.unitKind !== undefined && producerKinds !== undefined &&
+      !producerKinds.includes(options.unitKind)
+    ) {
+      continue;
+    }
     const paths = consumedArtifactPaths(
       projectDir,
       producer.stage,
@@ -280,10 +325,18 @@ export function resolveStageArtifacts(
     }
   }
 
-  const produces = (stage.produces ?? []).flatMap((artifact) =>
+  const produces = producedArtifactsForUnit(
+    stage,
+    stage.produces ?? [],
+    options.unitKind,
+  ).flatMap((artifact) =>
     artifactOutputPaths(projectDir, stage, artifact, options)
   );
-  const optionalProduces = (stage.optional_produces ?? []).flatMap((artifact) =>
+  const optionalProduces = producedArtifactsForUnit(
+    stage,
+    stage.optional_produces ?? [],
+    options.unitKind,
+  ).flatMap((artifact) =>
     artifactOutputPaths(projectDir, stage, artifact, options)
   );
   return { consumes, consumesAbsent, produces, optionalProduces };
@@ -295,7 +348,10 @@ export function verifyStageArtifactEvidence(
   stage: CompiledStage,
   options: ArtifactResolutionOptions = {},
 ): ArtifactEvidence {
-  if (stage.for_each === "unit-of-work" && options.unit === undefined) {
+  if (
+    stage.for_each === "unit-of-work" && options.unit === undefined &&
+    !options.singlePass
+  ) {
     return {
       valid: false,
       missing: [
@@ -303,7 +359,11 @@ export function verifyStageArtifactEvidence(
       ],
     };
   }
-  const required = (stage.produces ?? []).flatMap((artifact) =>
+  const required = producedArtifactsForUnit(
+    stage,
+    stage.produces ?? [],
+    options.unitKind,
+  ).flatMap((artifact) =>
     artifactOutputPaths(projectDir, stage, artifact, options)
   );
   const missing = required.filter((path) => !existsSync(resolve(projectDir, path)));

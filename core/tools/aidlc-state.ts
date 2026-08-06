@@ -23,6 +23,7 @@ import {
 } from "./aidlc-workspace-detect.ts";
 import { withWorkspaceLock } from "./aidlc-workspace-lock.ts";
 import { appendAuditEntry } from "./aidlc-audit.ts";
+import type { UnitDag } from "./aidlc-unit-graph.ts";
 
 export const STATE_VERSION = 7;
 
@@ -67,6 +68,7 @@ export interface ResumePoint {
   totalStages: number;
   nextAction: string;
   checkboxState: StateCheckbox | "unknown";
+  currentUnit: string | null;
 }
 
 export interface StateTransition {
@@ -76,6 +78,15 @@ export interface StateTransition {
   nextStage: string | null;
   workflowCompleted: boolean;
   completedStages: number;
+}
+
+export interface UnitStageTransition {
+  recordDir: string;
+  stage: string;
+  unit: string;
+  replay: boolean;
+  nextUnit: string | null;
+  allUnitsCompleted: boolean;
 }
 
 const MARKER_BY_STATE: Record<StateCheckbox, string> = {
@@ -95,6 +106,15 @@ const STATE_BY_MARKER: Record<string, StateCheckbox> = {
   x: "completed",
   S: "skipped",
 };
+
+const UNIT_PROGRESS_START = "<!-- AIDLC_UNIT_PROGRESS_START -->";
+const UNIT_PROGRESS_END = "<!-- AIDLC_UNIT_PROGRESS_END -->";
+
+interface UnitProgressRow {
+  marker: string;
+  unit: string;
+  stage: string;
+}
 
 function writeFileAtomic(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true });
@@ -244,6 +264,46 @@ function checkboxState(content: string, slug: string): StateCheckbox | "unknown"
   return marker === undefined ? "unknown" : STATE_BY_MARKER[marker] ?? "unknown";
 }
 
+function unitProgressRows(content: string): UnitProgressRow[] {
+  return [...content.matchAll(
+    /^- \[([ xS?R-])\] Unit: ([a-z0-9]+(?:-[a-z0-9]+)*) — ([a-z0-9]+(?:-[a-z0-9]+)*)$/gm,
+  )].map((match) => ({
+    marker: match[1] ?? " ",
+    unit: match[2] ?? "",
+    stage: match[3] ?? "",
+  }));
+}
+
+function currentUnitForStage(content: string, slug: string): string | null {
+  return unitProgressRows(content).find(
+    (row) => row.stage === slug && row.marker !== "x" && row.marker !== "S",
+  )?.unit ?? null;
+}
+
+function setUnitProgressMarker(
+  content: string,
+  slug: string,
+  unit: string,
+  marker: "x" | "S",
+): string {
+  const pattern = new RegExp(
+    `^(- \\[)[ xS?R-](\\] Unit: ${escapeRegExp(unit)} — ${escapeRegExp(slug)})$`,
+    "m",
+  );
+  if (!pattern.test(content)) {
+    throw new Error(`State file has no Unit row for "${unit}" / "${slug}"`);
+  }
+  return content.replace(pattern, `$1${marker}$2`);
+}
+
+function skipUnitProgressForStage(content: string, slug: string): string {
+  const pattern = new RegExp(
+    `^(- \\[)[ x?R-](\\] Unit: [a-z0-9]+(?:-[a-z0-9]+)* — ${escapeRegExp(slug)})$`,
+    "gm",
+  );
+  return content.replace(pattern, "$1S$2");
+}
+
 function setCheckboxState(
   content: string,
   slug: string,
@@ -381,7 +441,9 @@ function renderState(
         if (stage.slug === firstStage?.slug) marker = "-";
         return `- [${marker}] ${stage.slug} — ${action}`;
       });
-    const unitHint = phase === "construction" ? ["Per unit: [TBD]"] : [];
+    const unitHint = phase === "construction"
+      ? [UNIT_PROGRESS_START, "Per unit: [TBD]", UNIT_PROGRESS_END]
+      : [];
     return `### ${phase.toUpperCase()} PHASE\n${[...unitHint, ...rows].join("\n")}`;
   }).join("\n\n");
 
@@ -526,6 +588,114 @@ function updateActiveIntentStatus(projectDir: string, status: string): void {
   writeFileAtomic(registryPath, `${JSON.stringify(registry, null, 2)}\n`);
 }
 
+/** Materialize the active workflow's deterministic per-Unit State rows. */
+export function hydrateConstructionUnitProgress(
+  projectDir: string,
+  dag: UnitDag,
+): string[] {
+  const projectRoot = resolve(projectDir);
+  return withWorkspaceLock(projectRoot, () => {
+    const recordDir = activeIntentRecordDir(projectRoot);
+    const path = join(recordDir, "aidlc-state.md");
+    let content = readFileSync(path, "utf8");
+    const existing = new Map(
+      unitProgressRows(content).map((row) => [
+        `${row.stage}\u0000${row.unit}`,
+        row.marker,
+      ]),
+    );
+    const plan = readPlan(recordDir);
+    const routed = new Map(plan.map((row) => [row.slug, row.action]));
+    const stages = loadCompiledStageGraph().filter(
+      (stage) =>
+        stage.for_each === "unit-of-work" && routed.get(stage.slug) === "EXECUTE",
+    );
+    const units = dag.batches.flat();
+    const rows = stages.flatMap((stage) =>
+      units.map((unit) => {
+        const marker = existing.get(`${stage.slug}\u0000${unit}`) ?? " ";
+        return `- [${marker}] Unit: ${unit} — ${stage.slug}`;
+      })
+    );
+    const replacement = [
+      UNIT_PROGRESS_START,
+      rows.length === 0 ? "Per unit: none" : "Per unit:",
+      ...rows,
+      UNIT_PROGRESS_END,
+    ].join("\n");
+    const block = new RegExp(
+      `${escapeRegExp(UNIT_PROGRESS_START)}[\\s\\S]*?${escapeRegExp(UNIT_PROGRESS_END)}`,
+    );
+    if (block.test(content)) {
+      content = content.replace(block, replacement);
+    } else if (/^Per unit: \[TBD\]$/m.test(content)) {
+      // State Version 7 records created before Unit execution support used a
+      // single placeholder line. Upgrade that line in place on first hydrate.
+      content = content.replace(/^Per unit: \[TBD\]$/m, replacement);
+    } else {
+      throw new Error(
+        "State file is missing the Construction Unit progress placeholder",
+      );
+    }
+    content = setStateField(content, "Last Updated", isoTimestamp());
+    writeFileAtomic(path, content);
+    return units;
+  });
+}
+
+/** Record one verified Unit output set without advancing the parent Stage. */
+export function completeCurrentUnitStage(
+  projectDir: string,
+  slug: string,
+  unit: string,
+): UnitStageTransition {
+  const projectRoot = resolve(projectDir);
+  return withWorkspaceLock(projectRoot, () => {
+    const recordDir = activeIntentRecordDir(projectRoot);
+    const path = join(recordDir, "aidlc-state.md");
+    let content = readFileSync(path, "utf8");
+    const current = stateField(content, "Current Stage");
+    if (current !== slug) {
+      throw new Error(
+        `Cannot complete Unit "${unit}" for "${slug}": Current Stage is "${current ?? "unknown"}"`,
+      );
+    }
+    const node = graphBySlug().get(slug);
+    if (node?.for_each !== "unit-of-work") {
+      throw new Error(`Stage "${slug}" is not a per-Unit stage`);
+    }
+    const before = unitProgressRows(content).find(
+      (row) => row.stage === slug && row.unit === unit,
+    );
+    if (before === undefined) {
+      throw new Error(`Unknown Unit "${unit}" for stage "${slug}"`);
+    }
+    const replay = before.marker === "x";
+    if (!replay) content = setUnitProgressMarker(content, slug, unit, "x");
+    const remaining = unitProgressRows(content).filter(
+      (row) => row.stage === slug && row.marker !== "x" && row.marker !== "S",
+    );
+    const nextUnit = remaining[0]?.unit ?? null;
+    content = setStateField(
+      content,
+      "Next Action",
+      nextUnit === null
+        ? `Complete ${slug} after all Units`
+        : `Execute ${slug} for Unit ${nextUnit}`,
+    );
+    content = setStateField(content, "Last Updated", isoTimestamp());
+    writeFileAtomic(path, content);
+    return {
+      recordDir,
+      stage: slug,
+      unit,
+      replay,
+      nextUnit,
+      allUnitsCompleted: nextUnit === null,
+    };
+  });
+}
+
 function transitionCurrentStage(
   projectDir: string,
   slug: string,
@@ -555,6 +725,20 @@ function transitionCurrentStage(
     const scope = stateField(content, "Scope");
     if (scope === null || scope.length === 0) {
       throw new Error("State file has no Scope field");
+    }
+    const unitRows = unitProgressRows(content).filter(
+      (row) => row.stage === slug,
+    );
+    if (
+      result === "completed" && unitRows.length > 0 &&
+      unitRows.some((row) => row.marker !== "x" && row.marker !== "S")
+    ) {
+      throw new Error(
+        `Cannot complete per-Unit stage "${slug}": not all Units are complete`,
+      );
+    }
+    if (result === "skipped" && unitRows.length > 0) {
+      content = skipUnitProgressForStage(content, slug);
     }
     content = setCheckboxState(
       content,
@@ -708,6 +892,8 @@ export function resumeIntentState(projectDir: string): ResumePoint {
     nextAction: stateField(content, "Next Action") ?? "unknown",
     checkboxState:
       currentStage === "none" ? "unknown" : checkboxState(content, currentStage),
+    currentUnit:
+      currentStage === "none" ? null : currentUnitForStage(content, currentStage),
   };
 }
 

@@ -17,6 +17,7 @@ import {
   resolveNextDirective,
 } from "../core/tools/aidlc-orchestrate.ts";
 import {
+  completeCurrentUnitStage,
   completeCurrentStage,
   resumeIntentState,
 } from "../core/tools/aidlc-state.ts";
@@ -161,7 +162,7 @@ test("report skip requires a conditional stage and a reason", () => {
   assert.match(audit, /\*\*Reason\*\*: outside MVP needs/);
 });
 
-test("report does not advance a per-unit stage without unit execution state", () => {
+test("a missing Unit DAG falls back to single-pass artifact evidence", () => {
   const projectDir = freshProject();
   const born = birthIntentWithState(projectDir, "Payment API", "default", "mvp");
   while (resumeIntentState(projectDir).currentStage !== "functional-design") {
@@ -177,8 +178,201 @@ test("report does not advance a per-unit stage without unit execution state", ()
   });
 
   assert.equal(result.kind, "error");
-  if (result.kind === "error") assert.match(result.message, /unit execution state/);
+  if (result.kind === "error") {
+    assert.match(result.message, /missing required artifact evidence/);
+    assert.doesNotMatch(result.message, /\{unit-name\}/);
+  }
   assert.equal(readFileSync(born.state.statePath, "utf8"), beforeState);
+});
+
+test("POC runs per-Unit Construction stages once when no Unit DAG exists", () => {
+  const projectDir = freshProject();
+  birthIntentWithState(projectDir, "Payment API spike", "default", "poc");
+  while (resumeIntentState(projectDir).currentStage !== "code-generation") {
+    const current = resumeIntentState(projectDir).currentStage;
+    assert.notEqual(current, "none");
+    completeCurrentStage(projectDir, current);
+  }
+
+  const directive = resolveNextDirective(projectDir);
+  assert.equal(directive.kind, "run-stage");
+  if (directive.kind !== "run-stage") return;
+  assert.equal(directive.stage, "code-generation");
+  assert.equal(directive.unit, undefined);
+  assert.ok(directive.produces.every((path) =>
+    path.includes("/construction/code-generation/") &&
+    !path.includes("{unit-name}")
+  ));
+
+  materialize(projectDir, directive.produces);
+  const report = reportStageResult(projectDir, {
+    stage: "code-generation",
+    result: "completed",
+  });
+  assert.equal(report.kind, "done");
+  assert.equal(resumeIntentState(projectDir).currentStage, "build-and-test");
+});
+
+test("reverse-engineering completes only after every registered Repo has evidence", () => {
+  const projectDir = mkdtempSync(join(tmpdir(), "aidlc-orchestrate-repos-"));
+  writeFileSync(join(projectDir, "package.json"), '{"name":"fixture"}\n');
+  mkdirSync(join(projectDir, "src"));
+  writeFileSync(join(projectDir, "src", "index.ts"), "export const ok = true;\n");
+  initializeWorkspace(projectDir);
+  const born = birthIntentWithState(
+    projectDir,
+    "Modernize services",
+    "default",
+    "mvp",
+    ["api", "worker"],
+  );
+  while (resumeIntentState(projectDir).currentStage !== "reverse-engineering") {
+    const current = resumeIntentState(projectDir).currentStage;
+    assert.notEqual(current, "none");
+    completeCurrentStage(projectDir, current);
+  }
+  assert.equal(resumeIntentState(projectDir).currentStage, "reverse-engineering");
+
+  const directive = resolveNextDirective(projectDir);
+  assert.equal(directive.kind, "run-stage");
+  if (directive.kind !== "run-stage") return;
+  assert.equal(directive.stage, "reverse-engineering");
+  const apiOutputs = directive.produces.filter((path) => path.includes("/api/"));
+  const workerOutputs = directive.produces.filter((path) => path.includes("/worker/"));
+  assert.ok(apiOutputs.length > 0);
+  assert.equal(apiOutputs.length, workerOutputs.length);
+
+  materialize(projectDir, apiOutputs);
+  const beforeState = readFileSync(born.state.statePath, "utf8");
+  const incomplete = reportStageResult(projectDir, {
+    stage: "reverse-engineering",
+    result: "completed",
+  });
+  assert.equal(incomplete.kind, "error");
+  if (incomplete.kind === "error") assert.match(incomplete.message, /\/worker\//);
+  assert.equal(readFileSync(born.state.statePath, "utf8"), beforeState);
+
+  materialize(projectDir, workerOutputs);
+  const completed = reportStageResult(projectDir, {
+    stage: "reverse-engineering",
+    result: "completed",
+  });
+  assert.equal(completed.kind, "done");
+  assert.notEqual(resumeIntentState(projectDir).currentStage, "reverse-engineering");
+});
+
+test("Unit DAG drives resumable per-Unit reports and advances after every Unit", () => {
+  const projectDir = freshProject();
+  const born = birthIntentWithState(projectDir, "Payment API", "default", "mvp");
+  while (resumeIntentState(projectDir).currentStage !== "units-generation") {
+    const current = resumeIntentState(projectDir).currentStage;
+    assert.notEqual(current, "none");
+    completeCurrentStage(projectDir, current);
+  }
+
+  // Version 7 records created before Unit execution support used only this
+  // placeholder; units-generation upgrades it without a separate migration.
+  writeFileSync(
+    born.state.statePath,
+    readFileSync(born.state.statePath, "utf8").replace(
+      /<!-- AIDLC_UNIT_PROGRESS_START -->[\s\S]*?<!-- AIDLC_UNIT_PROGRESS_END -->/,
+      "Per unit: [TBD]",
+    ),
+    "utf8",
+  );
+
+  const unitsDirective = resolveNextDirective(projectDir);
+  assert.equal(unitsDirective.kind, "run-stage");
+  if (unitsDirective.kind !== "run-stage") return;
+  for (const path of unitsDirective.produces) {
+    const absolute = resolve(projectDir, path);
+    mkdirSync(dirname(absolute), { recursive: true });
+    writeFileSync(
+      absolute,
+      path.endsWith("unit-of-work-dependency.md")
+        ? `# Unit dependencies
+
+\`\`\`yaml
+units:
+  - name: api
+    kind: service
+    depends_on: [database]
+  - name: monitoring
+    depends_on: [database]
+  - name: database
+    kind: library
+    depends_on: []
+  - name: frontend
+    kind: ui
+    depends_on: [api]
+\`\`\`
+`
+        : "# Test artifact\n",
+      "utf8",
+    );
+  }
+  assert.equal(reportStageResult(projectDir, {
+    stage: "units-generation",
+    result: "completed",
+  }).kind, "done");
+
+  assert.equal(resumeIntentState(projectDir).currentStage, "delivery-planning");
+  completeCurrentStage(projectDir, "delivery-planning");
+  assert.equal(resumeIntentState(projectDir).currentStage, "functional-design");
+  assert.equal(resumeIntentState(projectDir).currentUnit, "database");
+
+  const outOfOrder = reportStageResult(projectDir, {
+    stage: "functional-design",
+    unit: "monitoring",
+    result: "completed",
+  });
+  assert.equal(outOfOrder.kind, "error");
+  if (outOfOrder.kind === "error") assert.match(outOfOrder.message, /out of order/);
+
+  for (const expectedUnit of ["database", "api", "monitoring", "frontend"]) {
+    const directive = resolveNextDirective(projectDir);
+    assert.equal(directive.kind, "run-stage");
+    if (directive.kind !== "run-stage") return;
+    assert.equal(directive.stage, "functional-design");
+    assert.equal(directive.unit, expectedUnit);
+    assert.ok(directive.produces.every((path) =>
+      path.includes(`/construction/${expectedUnit}/functional-design/`)
+    ));
+    if (expectedUnit === "frontend") {
+      assert.deepEqual(directive.produces.map((path) => basename(path)), [
+        "business-logic-model.md",
+      ]);
+    }
+    materialize(projectDir, directive.produces);
+    if (expectedUnit === "frontend") {
+      const interrupted = completeCurrentUnitStage(
+        projectDir,
+        directive.stage,
+        expectedUnit,
+      );
+      assert.equal(interrupted.allUnitsCompleted, true);
+      assert.equal(resumeIntentState(projectDir).currentUnit, null);
+    }
+    const result = reportStageResult(projectDir, {
+      stage: directive.stage,
+      unit: expectedUnit,
+      result: "completed",
+    });
+    assert.equal(result.kind, "done");
+  }
+
+  const resume = resumeIntentState(projectDir);
+  assert.equal(resume.currentStage, "nfr-requirements");
+  assert.equal(resume.currentUnit, "database");
+  const state = readFileSync(born.state.statePath, "utf8");
+  for (const unit of ["database", "api", "monitoring", "frontend"]) {
+    assert.match(state, new RegExp(`^- \\[x\\] Unit: ${unit} — functional-design$`, "m"));
+  }
+  const audit = readFileSync(born.auditPath, "utf8");
+  assert.equal(
+    [...audit.matchAll(/\*\*Event\*\*: STAGE_COMPLETED\n\*\*Stage\*\*: functional-design/g)].length,
+    1,
+  );
 });
 
 test("next emits done after the active workflow completes", () => {

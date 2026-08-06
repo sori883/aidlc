@@ -542,6 +542,7 @@ export async function executeStageAndReport(
   const report = reportStageResult(projectDir, {
     stage: directive.stage,
     result: "completed",
+    ...(directive.unit === undefined ? {} : { unit: directive.unit }),
   });
   if (report.kind === "error") {
     return {
@@ -578,6 +579,7 @@ export function reportApprovedStageExecution(
   const report = reportStageResult(projectDir, {
     stage: directive.stage,
     result: "approved",
+    ...(directive.unit === undefined ? {} : { unit: directive.unit }),
   });
   if (report.kind === "error") {
     return {

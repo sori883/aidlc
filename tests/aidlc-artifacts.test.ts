@@ -193,6 +193,22 @@ test("resolver filters conditional inputs and reports required missing inputs", 
     path.includes("/construction/payments/functional-design/")
   ));
   assert.ok(functional.optionalProduces[0]?.endsWith("frontend-components.md"));
+
+  const nfrForUi = resolveStageArtifacts(
+    projectDir,
+    stage(graph, "nfr-requirements"),
+    graph,
+    context.plan,
+    context.state,
+    context.projectType,
+    { unit: "payments", unitKind: "ui" },
+  );
+  assert.equal(
+    nfrForUi.consumesAbsent.some((entry) =>
+      entry.path.endsWith("/functional-design/business-rules.md")
+    ),
+    false,
+  );
 });
 
 test("required outputs block completion while optional outputs do not", () => {

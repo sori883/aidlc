@@ -53,6 +53,16 @@ compiled stage in that phase:
 ### [PHASE] PHASE
 - [ ] stage-slug — [EXECUTE/SKIP: reason]
 
+The Construction phase also contains an engine-managed Unit progress block.
+Before `units-generation` completes it contains `Per unit: [TBD]`; afterwards
+the engine emits one row for every executable per-Unit stage and Unit in
+topological order:
+
+<!-- AIDLC_UNIT_PROGRESS_START -->
+Per unit:
+- [ ] Unit: [unit-slug] — [per-unit-stage-slug]
+<!-- AIDLC_UNIT_PROGRESS_END -->
+
 ## Current Status
 - **Lifecycle Phase**: [READY/INITIALIZATION/IDEATION/INCEPTION/CONSTRUCTION/OPERATION]
 - **Current Stage**: [stage slug or status text]
