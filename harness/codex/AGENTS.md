@@ -15,3 +15,7 @@ Run every packaged AI-DLC command from the project root. The deterministic
 engine owns routing, State, Audit, artifact paths, and approval transitions.
 Never edit `aidlc-state.md` or Audit markdown directly, and never record a human
 approval that did not occur.
+
+When the runtime reports missing, malformed, or inconsistent AI-DLC state, run
+`pnpm --dir .codex run doctor check --project-dir ..` before proposing manual
+edits. Use `doctor repair` only for findings marked `automatic`.

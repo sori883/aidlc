@@ -134,6 +134,12 @@ Print the reason concisely and stop.
 ### `error`
 
 Print the exact message, stop mutation, and explain the smallest recovery step.
+For missing, malformed, or inconsistent Workspace/Intent/State data, run:
+
+`pnpm --dir .codex run doctor check --project-dir ..`
+
+Use `doctor repair` only when the report marks the finding `automatic`; never
+replace a manual finding with inferred progress or approval.
 
 ## Single Stage
 

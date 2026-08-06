@@ -10,6 +10,7 @@
     "artifact:show": "tsx core/tools/aidlc-artifacts.ts show",
     "bundle:check": "tsx core/tools/aidlc-codex-bundle.ts check",
     "bundle:write": "tsx core/tools/aidlc-codex-bundle.ts write",
+    "doctor": "tsx core/tools/aidlc-doctor.ts",
     "graph:check": "tsx core/tools/aidlc-graph.ts compile --check",
     "graph:compile": "tsx core/tools/aidlc-graph.ts compile",
     "graph:resolve": "tsx core/tools/aidlc-graph.ts resolve",
