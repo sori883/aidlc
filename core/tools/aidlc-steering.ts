@@ -257,7 +257,11 @@ function readPayload(token: string, secret: Buffer): ContinuationPayload {
   } catch {
     throw new Error("Invalid steering continuation token signature.");
   }
-  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+  if (
+    actual.toString("base64url") !== pieces[1] ||
+    actual.length !== expected.length ||
+    !timingSafeEqual(actual, expected)
+  ) {
     throw new Error("Invalid steering continuation token signature.");
   }
 
