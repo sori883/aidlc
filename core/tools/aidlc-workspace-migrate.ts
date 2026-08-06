@@ -70,8 +70,8 @@ export function needsFlatMigration(projectDir: string): boolean {
 function stateField(content: string, field: string): string | null {
   const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const patterns = [
-    new RegExp(`^\\s*-?\\s*\\*\\*${escaped}\\*\\*\\s*:\\s*(.+)$`, "im"),
-    new RegExp(`^\\s*${escaped}\\s*:\\s*(.+)$`, "im"),
+    new RegExp(`^[ \\t]*-?[ \\t]*\\*\\*${escaped}\\*\\*[ \\t]*:[ \\t]*(.+)$`, "im"),
+    new RegExp(`^[ \\t]*${escaped}[ \\t]*:[ \\t]*(.+)$`, "im"),
   ];
   for (const pattern of patterns) {
     const value = pattern.exec(content)?.[1]?.trim();

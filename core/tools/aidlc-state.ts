@@ -253,7 +253,7 @@ function stageAfter(
 
 function stateField(content: string, field: string): string | null {
   const pattern = new RegExp(
-    `^- \\*\\*${escapeRegExp(field)}\\*\\*:\\s*(.*)$`,
+    `^- \\*\\*${escapeRegExp(field)}\\*\\*:[ \\t]*(.*)$`,
     "m",
   );
   return pattern.exec(content)?.[1]?.trim() ?? null;
@@ -774,6 +774,7 @@ function transitionCurrentStage(
     if (next === null) {
       content = setStateField(content, "Active Agent", "");
       content = setStateField(content, "In Progress", "none");
+      content = setStateField(content, "Lifecycle Phase", "READY");
       content = setStateField(content, "Current Stage", "none");
       content = setStateField(content, "Next Stage", "none");
       content = setStateField(content, "Status", "Completed");

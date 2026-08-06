@@ -4,13 +4,18 @@ import {
   mkdtempSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { loadAgents } from "../core/tools/aidlc-agent-loader.ts";
+import type {
+  Directive,
+  RunStageDirective,
+} from "../core/tools/aidlc-directive.ts";
 import {
   checkCodexBundle,
   CODEX_BUNDLE_MANIFEST,
@@ -33,6 +38,44 @@ function run(
     `${command} ${args.join(" ")} failed:\n${result.stdout}\n${result.stderr}`,
   );
   return { stdout: result.stdout, stderr: result.stderr };
+}
+
+function jsonOutput<T>(stdout: string): T {
+  const start = stdout.indexOf("{");
+  assert.notEqual(start, -1, stdout);
+  return JSON.parse(stdout.slice(start)) as T;
+}
+
+function runtimeNext(outDir: string, continueToken?: string): Directive {
+  const args = [
+    "--dir",
+    ".codex",
+    "run",
+    "orchestrate",
+    "next",
+    "--project-dir",
+    "..",
+    ...(continueToken === undefined
+      ? []
+      : ["--continue-token", continueToken]),
+  ];
+  return jsonOutput<Directive>(run(outDir, "pnpm", args).stdout);
+}
+
+function runtimeRunnable(outDir: string): RunStageDirective {
+  let directive = runtimeNext(outDir);
+  while (directive.kind === "load-steering") {
+    directive = runtimeNext(outDir, directive.continue_token);
+  }
+  assert.equal(
+    directive.kind,
+    "run-stage",
+    directive.kind === "error" ? directive.message : JSON.stringify(directive),
+  );
+  if (directive.kind !== "run-stage") {
+    throw new Error("Expected run-stage Directive");
+  }
+  return directive;
 }
 
 test("writes a complete Codex bundle with local tsx and yaml runtime", () => {
@@ -127,21 +170,8 @@ test("generated runtime installs and starts a real Intent", { timeout: 30_000 },
     "--scope",
     "mvp",
   ]);
-  const next = run(outDir, "pnpm", [
-    "--dir",
-    ".codex",
-    "run",
-    "orchestrate",
-    "next",
-    "--project-dir",
-    "..",
-  ]);
-  const jsonStart = next.stdout.indexOf("{");
-  assert.notEqual(jsonStart, -1, next.stdout);
-  const directive = JSON.parse(next.stdout.slice(jsonStart)) as {
-    kind?: string;
-  };
-  assert.equal(["load-steering", "run-stage"].includes(directive.kind ?? ""), true);
+  const directive = runtimeRunnable(outDir);
+  assert.equal(directive.stage, "intent-capture");
   assert.equal(existsSync(join(outDir, "aidlc", "active-space")), true);
   const doctor = run(outDir, "pnpm", [
     "--dir",
@@ -153,10 +183,75 @@ test("generated runtime installs and starts a real Intent", { timeout: 30_000 },
     "..",
     "--json",
   ]);
-  const doctorJsonStart = doctor.stdout.indexOf("{");
-  assert.notEqual(doctorJsonStart, -1, doctor.stdout);
-  const doctorReport = JSON.parse(doctor.stdout.slice(doctorJsonStart)) as {
+  const doctorReport = jsonOutput<{
     healthy?: boolean;
-  };
+  }>(doctor.stdout);
   assert.equal(doctorReport.healthy, true);
+
+  for (const output of directive.produces) {
+    const path = resolve(outDir, output);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, "# Bundle process-resume artifact\n", "utf8");
+  }
+  run(outDir, "pnpm", [
+    "--dir",
+    ".codex",
+    "run",
+    "memory",
+    "init",
+    "--memory-path",
+    directive.memory_path,
+    "--project-dir",
+    "..",
+  ]);
+  const memoryPath = resolve(realpathSync(outDir), directive.memory_path);
+  const recordDir = dirname(dirname(dirname(memoryPath)));
+  const selectionDir = join(recordDir, ".aidlc-learnings");
+  mkdirSync(selectionDir, { recursive: true });
+  const selections = join(selectionDir, `${directive.stage}-selections.json`);
+  writeFileSync(selections, `${JSON.stringify({
+    version: 1,
+    stage: directive.stage,
+    anything_to_add_answered: true,
+    selections: [],
+  }, null, 2)}\n`, "utf8");
+  run(outDir, "pnpm", [
+    "--dir",
+    ".codex",
+    "run",
+    "learnings",
+    "persist",
+    "--slug",
+    directive.stage,
+    "--selections-json",
+    selections,
+    "--project-dir",
+    "..",
+  ]);
+  const report = jsonOutput<Directive>(run(outDir, "pnpm", [
+    "--dir",
+    ".codex",
+    "run",
+    "orchestrate",
+    "report",
+    "--project-dir",
+    "..",
+    "--stage",
+    directive.stage,
+    "--result",
+    "approved",
+  ]).stdout);
+  assert.equal(report.kind, "done");
+
+  const resumed = jsonOutput<{ currentStage: string }>(run(outDir, "pnpm", [
+    "--dir",
+    ".codex",
+    "run",
+    "state",
+    "resume",
+    "..",
+  ]).stdout);
+  assert.notEqual(resumed.currentStage, directive.stage);
+  const afterProcessRestart = runtimeRunnable(outDir);
+  assert.equal(afterProcessRestart.stage, resumed.currentStage);
 });
