@@ -143,4 +143,20 @@ test("generated runtime installs and starts a real Intent", { timeout: 30_000 },
   };
   assert.equal(["load-steering", "run-stage"].includes(directive.kind ?? ""), true);
   assert.equal(existsSync(join(outDir, "aidlc", "active-space")), true);
+  const doctor = run(outDir, "pnpm", [
+    "--dir",
+    ".codex",
+    "run",
+    "doctor",
+    "check",
+    "--project-dir",
+    "..",
+    "--json",
+  ]);
+  const doctorJsonStart = doctor.stdout.indexOf("{");
+  assert.notEqual(doctorJsonStart, -1, doctor.stdout);
+  const doctorReport = JSON.parse(doctor.stdout.slice(doctorJsonStart)) as {
+    healthy?: boolean;
+  };
+  assert.equal(doctorReport.healthy, true);
 });

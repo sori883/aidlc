@@ -80,6 +80,21 @@ export interface StateTransition {
   completedStages: number;
 }
 
+export interface DerivedStateRepair {
+  recordDir: string;
+  changedFields: string[];
+  currentStage: string | null;
+  workflowCompleted: boolean;
+}
+
+export interface DerivedStateInspection {
+  recordDir: string;
+  driftedFields: string[];
+  desiredFields: Record<string, string>;
+  currentStage: string | null;
+  workflowCompleted: boolean;
+}
+
 export interface UnitStageTransition {
   recordDir: string;
   stage: string;
@@ -907,8 +922,21 @@ export function validateIntentState(projectDir: string): void {
   const scope = stateField(content, "Scope");
   if (scope === null) throw new Error("State file has no Scope field");
   const plan = readPlan(recordDir);
-  if (plan.length !== loadCompiledStageGraph().length) {
+  const graph = loadCompiledStageGraph();
+  if (plan.length !== graph.length) {
     throw new Error("Execution plan does not cover the compiled stage graph");
+  }
+  for (const stage of graph) {
+    const pattern = new RegExp(
+      `^- \\[[ xS?R-]\\] ${escapeRegExp(stage.slug)}(?:\\s|$)`,
+      "gm",
+    );
+    const rows = [...content.matchAll(pattern)].length;
+    if (rows !== 1) {
+      throw new Error(
+        `State file requires exactly one checkbox for "${stage.slug}"; found ${rows}`,
+      );
+    }
   }
   const current = stateField(content, "Current Stage");
   const status = stateField(content, "Status");
@@ -918,6 +946,101 @@ export function validateIntentState(projectDir: string): void {
   if (current !== null && current !== "none" && checkboxState(content, current) === "unknown") {
     throw new Error(`Current Stage "${current}" has no checkbox`);
   }
+}
+
+function inspectDerivedIntentStateUnlocked(
+  projectRoot: string,
+): DerivedStateInspection & { path: string; content: string } {
+  const recordDir = activeIntentRecordDir(projectRoot);
+  const path = join(recordDir, "aidlc-state.md");
+  const content = readFileSync(path, "utf8");
+  const plan = readPlan(recordDir);
+  const graph = graphBySlug();
+  const effectivePlan = plan.map((stage) => ({
+    ...stage,
+    action: stageProgressAction(content, stage.slug) ?? stage.action,
+  }));
+  const executable = effectivePlan.filter((stage) => stage.action === "EXECUTE");
+  const active = executable.filter((stage) =>
+    ["in-progress", "awaiting-approval", "revising"].includes(
+      checkboxState(content, stage.slug),
+    )
+  );
+  const unfinished = executable.filter((stage) =>
+    !["completed", "skipped"].includes(checkboxState(content, stage.slug))
+  );
+  if (active.length > 1) {
+    throw new Error(
+      `State has multiple active Stage markers: ${active.map((stage) => stage.slug).join(", ")}`,
+    );
+  }
+  if (active.length === 0 && unfinished.length > 0) {
+    throw new Error("State has unfinished Stages but no authoritative active marker");
+  }
+
+  const current = active[0] ?? null;
+  const currentEntry = current === null ? null : graph.get(current.slug);
+  if (current !== null && currentEntry === undefined) {
+    throw new Error(`Unknown active Stage: ${current.slug}`);
+  }
+  const next = current === null
+    ? null
+    : nextExecutableStage(effectivePlan, content, current.slug);
+  const desiredFields: Record<string, string> = {
+    "Total Stages": String(executable.length),
+    Completed: String(completedCheckboxCount(content)),
+    "In Progress": current?.slug ?? "none",
+    "Active Agent": currentEntry?.lead_agent ?? "",
+    "Lifecycle Phase": currentEntry?.phase.toUpperCase() ?? "READY",
+    "Current Stage": current?.slug ?? "none",
+    "Next Stage": next?.slug ?? "none",
+    Status: current === null ? "Completed" : "Running",
+    "Next Action": current === null ? "Workflow complete" : `Execute ${current.slug}`,
+  };
+  return {
+    recordDir,
+    path,
+    content,
+    desiredFields,
+    driftedFields: Object.entries(desiredFields)
+      .filter(([field, value]) => stateField(content, field) !== value)
+      .map(([field]) => field),
+    currentStage: current?.slug ?? null,
+    workflowCompleted: current === null,
+  };
+}
+
+/** Inspect State fields that are fully derived from plan and checkbox data. */
+export function inspectDerivedIntentState(
+  projectDir: string,
+): DerivedStateInspection {
+  const { path: _path, content: _content, ...inspection } =
+    inspectDerivedIntentStateUnlocked(resolve(projectDir));
+  return inspection;
+}
+
+/** Recompute only derived State fields; progress markers remain authoritative. */
+export function repairDerivedIntentState(
+  projectDir: string,
+): DerivedStateRepair {
+  const projectRoot = resolve(projectDir);
+  return withWorkspaceLock(projectRoot, () => {
+    const inspection = inspectDerivedIntentStateUnlocked(projectRoot);
+    let content = inspection.content;
+    for (const field of inspection.driftedFields) {
+      content = setStateField(content, field, inspection.desiredFields[field] ?? "");
+    }
+    if (inspection.driftedFields.length > 0) {
+      content = setStateField(content, "Last Updated", isoTimestamp());
+      writeFileAtomic(inspection.path, content);
+    }
+    return {
+      recordDir: inspection.recordDir,
+      changedFields: inspection.driftedFields,
+      currentStage: inspection.currentStage,
+      workflowCompleted: inspection.workflowCompleted,
+    };
+  });
 }
 
 function flagValue(args: string[], flag: string): string | undefined {
