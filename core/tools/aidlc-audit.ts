@@ -27,6 +27,7 @@ export type AuditEvent =
   | "SENSOR_PASSED"
   | "SENSOR_FAILED"
   | "SENSOR_BUDGET_OVERRIDE"
+  | "RULE_LEARNED"
   | "WORKSPACE_SCAFFOLDED"
   | "WORKSPACE_SCANNED"
   | "WORKSPACE_INITIALISED";
@@ -52,6 +53,7 @@ const EVENT_HEADINGS: Record<AuditEvent, string> = {
   SENSOR_PASSED: "Sensor Passed",
   SENSOR_FAILED: "Sensor Failed",
   SENSOR_BUDGET_OVERRIDE: "Sensor Budget Override",
+  RULE_LEARNED: "Rule Learned",
   WORKSPACE_SCAFFOLDED: "Workspace Scaffolded",
   WORKSPACE_SCANNED: "Workspace Scanned",
   WORKSPACE_INITIALISED: "Workspace Initialised",

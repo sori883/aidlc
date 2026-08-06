@@ -17,6 +17,12 @@ import {
   reportStageResult,
   resolveNextDirective,
 } from "./aidlc-orchestrate.ts";
+import {
+  assertSteeringContext,
+  type SteeringContext,
+  type SteeringRuleContent,
+} from "./aidlc-steering.ts";
+import { ensureStageMemory } from "./aidlc-memory.ts";
 
 export type AgentPurpose =
   | "build"
@@ -52,6 +58,7 @@ export interface AgentStep {
   persona_paths: string[];
   collaborators: string[];
   stage_file: string;
+  memory_path: string;
   consumes: string[];
   produces: string[];
   rules_in_context: string[];
@@ -62,6 +69,8 @@ export interface AgentStep {
 
 export interface AgentInvocation extends AgentStep {
   prior_results: AgentResult[];
+  steering_bundle: string;
+  rules_content: SteeringRuleContent[];
 }
 
 export interface AgentResult {
@@ -171,6 +180,7 @@ function stepFactory(directive: RunStageDirective): (
         : [personaPath(role)],
       collaborators: options.collaborators ?? [],
       stage_file: directive.stage_file,
+      memory_path: directive.memory_path,
       consumes: [...directive.consumes],
       produces: [...directive.produces],
       rules_in_context: [...directive.rules_in_context],
@@ -336,6 +346,7 @@ export function validateAgentResult(
 async function invokeStep(
   step: AgentStep,
   results: readonly AgentResult[],
+  steering: SteeringContext,
   adapter: AgentAdapter,
 ): Promise<AgentResult> {
   const byId = new Map(results.map((result) => [result.invocation_id, result]));
@@ -349,6 +360,8 @@ async function invokeStep(
   const request: AgentInvocation = {
     ...step,
     prior_results: priorResults,
+    steering_bundle: steering.bundle,
+    rules_content: steering.rules_content.map((rule) => ({ ...rule })),
   };
   return validateAgentResult(await adapter.invoke(request), request);
 }
@@ -389,17 +402,21 @@ function successfulResult(
 
 /** Execute one stage through an injected inference adapter without State mutation. */
 export async function executeStage(
+  projectDir: string,
   rawDirective: RunStageDirective,
+  steering: SteeringContext,
   adapter: AgentAdapter,
 ): Promise<StageExecutionResult> {
   const directive = assertRunStageDirective(rawDirective);
+  assertSteeringContext(directive, steering);
+  ensureStageMemory(projectDir, directive.memory_path);
   const plan = buildStageExecutionPlan(directive);
   const results: AgentResult[] = [];
   let reviewerIterations = 0;
 
   try {
     for (const step of plan.steps) {
-      const result = await invokeStep(step, results, adapter);
+      const result = await invokeStep(step, results, steering, adapter);
       results.push(result);
       if (result.status !== "completed") {
         return terminalResult(
@@ -445,13 +462,14 @@ export async function executeStage(
         persona_paths: [personaPath(plan.reviewer.role)],
         collaborators: [],
         stage_file: directive.stage_file,
+        memory_path: directive.memory_path,
         consumes: [...directive.consumes],
         produces: [...directive.produces],
         rules_in_context: [...directive.rules_in_context],
         sensors_applicable: [...directive.sensors_applicable],
         reviewer_iteration: iteration,
       };
-      const review = await invokeStep(reviewStep, results, adapter);
+      const review = await invokeStep(reviewStep, results, steering, adapter);
       results.push(review);
       if (review.status !== "completed") {
         return terminalResult(
@@ -495,12 +513,13 @@ export async function executeStage(
         persona_paths: [personaPath(directive.lead_agent)],
         collaborators: [],
         stage_file: directive.stage_file,
+        memory_path: directive.memory_path,
         consumes: [...directive.consumes],
         produces: [...directive.produces],
         rules_in_context: [...directive.rules_in_context],
         sensors_applicable: [...directive.sensors_applicable],
       };
-      const revision = await invokeStep(revisionStep, results, adapter);
+      const revision = await invokeStep(revisionStep, results, steering, adapter);
       results.push(revision);
       if (revision.status !== "completed") {
         return terminalResult(
@@ -535,9 +554,10 @@ export async function executeStage(
 export async function executeStageAndReport(
   projectDir: string,
   directive: RunStageDirective,
+  steering: SteeringContext,
   adapter: AgentAdapter,
 ): Promise<StageExecutionResult> {
-  const execution = await executeStage(directive, adapter);
+  const execution = await executeStage(projectDir, directive, steering, adapter);
   if (execution.status !== "completed") return execution;
   const report = reportStageResult(projectDir, {
     stage: directive.stage,
@@ -610,7 +630,19 @@ function runCli(): void {
     return;
   }
   const projectDir = flagValue(args, "--project-dir") ?? process.cwd();
-  const directive = resolveNextDirective(projectDir);
+  let directive = resolveNextDirective(projectDir);
+  let steeringBeats = 0;
+  while (directive.kind === "load-steering") {
+    steeringBeats += 1;
+    if (steeringBeats > 100) {
+      console.error("Steering did not converge within 100 directives.");
+      process.exitCode = 1;
+      return;
+    }
+    directive = resolveNextDirective(projectDir, {
+      continueToken: directive.continue_token,
+    });
+  }
   if (directive.kind !== "run-stage") {
     console.log(JSON.stringify(directive, null, 2));
     return;

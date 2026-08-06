@@ -33,14 +33,23 @@ test("creates the full upstream additional-space shape", () => {
   );
   assert.equal(
     readFileSync(join(result.spaceDir, "memory", "team.md"), "utf8"),
-    "# Team practices\n",
+    readFileSync(
+      join(projectDir, "aidlc", "spaces", "default", "memory", "team.md"),
+      "utf8",
+    ),
   );
   assert.equal(
     readFileSync(join(result.spaceDir, "memory", "project.md"), "utf8"),
-    "# Project overrides\n",
+    readFileSync(
+      join(projectDir, "aidlc", "spaces", "default", "memory", "project.md"),
+      "utf8",
+    ),
   );
   for (const relativePath of [
-    "memory/phases",
+    "memory/phases/ideation.md",
+    "memory/phases/inception.md",
+    "memory/phases/construction.md",
+    "memory/phases/operation.md",
     "memory/templates/.gitkeep",
     "intents",
     "codekb/.gitkeep",
