@@ -22,6 +22,7 @@
     "memory:init": "tsx core/tools/aidlc-memory.ts init",
     "orchestrate:next": "tsx core/tools/aidlc-orchestrate.ts next",
     "orchestrate:report": "tsx core/tools/aidlc-orchestrate.ts report",
+    "release:check": "pnpm typecheck && pnpm graph:check && pnpm test",
     "runner:check": "tsx core/tools/aidlc-runner-gen.ts check",
     "runner:list": "tsx core/tools/aidlc-runner-gen.ts list",
     "runner:write": "tsx core/tools/aidlc-runner-gen.ts write",

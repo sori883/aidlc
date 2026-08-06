@@ -118,7 +118,7 @@ function readPlan(projectDir: string): ResolvedPlanStage[] {
 
 function stateField(content: string, field: string): string | null {
   const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`^- \\*\\*${escaped}\\*\\*:\\s*(.*)$`, "m")
+  return new RegExp(`^- \\*\\*${escaped}\\*\\*:[ \\t]*(.*)$`, "m")
     .exec(content)?.[1]?.trim() ?? null;
 }
 
