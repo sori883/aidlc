@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import type { RunStageDirective } from "../core/tools/aidlc-directive.ts";
 import {
@@ -104,6 +109,14 @@ function freshProject(): string {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-executor-"));
   initializeWorkspace(projectDir);
   return projectDir;
+}
+
+function materialize(projectDir: string, paths: readonly string[]): void {
+  for (const path of paths) {
+    const absolute = resolve(projectDir, path);
+    mkdirSync(dirname(absolute), { recursive: true });
+    writeFileSync(absolute, "# Test artifact\n", "utf8");
+  }
 }
 
 test("execution plans encode the four upstream communication topologies", () => {
@@ -244,6 +257,7 @@ test("gated Agent success waits for approval, then reports and advances State", 
   assert.equal(execution.report, undefined);
   assert.equal(resumeIntentState(projectDir).currentStage, current);
 
+  materialize(projectDir, directive.produces);
   const approved = reportApprovedStageExecution(
     projectDir,
     directive,

@@ -285,6 +285,75 @@ export function validateStageDependencies(stages: readonly LoadedStage[]): void 
   }
 }
 
+/** Validate the producer/consumer contract compiled into the stage graph. */
+export function validateArtifactContracts(
+  stages: readonly Pick<
+    LoadedStage,
+    "slug" | "number" | "produces" | "optional_produces" | "consumes"
+  >[],
+): void {
+  const producers = new Map<string, { slug: string; number: string }>();
+  const artifactPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+  for (const stage of stages) {
+    const stageArtifacts = [
+      ...stage.produces,
+      ...(stage.optional_produces ?? []),
+    ];
+    const seen = new Set<string>();
+    for (const artifact of stageArtifacts) {
+      if (!artifactPattern.test(artifact)) {
+        throw new Error(
+          `${stage.slug}: artifact "${artifact}" must use lowercase kebab-case`,
+        );
+      }
+      if (seen.has(artifact)) {
+        throw new Error(
+          `${stage.slug}: duplicate produced artifact "${artifact}"`,
+        );
+      }
+      seen.add(artifact);
+      const previous = producers.get(artifact);
+      if (previous !== undefined) {
+        throw new Error(
+          `Artifact "${artifact}" has multiple producers: ` +
+            `${previous.slug}, ${stage.slug}`,
+        );
+      }
+      producers.set(artifact, { slug: stage.slug, number: stage.number });
+    }
+  }
+
+  for (const stage of stages) {
+    const seen = new Set<string>();
+    for (const consume of stage.consumes) {
+      if (!artifactPattern.test(consume.artifact)) {
+        throw new Error(
+          `${stage.slug}: artifact "${consume.artifact}" must use lowercase kebab-case`,
+        );
+      }
+      if (seen.has(consume.artifact)) {
+        throw new Error(
+          `${stage.slug}: duplicate consumed artifact "${consume.artifact}"`,
+        );
+      }
+      seen.add(consume.artifact);
+      const producer = producers.get(consume.artifact);
+      if (producer === undefined) {
+        throw new Error(
+          `${stage.slug}: consumed artifact "${consume.artifact}" has no producer`,
+        );
+      }
+      if (numericStageOrder(producer.number, stage.number) >= 0) {
+        throw new Error(
+          `${stage.slug} (${stage.number}): artifact "${consume.artifact}" ` +
+            `must be produced by an earlier stage; producer ` +
+            `${producer.slug} is ${producer.number}`,
+        );
+      }
+    }
+  }
+}
+
 function compileStage(
   stage: LoadedStage,
   sensors: readonly SensorDefinition[],
@@ -345,6 +414,7 @@ export function compileStageGraph(options: CompileOptions = {}): CompileResult {
   const scopes = loadScopes(options.scopesDir);
   validateStageScopeReferences(loaded, scopes);
   validateStageDependencies(loaded);
+  validateArtifactContracts(loaded);
   const stages = loaded.map((stage) =>
     compileStage(stage, sensors, rules, options.harnessDir ?? ".codex")
   );

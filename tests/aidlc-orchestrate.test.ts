@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import {
   existsSync,
   mkdtempSync,
+  mkdirSync,
   readFileSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { validateDirective } from "../core/tools/aidlc-directive.ts";
 import { loadCompiledStageGraph } from "../core/tools/aidlc-graph.ts";
@@ -24,6 +26,14 @@ function freshProject(): string {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-orchestrate-"));
   initializeWorkspace(projectDir);
   return projectDir;
+}
+
+function materialize(projectDir: string, paths: readonly string[]): void {
+  for (const path of paths) {
+    const absolute = resolve(projectDir, path);
+    mkdirSync(dirname(absolute), { recursive: true });
+    writeFileSync(absolute, "# Test artifact\n", "utf8");
+  }
 }
 
 test("next emits one graph-backed run-stage directive without mutation", () => {
@@ -74,6 +84,21 @@ test("report completion delegates to State and next sees the advanced stage", ()
   const born = birthIntentWithState(projectDir, "Payment API", "default", "mvp");
   const beforeAudit = readFileSync(born.auditPath, "utf8");
 
+  const beforeState = readFileSync(born.state.statePath, "utf8");
+  const rejected = reportStageResult(projectDir, {
+    stage: "intent-capture",
+    result: "completed",
+  });
+  assert.equal(rejected.kind, "error");
+  if (rejected.kind === "error") {
+    assert.match(rejected.message, /missing required artifact evidence/);
+  }
+  assert.equal(readFileSync(born.state.statePath, "utf8"), beforeState);
+
+  const directive = resolveNextDirective(projectDir);
+  assert.equal(directive.kind, "run-stage");
+  if (directive.kind !== "run-stage") return;
+  materialize(projectDir, directive.produces);
   const report = reportStageResult(projectDir, {
     stage: "intent-capture",
     result: "completed",
@@ -105,6 +130,10 @@ test("report skip requires a conditional stage and a reason", () => {
   assert.match(alwaysSkip.message, /only a CONDITIONAL stage/);
   assert.equal(readFileSync(born.state.statePath, "utf8"), beforeState);
 
+  const directive = resolveNextDirective(projectDir);
+  assert.equal(directive.kind, "run-stage");
+  if (directive.kind !== "run-stage") return;
+  materialize(projectDir, directive.produces);
   reportStageResult(projectDir, {
     stage: "intent-capture",
     result: "completed",
@@ -130,6 +159,26 @@ test("report skip requires a conditional stage and a reason", () => {
   const audit = readFileSync(born.auditPath, "utf8");
   assert.match(audit, /\*\*Event\*\*: STAGE_SKIPPED/);
   assert.match(audit, /\*\*Reason\*\*: outside MVP needs/);
+});
+
+test("report does not advance a per-unit stage without unit execution state", () => {
+  const projectDir = freshProject();
+  const born = birthIntentWithState(projectDir, "Payment API", "default", "mvp");
+  while (resumeIntentState(projectDir).currentStage !== "functional-design") {
+    const current = resumeIntentState(projectDir).currentStage;
+    assert.notEqual(current, "none");
+    completeCurrentStage(projectDir, current);
+  }
+  const beforeState = readFileSync(born.state.statePath, "utf8");
+
+  const result = reportStageResult(projectDir, {
+    stage: "functional-design",
+    result: "completed",
+  });
+
+  assert.equal(result.kind, "error");
+  if (result.kind === "error") assert.match(result.message, /unit execution state/);
+  assert.equal(readFileSync(born.state.statePath, "utf8"), beforeState);
 });
 
 test("next emits done after the active workflow completes", () => {
