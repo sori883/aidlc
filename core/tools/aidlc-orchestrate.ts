@@ -2,7 +2,7 @@
 // one typed Directive. `report` is the only mutation route and delegates the
 // transition to aidlc-state.ts; this module never edits State or Audit itself.
 
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -17,6 +17,11 @@ import {
   type RunStageDirective,
   validateDirective,
 } from "./aidlc-directive.ts";
+import {
+  type ArtifactResolutionOptions,
+  resolveStageArtifacts,
+  verifyStageArtifactEvidence,
+} from "./aidlc-artifacts.ts";
 import {
   activeIntentRecordDir,
   completeCurrentStage,
@@ -40,6 +45,8 @@ export interface ReportOptions {
   result: ReportResult;
   reason?: string;
 }
+
+export type ResolveNextOptions = ArtifactResolutionOptions;
 
 const TOOL_DIR = dirname(fileURLToPath(import.meta.url));
 const CORE_DIR = resolve(TOOL_DIR, "..");
@@ -103,47 +110,6 @@ function stateField(content: string, field: string): string | null {
     .exec(content)?.[1]?.trim() ?? null;
 }
 
-function statePlanAction(
-  content: string,
-  slug: string,
-): "EXECUTE" | "SKIP" | null {
-  const escaped = slug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const action = new RegExp(
-    `^- \\[[ xS?R-]\\] ${escaped} — (EXECUTE|SKIP)(?::|$)`,
-    "m",
-  ).exec(content)?.[1];
-  return action === "EXECUTE" || action === "SKIP" ? action : null;
-}
-
-function outputPath(
-  recordPrefix: string,
-  stage: CompiledStage,
-  artifact: string,
-): string {
-  return portablePath(
-    join(recordPrefix, stage.phase, stage.slug, `${artifact}.md`),
-  );
-}
-
-function producerMap(graph: readonly CompiledStage[]): Map<string, CompiledStage> {
-  const producers = new Map<string, CompiledStage>();
-  for (const stage of graph) {
-    for (const artifact of [
-      ...(stage.produces ?? []),
-      ...(stage.optional_produces ?? []),
-    ]) {
-      const previous = producers.get(artifact);
-      if (previous !== undefined && previous.slug !== stage.slug) {
-        throw new Error(
-          `Artifact "${artifact}" has multiple producers: ${previous.slug}, ${stage.slug}`,
-        );
-      }
-      producers.set(artifact, stage);
-    }
-  }
-  return producers;
-}
-
 function inlineContextPaths(stage: CompiledStage): string[] {
   const names = stage.mode === "inline"
     ? [stage.lead_agent, ...(stage.support_agents ?? [])]
@@ -153,47 +119,26 @@ function inlineContextPaths(stage: CompiledStage): string[] {
     .map((name) => join(CORE_DIR, "agents", `${name}.md`));
 }
 
-function applicableConsumes(
-  projectType: string,
-  stage: CompiledStage,
-): CompiledStage["consumes"] {
-  const normalized = projectType.toLowerCase();
-  return (stage.consumes ?? []).filter(
-    (consume) => consume.conditional_on === undefined ||
-      consume.conditional_on === normalized,
-  );
-}
-
 function buildRunStageDirective(
   projectDir: string,
   stage: CompiledStage,
   graph: readonly CompiledStage[],
   plan: readonly ResolvedPlanStage[],
   stateContent: string,
+  options: ResolveNextOptions,
 ): RunStageDirective {
   const recordDir = activeIntentRecordDir(projectDir);
   const recordPrefix = workspacePath(projectDir, recordDir);
   const projectType = stateField(stateContent, "Project Type") ?? "Unknown";
-  const producers = producerMap(graph);
-  const consumes: string[] = [];
-  const consumesAbsent: Array<{ path: string; expected: boolean }> = [];
-
-  for (const consume of applicableConsumes(projectType, stage)) {
-    const producer = producers.get(consume.artifact);
-    if (producer === undefined) {
-      throw new Error(
-        `Stage "${stage.slug}" consumes unknown artifact "${consume.artifact}"`,
-      );
-    }
-    const path = outputPath(recordPrefix, producer, consume.artifact);
-    if (existsSync(resolve(projectDir, path))) {
-      consumes.push(path);
-    } else if (consume.required) {
-      const planned = plan.find((row) => row.slug === producer.slug)?.action;
-      const routed = statePlanAction(stateContent, producer.slug) ?? planned;
-      consumesAbsent.push({ path, expected: routed !== "EXECUTE" });
-    }
-  }
+  const artifacts = resolveStageArtifacts(
+    projectDir,
+    stage,
+    graph,
+    plan,
+    stateContent,
+    projectType,
+    options,
+  );
 
   const resume = resumeIntentState(projectDir);
   let next: string | null = null;
@@ -217,12 +162,18 @@ function buildRunStageDirective(
     inline_context_paths: inlineContextPaths(stage),
     gate: stage.phase !== "initialization",
     memory_path: portablePath(
-      join(recordPrefix, stage.phase, stage.slug, "memory.md"),
+      stage.for_each === "unit-of-work"
+        ? join(
+            recordPrefix,
+            stage.phase,
+            options.unit ?? "{unit-name}",
+            stage.slug,
+            "memory.md",
+          )
+        : join(recordPrefix, stage.phase, stage.slug, "memory.md"),
     ),
-    consumes,
-    produces: (stage.produces ?? []).map((artifact) =>
-      outputPath(recordPrefix, stage, artifact)
-    ),
+    consumes: artifacts.consumes,
+    produces: artifacts.produces,
     rules_in_context: (stage.rules_in_context ?? []).map((rule) =>
       rule.path.replace(
         /^aidlc\/spaces\/default\//,
@@ -238,8 +189,11 @@ function buildRunStageDirective(
       `${stage.slug}.md`,
     ),
     next_stage: next,
+    ...(options.unit === undefined ? {} : { unit: options.unit }),
   };
-  if (consumesAbsent.length > 0) directive.consumes_absent = consumesAbsent;
+  if (artifacts.consumesAbsent.length > 0) {
+    directive.consumes_absent = artifacts.consumesAbsent;
+  }
   if (stage.reviewer !== undefined) {
     directive.reviewer = stage.reviewer;
     directive.reviewer_max_iterations = stage.reviewer_max_iterations ?? 2;
@@ -248,7 +202,10 @@ function buildRunStageDirective(
 }
 
 /** Resolve one upstream-compatible next action without changing State or Audit. */
-export function resolveNextDirective(projectDir: string): Directive {
+export function resolveNextDirective(
+  projectDir: string,
+  options: ResolveNextOptions = {},
+): Directive {
   const projectRoot = resolve(projectDir);
   try {
     validateIntentState(projectRoot);
@@ -289,6 +246,7 @@ export function resolveNextDirective(projectDir: string): Directive {
       graph,
       readPlan(projectRoot),
       stateContent,
+      options,
     );
   } catch (error) {
     return errorDirective(error instanceof Error ? error.message : String(error));
@@ -338,6 +296,22 @@ export function reportStageResult(
     if (!FORWARD_RESULTS.has(options.result)) {
       return errorDirective(`Unknown report result: "${options.result}".`);
     }
+    if (node.for_each === "unit-of-work") {
+      return errorDirective(
+        `Cannot complete per-unit stage "${stage}" at stage level: ` +
+          "unit execution state must verify every unit before advancement.",
+      );
+    }
+    // Reverse engineering may produce one set per repository. Deliberately do
+    // not narrow this check to a CLI --repo value: all registered repos are
+    // required before the stage-level transition can be committed.
+    const evidence = verifyStageArtifactEvidence(projectRoot, node);
+    if (!evidence.valid) {
+      return errorDirective(
+        `Cannot complete "${stage}": missing required artifact evidence:\n` +
+          evidence.missing.map((path) => `- ${path}`).join("\n"),
+      );
+    }
     completeCurrentStage(projectRoot, stage);
     return {
       kind: "done",
@@ -359,7 +333,7 @@ function runCli(): void {
   const [command, ...args] = process.argv.slice(2);
   const projectDir = flagValue(args, "--project-dir") ?? process.cwd();
   const usage =
-    "Usage: aidlc-orchestrate next --project-dir <project-dir>\n" +
+    "Usage: aidlc-orchestrate next --project-dir <project-dir> [--unit <name>] [--repo <name>]\n" +
     "       aidlc-orchestrate report --project-dir <project-dir> --stage <slug> " +
     "--result <completed|approved|skipped> [--reason <text>]";
   if (!["next", "report"].includes(command ?? "")) {
@@ -368,7 +342,12 @@ function runCli(): void {
     return;
   }
   if (command === "next") {
-    emit(resolveNextDirective(projectDir));
+    const unit = flagValue(args, "--unit");
+    const repo = flagValue(args, "--repo");
+    emit(resolveNextDirective(projectDir, {
+      ...(unit === undefined ? {} : { unit }),
+      ...(repo === undefined ? {} : { repo }),
+    }));
     return;
   }
   const stage = flagValue(args, "--stage");
