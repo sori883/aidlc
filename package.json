@@ -5,6 +5,7 @@
   "packageManager": "pnpm@11.7.0",
   "scripts": {
     "agent:check": "tsx core/tools/aidlc-agent-loader.ts check",
+    "agent:plan": "tsx core/tools/aidlc-executor.ts plan",
     "graph:check": "tsx core/tools/aidlc-graph.ts compile --check",
     "graph:compile": "tsx core/tools/aidlc-graph.ts compile",
     "graph:resolve": "tsx core/tools/aidlc-graph.ts resolve",
