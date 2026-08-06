@@ -24,7 +24,9 @@ import {
 } from "./aidlc-artifacts.ts";
 import {
   activeIntentRecordDir,
+  completeCurrentUnitStage,
   completeCurrentStage,
+  hydrateConstructionUnitProgress,
   planFilePath,
   resumeIntentState,
   skipCurrentStage,
@@ -32,6 +34,7 @@ import {
   validateIntentState,
 } from "./aidlc-state.ts";
 import { activeSpace } from "./aidlc-workspace.ts";
+import { loadActiveUnitDag } from "./aidlc-unit-graph.ts";
 
 export type ReportResult =
   | "approved"
@@ -44,6 +47,7 @@ export interface ReportOptions {
   stage: string;
   result: ReportResult;
   reason?: string;
+  unit?: string;
 }
 
 export type ResolveNextOptions = ArtifactResolutionOptions;
@@ -162,7 +166,7 @@ function buildRunStageDirective(
     inline_context_paths: inlineContextPaths(stage),
     gate: stage.phase !== "initialization",
     memory_path: portablePath(
-      stage.for_each === "unit-of-work"
+      stage.for_each === "unit-of-work" && !options.singlePass
         ? join(
             recordPrefix,
             stage.phase,
@@ -240,13 +244,37 @@ export function resolveNextDirective(
       );
     }
     const stateContent = readFileSync(stateFilePath(projectRoot), "utf8");
+    const dag = loadActiveUnitDag(projectRoot);
+    const artifactOptions: ResolveNextOptions = { ...options };
+    if (dag === null) {
+      artifactOptions.singlePass = true;
+    } else if (stage.for_each === "unit-of-work") {
+      const unit = options.unit ?? resume.currentUnit;
+      if (unit === null || unit === undefined) {
+        return errorDirective(
+          `Per-Unit stage "${stage.slug}" has no pending Unit in State.`,
+        );
+      }
+      if (options.unit !== undefined && options.unit !== resume.currentUnit) {
+        return errorDirective(
+          `Cannot run Unit "${options.unit}" out of order; next Unit is ` +
+            `"${resume.currentUnit ?? "none"}".`,
+        );
+      }
+      const definition = dag.units.find((candidate) => candidate.name === unit);
+      if (definition === undefined) {
+        return errorDirective(`Unit "${unit}" is not in the active Unit DAG.`);
+      }
+      artifactOptions.unit = unit;
+      if (definition.kind !== undefined) artifactOptions.unitKind = definition.kind;
+    }
     return buildRunStageDirective(
       projectRoot,
       stage,
       graph,
       readPlan(projectRoot),
       stateContent,
-      options,
+      artifactOptions,
     );
   } catch (error) {
     return errorDirective(error instanceof Error ? error.message : String(error));
@@ -296,21 +324,75 @@ export function reportStageResult(
     if (!FORWARD_RESULTS.has(options.result)) {
       return errorDirective(`Unknown report result: "${options.result}".`);
     }
-    if (node.for_each === "unit-of-work") {
-      return errorDirective(
-        `Cannot complete per-unit stage "${stage}" at stage level: ` +
-          "unit execution state must verify every unit before advancement.",
-      );
+    const dag = loadActiveUnitDag(projectRoot);
+    if (node.for_each === "unit-of-work" && dag !== null) {
+      const unit = options.unit?.trim();
+      if (!unit) {
+        return errorDirective(
+          `report for per-Unit stage "${stage}" requires --unit <name>.`,
+        );
+      }
+      if (resume.currentUnit !== null && resume.currentUnit !== unit) {
+        return errorDirective(
+          `Cannot report Unit "${unit}" out of order; current Unit is ` +
+            `"${resume.currentUnit ?? "none"}".`,
+        );
+      }
+      const definition = dag.units.find((candidate) => candidate.name === unit);
+      if (definition === undefined) {
+        return errorDirective(`Unit "${unit}" is not in the active Unit DAG.`);
+      }
+      const evidence = verifyStageArtifactEvidence(projectRoot, node, {
+        unit,
+        ...(definition.kind === undefined ? {} : { unitKind: definition.kind }),
+      });
+      if (!evidence.valid) {
+        return errorDirective(
+          `Cannot complete "${stage}" for Unit "${unit}": ` +
+            `missing required artifact evidence:\n` +
+            evidence.missing.map((path) => `- ${path}`).join("\n"),
+        );
+      }
+      const unitTransition = completeCurrentUnitStage(projectRoot, stage, unit);
+      if (!unitTransition.allUnitsCompleted) {
+        return {
+          kind: "done",
+          reason:
+            `Committed Unit "${unit}" for "${stage}". ` +
+            `Next Unit: "${unitTransition.nextUnit}"; run next to continue.`,
+        };
+      }
+      completeCurrentStage(projectRoot, stage);
+      return {
+        kind: "done",
+        reason:
+          `Committed final Unit "${unit}" and completed "${stage}" ` +
+          `(scope: ${resume.scope}). State advanced; run next to continue.`,
+      };
     }
     // Reverse engineering may produce one set per repository. Deliberately do
     // not narrow this check to a CLI --repo value: all registered repos are
     // required before the stage-level transition can be committed.
-    const evidence = verifyStageArtifactEvidence(projectRoot, node);
+    const evidence = verifyStageArtifactEvidence(
+      projectRoot,
+      node,
+      node.for_each === "unit-of-work" ? { singlePass: true } : {},
+    );
     if (!evidence.valid) {
       return errorDirective(
         `Cannot complete "${stage}": missing required artifact evidence:\n` +
           evidence.missing.map((path) => `- ${path}`).join("\n"),
       );
+    }
+    if (stage === "units-generation") {
+      const unitDag = loadActiveUnitDag(projectRoot);
+      if (unitDag === null) {
+        return errorDirective(
+          "Cannot complete units-generation: unit-of-work-dependency.md " +
+            "has no fenced YAML units block.",
+        );
+      }
+      hydrateConstructionUnitProgress(projectRoot, unitDag);
     }
     completeCurrentStage(projectRoot, stage);
     return {
@@ -335,7 +417,7 @@ function runCli(): void {
   const usage =
     "Usage: aidlc-orchestrate next --project-dir <project-dir> [--unit <name>] [--repo <name>]\n" +
     "       aidlc-orchestrate report --project-dir <project-dir> --stage <slug> " +
-    "--result <completed|approved|skipped> [--reason <text>]";
+    "--result <completed|approved|skipped> [--reason <text>] [--unit <name>]";
   if (!["next", "report"].includes(command ?? "")) {
     console.error(usage);
     process.exitCode = 1;
@@ -369,10 +451,12 @@ function runCli(): void {
     return;
   }
   const reason = flagValue(args, "--reason");
+  const unit = flagValue(args, "--unit");
   emit(reportStageResult(projectDir, {
     stage,
     result: result as ReportResult,
     ...(reason === undefined ? {} : { reason }),
+    ...(unit === undefined ? {} : { unit }),
   }));
 }
 

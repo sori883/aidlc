@@ -31,6 +31,8 @@
     "state:skip": "tsx core/tools/aidlc-state.ts skip",
     "test": "tsx --test tests/**/*.test.ts",
     "typecheck": "tsc --noEmit",
+    "unit:check": "tsx core/tools/aidlc-unit-graph.ts check",
+    "unit:show": "tsx core/tools/aidlc-unit-graph.ts show",
     "workspace:detect": "tsx core/tools/aidlc-workspace-detect.ts detect",
     "workspace:init": "tsx core/tools/aidlc-workspace.ts init",
     "workspace:migrate": "tsx core/tools/aidlc-workspace-migrate.ts migrate"
