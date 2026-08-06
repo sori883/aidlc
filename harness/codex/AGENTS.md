@@ -1,0 +1,17 @@
+# AI-DLC Codex Harness
+
+Use the `$aidlc` Skill when the user explicitly asks to start, resume, or run
+AI-DLC. Use the matching generated Scope or Stage Skill only when the user
+explicitly requests that narrower entry point.
+
+Before the first AI-DLC command in a clone, run the following from the project
+root when `.codex/node_modules/.bin/tsx` is absent:
+
+```bash
+pnpm --dir .codex install --frozen-lockfile
+```
+
+Run every packaged AI-DLC command from the project root. The deterministic
+engine owns routing, State, Audit, artifact paths, and approval transitions.
+Never edit `aidlc-state.md` or Audit markdown directly, and never record a human
+approval that did not occur.

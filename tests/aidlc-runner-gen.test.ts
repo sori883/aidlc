@@ -53,10 +53,12 @@ test("runner generator derives Stage, Scope, init, and main Codex Skills", () =>
   assert.match(stage, /^name: aidlc-intent-capture$/m);
   assert.match(stage, /--stage intent-capture --single/);
   assert.match(stage, /report .*--single/);
-  assert.match(
-    readFileSync(join(skillsDir, "aidlc-mvp", "SKILL.md"), "utf8"),
-    /aidlc-state\.ts resume \./,
+  const scopeRunner = readFileSync(
+    join(skillsDir, "aidlc-mvp", "SKILL.md"),
+    "utf8",
   );
+  assert.match(scopeRunner, /pnpm --dir \.codex run workspace init \.\./);
+  assert.match(scopeRunner, /pnpm --dir \.codex run state resume \.\./);
   assert.equal(
     readFileSync(
       join(skillsDir, "aidlc-intent-capture", "agents", "openai.yaml"),

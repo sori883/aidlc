@@ -1,0 +1,25 @@
+{
+  "name": "@aidlc/codex-runtime",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "artifact": "tsx tools/aidlc-artifacts.ts",
+    "intent": "tsx tools/aidlc-intent.ts",
+    "learnings": "tsx tools/aidlc-learnings.ts",
+    "memory": "tsx tools/aidlc-memory.ts",
+    "orchestrate": "tsx tools/aidlc-orchestrate.ts",
+    "sensor": "tsx tools/aidlc-sensor.ts",
+    "sensor-hook": "tsx hooks/aidlc-sensor-fire.ts",
+    "space": "tsx tools/aidlc-space.ts",
+    "state": "tsx tools/aidlc-state.ts",
+    "unit": "tsx tools/aidlc-unit-graph.ts",
+    "workspace": "tsx tools/aidlc-workspace.ts",
+    "workspace-detect": "tsx tools/aidlc-workspace-detect.ts",
+    "workspace-migrate": "tsx tools/aidlc-workspace-migrate.ts"
+  },
+  "dependencies": {
+    "tsx": "4.23.1",
+    "yaml": "2.9.0"
+  }
+}
