@@ -39,6 +39,18 @@ export interface AuditAppendResult {
   path: string;
 }
 
+export interface AuditBatchEntry {
+  event: AuditEvent;
+  fields: Readonly<Record<string, string>>;
+}
+
+export interface AuditBatchAppendResult {
+  appended: true;
+  events: AuditEvent[];
+  timestamp: string;
+  path: string;
+}
+
 const EVENT_HEADINGS: Record<AuditEvent, string> = {
   WORKFLOW_STARTED: "Workflow Start",
   WORKFLOW_COMPLETED: "Workflow Completion",
@@ -166,5 +178,33 @@ export function appendAuditEntry(
     const path = initializeAuditLogUnlocked(projectDir, recordDir);
     appendFileSync(path, renderAuditBlock(event, fields, timestamp), "utf8");
     return { appended: true, event, timestamp, path };
+  });
+}
+
+/** Append a related lifecycle sequence while holding one workspace lock. */
+export function appendAuditEntries(
+  projectDir: string,
+  recordDir: string,
+  entries: readonly AuditBatchEntry[],
+  timestamp = new Date().toISOString(),
+): AuditBatchAppendResult {
+  if (entries.length === 0) {
+    throw new Error("Audit batch must contain at least one event.");
+  }
+  return withWorkspaceLock(projectDir, () => {
+    const path = initializeAuditLogUnlocked(projectDir, recordDir);
+    appendFileSync(
+      path,
+      entries.map((entry) =>
+        renderAuditBlock(entry.event, entry.fields, timestamp)
+      ).join(""),
+      "utf8",
+    );
+    return {
+      appended: true,
+      events: entries.map((entry) => entry.event),
+      timestamp,
+      path,
+    };
   });
 }

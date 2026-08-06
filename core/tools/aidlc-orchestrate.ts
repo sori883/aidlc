@@ -3,7 +3,7 @@
 // steering-token state before it releases run-stage. `report` remains the only
 // workflow mutation route and delegates transitions to aidlc-state.ts.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -34,10 +34,11 @@ import {
   stateFilePath,
   validateIntentState,
 } from "./aidlc-state.ts";
-import { activeSpace } from "./aidlc-workspace.ts";
+import { activeSpace, workspaceRoot } from "./aidlc-workspace.ts";
 import { loadActiveUnitDag } from "./aidlc-unit-graph.ts";
 import { resolveSteeringDirective } from "./aidlc-steering.ts";
 import { assertLearningGateCompleted } from "./aidlc-learnings.ts";
+import { appendAuditEntries } from "./aidlc-audit.ts";
 
 export type ReportResult =
   | "approved"
@@ -55,6 +56,8 @@ export interface ReportOptions {
 
 export interface ResolveNextOptions extends ArtifactResolutionOptions {
   continueToken?: string;
+  stage?: string;
+  single?: boolean;
 }
 
 const TOOL_DIR = dirname(fileURLToPath(import.meta.url));
@@ -119,13 +122,48 @@ function stateField(content: string, field: string): string | null {
     .exec(content)?.[1]?.trim() ?? null;
 }
 
-function inlineContextPaths(stage: CompiledStage): string[] {
+function markdownFilesUnder(directory: string): string[] {
+  try {
+    const files: string[] = [];
+    for (const entry of readdirSync(directory, { withFileTypes: true })
+      .sort((a, b) => a.name.localeCompare(b.name))) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) files.push(...markdownFilesUnder(path));
+      else if (entry.isFile() && entry.name.endsWith(".md")) files.push(path);
+    }
+    return files;
+  } catch {
+    return [];
+  }
+}
+
+function inlineContextPaths(
+  projectDir: string,
+  stage: CompiledStage,
+): string[] {
   const names = stage.mode === "inline"
     ? [stage.lead_agent, ...(stage.support_agents ?? [])]
     : stage.mode === "mob" ? [stage.lead_agent] : [];
-  return [...new Set(names)]
-    .filter((name) => name !== "orchestrator")
-    .map((name) => join(CORE_DIR, "agents", `${name}.md`));
+  const agents = [...new Set(names)].filter((name) => name !== "orchestrator");
+  if (agents.length === 0) return [];
+  const spaceKnowledge = join(
+    workspaceRoot(projectDir),
+    "spaces",
+    activeSpace(projectDir),
+    "knowledge",
+  );
+  const paths = agents.map((name) =>
+    join(CORE_DIR, "agents", `${name}.md`)
+  );
+  paths.push(...markdownFilesUnder(join(CORE_DIR, "knowledge", "aidlc-shared")));
+  for (const agent of agents) {
+    paths.push(...markdownFilesUnder(join(CORE_DIR, "knowledge", agent)));
+  }
+  paths.push(...markdownFilesUnder(join(spaceKnowledge, "aidlc-shared")));
+  for (const agent of agents) {
+    paths.push(...markdownFilesUnder(join(spaceKnowledge, agent)));
+  }
+  return [...new Set(paths)];
 }
 
 function buildRunStageDirective(
@@ -151,7 +189,7 @@ function buildRunStageDirective(
 
   const resume = resumeIntentState(projectDir);
   let next: string | null = null;
-  if (resume.nextStage !== "none") {
+  if (options.single !== true && resume.nextStage !== "none") {
     const nextNode = graph.find((candidate) => candidate.slug === resume.nextStage);
     if (nextNode === undefined) {
       throw new Error(
@@ -168,8 +206,8 @@ function buildRunStageDirective(
     lead_agent: stage.lead_agent,
     support_agents: stage.support_agents ?? [],
     mode: stage.mode,
-    inline_context_paths: inlineContextPaths(stage),
-    gate: stage.phase !== "initialization",
+    inline_context_paths: inlineContextPaths(projectDir, stage),
+    gate: options.single === true ? false : stage.phase !== "initialization",
     memory_path: portablePath(
       stage.for_each === "unit-of-work" && !options.singlePass
         ? join(
@@ -198,6 +236,7 @@ function buildRunStageDirective(
       `${stage.slug}.md`,
     ),
     next_stage: next,
+    ...(options.single === true ? { single: true } : {}),
     ...(options.unit === undefined ? {} : { unit: options.unit }),
   };
   if (artifacts.consumesAbsent.length > 0) {
@@ -210,12 +249,73 @@ function buildRunStageDirective(
   return directive;
 }
 
+const SINGLE_INIT_ERROR =
+  "Cannot run an initialization stage with --single. Initialization is bootstrap; use the aidlc-init Skill.";
+
+/** Resolve one runnable Stage without routing from or moving the main State pointer. */
+export function resolveSingleStageDirective(
+  projectDir: string,
+  stageSlug: string,
+  options: Omit<ResolveNextOptions, "stage" | "single"> = {},
+): Directive {
+  const projectRoot = resolve(projectDir);
+  try {
+    validateIntentState(projectRoot);
+    const resume = resumeIntentState(projectRoot);
+    const graph = loadCompiledStageGraph();
+    const stage = graph.find((candidate) => candidate.slug === stageSlug);
+    if (stage === undefined) {
+      return errorDirective(`Unknown stage "${stageSlug}".`);
+    }
+    if (stage.phase === "initialization") return errorDirective(SINGLE_INIT_ERROR);
+    const plan = readPlan(projectRoot);
+    if (plan.find((row) => row.slug === stage.slug)?.action !== "EXECUTE") {
+      return errorDirective(
+        `Stage "${stage.slug}" is skipped for scope "${resume.scope}". ` +
+          "Choose a different stage or change scope.",
+      );
+    }
+    const stateContent = readFileSync(stateFilePath(projectRoot), "utf8");
+    const directive = buildRunStageDirective(
+      projectRoot,
+      stage,
+      graph,
+      plan,
+      stateContent,
+      {
+        ...options,
+        singlePass: true,
+        single: true,
+        stage: stageSlug,
+      },
+    );
+    return resolveSteeringDirective(projectRoot, directive, {
+      ...(options.continueToken === undefined
+        ? {}
+        : { continueToken: options.continueToken }),
+    });
+  } catch (error) {
+    return errorDirective(error instanceof Error ? error.message : String(error));
+  }
+}
+
 /** Resolve one upstream-compatible next action without changing State or Audit. */
 export function resolveNextDirective(
   projectDir: string,
   options: ResolveNextOptions = {},
 ): Directive {
   const projectRoot = resolve(projectDir);
+  if (options.single === true) {
+    if (options.stage === undefined || options.stage.trim() === "") {
+      return errorDirective(
+        "--single requires --stage <slug>. A Stage runner executes exactly one named Stage.",
+      );
+    }
+    return resolveSingleStageDirective(projectRoot, options.stage, options);
+  }
+  if (options.stage !== undefined) {
+    return errorDirective("--stage requires --single in the current M11 runner contract.");
+  }
   try {
     validateIntentState(projectRoot);
     const resume = resumeIntentState(projectRoot);
@@ -293,6 +393,55 @@ export function resolveNextDirective(
         ? {}
         : { continueToken: options.continueToken }),
     });
+  } catch (error) {
+    return errorDirective(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** Record an isolated Stage lifecycle without writing the main State file. */
+export function reportSingleStageResult(
+  projectDir: string,
+  stageSlug: string,
+  result: ReportResult,
+): DoneDirective | ErrorDirective {
+  const projectRoot = resolve(projectDir);
+  try {
+    if (!FORWARD_RESULTS.has(result)) {
+      return errorDirective(
+        `Unknown single-stage report result: "${result}".`,
+      );
+    }
+    const stage = loadCompiledStageGraph().find((candidate) =>
+      candidate.slug === stageSlug
+    );
+    if (stage === undefined) return errorDirective(`Unknown stage "${stageSlug}".`);
+    if (stage.phase === "initialization") return errorDirective(SINGLE_INIT_ERROR);
+    const recordDir = activeIntentRecordDir(projectRoot);
+    const workflow = `single-stage:${stage.slug}`;
+    appendAuditEntries(projectRoot, recordDir, [
+      {
+        event: "STAGE_STARTED",
+        fields: {
+          Stage: stage.slug,
+          Agent: stage.lead_agent,
+          Workflow: workflow,
+        },
+      },
+      {
+        event: "STAGE_COMPLETED",
+        fields: {
+          Stage: stage.slug,
+          Details: `Single-stage run of ${stage.slug} completed`,
+          Workflow: workflow,
+        },
+      },
+    ]);
+    return {
+      kind: "done",
+      reason:
+        `Single-stage run of "${stage.slug}" was recorded under "${workflow}". ` +
+        "The main workflow Current Stage is unchanged.",
+    };
   } catch (error) {
     return errorDirective(error instanceof Error ? error.message : String(error));
   }
@@ -443,9 +592,9 @@ function runCli(): void {
   const projectDir = flagValue(args, "--project-dir") ?? process.cwd();
   const usage =
     "Usage: aidlc-orchestrate next --project-dir <project-dir> [--unit <name>] " +
-    "[--repo <name>] [--continue-token <token>]\n" +
+    "[--repo <name>] [--continue-token <token>] [--stage <slug> --single]\n" +
     "       aidlc-orchestrate report --project-dir <project-dir> --stage <slug> " +
-    "--result <completed|approved|skipped> [--reason <text>] [--unit <name>]";
+    "--result <completed|approved|skipped> [--reason <text>] [--unit <name>] [--single]";
   if (!["next", "report"].includes(command ?? "")) {
     console.error(usage);
     process.exitCode = 1;
@@ -455,10 +604,14 @@ function runCli(): void {
     const unit = flagValue(args, "--unit");
     const repo = flagValue(args, "--repo");
     const continueToken = flagValue(args, "--continue-token");
+    const stage = flagValue(args, "--stage");
+    const single = args.includes("--single");
     emit(resolveNextDirective(projectDir, {
       ...(unit === undefined ? {} : { unit }),
       ...(repo === undefined ? {} : { repo }),
       ...(continueToken === undefined ? {} : { continueToken }),
+      ...(stage === undefined ? {} : { stage }),
+      ...(single ? { single: true } : {}),
     }));
     return;
   }
@@ -482,6 +635,10 @@ function runCli(): void {
   }
   const reason = flagValue(args, "--reason");
   const unit = flagValue(args, "--unit");
+  if (args.includes("--single")) {
+    emit(reportSingleStageResult(projectDir, stage, result as ReportResult));
+    return;
+  }
   emit(reportStageResult(projectDir, {
     stage,
     result: result as ReportResult,

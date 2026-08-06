@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { activeIntentRecordDir } from "./aidlc-state.ts";
 import { withWorkspaceLock } from "./aidlc-workspace-lock.ts";
 
@@ -193,3 +194,32 @@ export function appendStageMemoryEntry(
     return stored;
   });
 }
+
+function flagValue(args: readonly string[], flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  return index === -1 ? undefined : args[index + 1];
+}
+
+function runCli(): void {
+  const [command, ...args] = process.argv.slice(2);
+  const projectDir = flagValue(args, "--project-dir") ?? process.cwd();
+  const memoryPath = flagValue(args, "--memory-path");
+  if (command !== "init" || memoryPath === undefined) {
+    console.error(
+      "Usage: aidlc-memory init --memory-path <path> [--project-dir <dir>]",
+    );
+    process.exitCode = 1;
+    return;
+  }
+  try {
+    console.log(JSON.stringify(ensureStageMemory(projectDir, memoryPath), null, 2));
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
+}
+
+const entryPath = process.argv[1] === undefined
+  ? undefined
+  : pathToFileURL(resolve(process.argv[1])).href;
+if (entryPath === import.meta.url) runCli();

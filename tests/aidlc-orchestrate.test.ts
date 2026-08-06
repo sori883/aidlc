@@ -19,6 +19,7 @@ import { birthIntentWithState } from "../core/tools/aidlc-intent.ts";
 import { persistLearnings } from "../core/tools/aidlc-learnings.ts";
 import { ensureStageMemory } from "../core/tools/aidlc-memory.ts";
 import {
+  reportSingleStageResult,
   reportStageResult,
   resolveNextDirective,
 } from "../core/tools/aidlc-orchestrate.ts";
@@ -125,8 +126,13 @@ test("next loads Rules before one graph-backed run-stage without State mutation"
   ));
   assert.ok(existsSync(directive.stage_file));
   assert.deepEqual(
-    directive.inline_context_paths.map((path) => basename(path)),
+    directive.inline_context_paths.slice(0, 2).map((path) => basename(path)),
     ["aidlc-product-agent.md", "aidlc-architect-agent.md"],
+  );
+  assert.ok(
+    directive.inline_context_paths.some((path) =>
+      path.endsWith("/core/knowledge/aidlc-shared/state-template.md")
+    ),
   );
   assert.ok(directive.inline_context_paths.every(existsSync));
   assert.deepEqual(directive.produces.map((path) => basename(path)), [
@@ -149,6 +155,81 @@ test("next loads Rules before one graph-backed run-stage without State mutation"
   assert.equal(validateDirective(directive).valid, true);
   assert.equal(readFileSync(born.state.statePath, "utf8"), beforeState);
   assert.equal(readFileSync(born.auditPath, "utf8"), beforeAudit);
+});
+
+test("single-stage next and report never move the main State pointer", () => {
+  const projectDir = freshProject();
+  const born = birthIntentWithState(projectDir, "Payment API", "default", "mvp");
+  const beforeState = readFileSync(born.state.statePath, "utf8");
+  let next = resolveNextDirective(projectDir, {
+    stage: "intent-capture",
+    single: true,
+  });
+  while (next.kind === "load-steering") {
+    next = resolveNextDirective(projectDir, {
+      stage: "intent-capture",
+      single: true,
+      continueToken: next.continue_token,
+    });
+  }
+  assert.equal(next.kind, "run-stage");
+  if (next.kind !== "run-stage") return;
+  assert.equal(next.single, true);
+  assert.equal(next.gate, false);
+  assert.equal(next.next_stage, null);
+  assert.equal(readFileSync(born.state.statePath, "utf8"), beforeState);
+
+  const result = reportSingleStageResult(
+    projectDir,
+    "intent-capture",
+    "completed",
+  );
+  assert.equal(result.kind, "done");
+  assert.equal(readFileSync(born.state.statePath, "utf8"), beforeState);
+  const audit = readFileSync(born.auditPath, "utf8");
+  assert.match(audit, /\*\*Workflow\*\*: single-stage:intent-capture/);
+  assert.match(audit, /\*\*Event\*\*: STAGE_STARTED/);
+  assert.match(audit, /\*\*Event\*\*: STAGE_COMPLETED/);
+});
+
+test("single-stage mode rejects initialization and Stages skipped by Scope", () => {
+  const projectDir = freshProject();
+  birthIntentWithState(projectDir, "Payment API", "default", "mvp");
+  const initialization = resolveNextDirective(projectDir, {
+    stage: "state-init",
+    single: true,
+  });
+  assert.equal(initialization.kind, "error");
+  if (initialization.kind === "error") {
+    assert.match(initialization.message, /initialization stage/);
+  }
+  const skipped = resolveNextDirective(projectDir, {
+    stage: "market-research",
+    single: true,
+  });
+  assert.equal(skipped.kind, "error");
+  if (skipped.kind === "error") assert.match(skipped.message, /skipped for scope "mvp"/);
+});
+
+test("inline context includes active-Space shared and Agent Knowledge", () => {
+  const projectDir = freshProject();
+  const knowledgeRoot = join(
+    projectDir,
+    "aidlc",
+    "spaces",
+    "default",
+    "knowledge",
+  );
+  const shared = join(knowledgeRoot, "aidlc-shared", "domain.md");
+  const product = join(knowledgeRoot, "aidlc-product-agent", "product.md");
+  mkdirSync(dirname(shared), { recursive: true });
+  mkdirSync(dirname(product), { recursive: true });
+  writeFileSync(shared, "# Shared\n", "utf8");
+  writeFileSync(product, "# Product\n", "utf8");
+  birthIntentWithState(projectDir, "Payment API", "default", "mvp");
+  const { directive } = resolveRunnable(projectDir);
+  assert.ok(directive.inline_context_paths.includes(shared));
+  assert.ok(directive.inline_context_paths.includes(product));
 });
 
 test("report completion delegates to State and next sees the advanced stage", () => {
