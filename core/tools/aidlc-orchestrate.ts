@@ -1,6 +1,7 @@
-// Deterministic M6 orchestration engine. `next` is read-only and emits exactly
-// one typed Directive. `report` is the only mutation route and delegates the
-// transition to aidlc-state.ts; this module never edits State or Audit itself.
+// Deterministic orchestration engine. `next` never edits State or Audit and
+// emits exactly one typed Directive. M10 may lazily create gitignored local
+// steering-token state before it releases run-stage. `report` remains the only
+// workflow mutation route and delegates transitions to aidlc-state.ts.
 
 import { readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -35,6 +36,8 @@ import {
 } from "./aidlc-state.ts";
 import { activeSpace } from "./aidlc-workspace.ts";
 import { loadActiveUnitDag } from "./aidlc-unit-graph.ts";
+import { resolveSteeringDirective } from "./aidlc-steering.ts";
+import { assertLearningGateCompleted } from "./aidlc-learnings.ts";
 
 export type ReportResult =
   | "approved"
@@ -50,7 +53,9 @@ export interface ReportOptions {
   unit?: string;
 }
 
-export type ResolveNextOptions = ArtifactResolutionOptions;
+export interface ResolveNextOptions extends ArtifactResolutionOptions {
+  continueToken?: string;
+}
 
 const TOOL_DIR = dirname(fileURLToPath(import.meta.url));
 const CORE_DIR = resolve(TOOL_DIR, "..");
@@ -245,7 +250,14 @@ export function resolveNextDirective(
     }
     const stateContent = readFileSync(stateFilePath(projectRoot), "utf8");
     const dag = loadActiveUnitDag(projectRoot);
-    const artifactOptions: ResolveNextOptions = { ...options };
+    const artifactOptions: ArtifactResolutionOptions = {
+      ...(options.unit === undefined ? {} : { unit: options.unit }),
+      ...(options.repo === undefined ? {} : { repo: options.repo }),
+      ...(options.unitKind === undefined ? {} : { unitKind: options.unitKind }),
+      ...(options.singlePass === undefined
+        ? {}
+        : { singlePass: options.singlePass }),
+    };
     if (dag === null) {
       artifactOptions.singlePass = true;
     } else if (stage.for_each === "unit-of-work") {
@@ -268,7 +280,7 @@ export function resolveNextDirective(
       artifactOptions.unit = unit;
       if (definition.kind !== undefined) artifactOptions.unitKind = definition.kind;
     }
-    return buildRunStageDirective(
+    const directive = buildRunStageDirective(
       projectRoot,
       stage,
       graph,
@@ -276,6 +288,11 @@ export function resolveNextDirective(
       stateContent,
       artifactOptions,
     );
+    return resolveSteeringDirective(projectRoot, directive, {
+      ...(options.continueToken === undefined
+        ? {}
+        : { continueToken: options.continueToken }),
+    });
   } catch (error) {
     return errorDirective(error instanceof Error ? error.message : String(error));
   }
@@ -324,6 +341,12 @@ export function reportStageResult(
     if (!FORWARD_RESULTS.has(options.result)) {
       return errorDirective(`Unknown report result: "${options.result}".`);
     }
+    if (node.phase !== "initialization" && options.result !== "approved") {
+      return errorDirective(
+        `Stage "${stage}" has a human gate; report it with --result approved ` +
+          "after completing the Learnings Ritual.",
+      );
+    }
     const dag = loadActiveUnitDag(projectRoot);
     if (node.for_each === "unit-of-work" && dag !== null) {
       const unit = options.unit?.trim();
@@ -342,6 +365,7 @@ export function reportStageResult(
       if (definition === undefined) {
         return errorDirective(`Unit "${unit}" is not in the active Unit DAG.`);
       }
+      assertLearningGateCompleted(projectRoot, stage, unit);
       const evidence = verifyStageArtifactEvidence(projectRoot, node, {
         unit,
         ...(definition.kind === undefined ? {} : { unitKind: definition.kind }),
@@ -373,6 +397,9 @@ export function reportStageResult(
     // Reverse engineering may produce one set per repository. Deliberately do
     // not narrow this check to a CLI --repo value: all registered repos are
     // required before the stage-level transition can be committed.
+    if (node.phase !== "initialization") {
+      assertLearningGateCompleted(projectRoot, stage);
+    }
     const evidence = verifyStageArtifactEvidence(
       projectRoot,
       node,
@@ -415,7 +442,8 @@ function runCli(): void {
   const [command, ...args] = process.argv.slice(2);
   const projectDir = flagValue(args, "--project-dir") ?? process.cwd();
   const usage =
-    "Usage: aidlc-orchestrate next --project-dir <project-dir> [--unit <name>] [--repo <name>]\n" +
+    "Usage: aidlc-orchestrate next --project-dir <project-dir> [--unit <name>] " +
+    "[--repo <name>] [--continue-token <token>]\n" +
     "       aidlc-orchestrate report --project-dir <project-dir> --stage <slug> " +
     "--result <completed|approved|skipped> [--reason <text>] [--unit <name>]";
   if (!["next", "report"].includes(command ?? "")) {
@@ -426,9 +454,11 @@ function runCli(): void {
   if (command === "next") {
     const unit = flagValue(args, "--unit");
     const repo = flagValue(args, "--repo");
+    const continueToken = flagValue(args, "--continue-token");
     emit(resolveNextDirective(projectDir, {
       ...(unit === undefined ? {} : { unit }),
       ...(repo === undefined ? {} : { repo }),
+      ...(continueToken === undefined ? {} : { continueToken }),
     }));
     return;
   }

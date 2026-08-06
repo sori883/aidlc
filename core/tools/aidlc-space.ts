@@ -6,8 +6,8 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   activeSpace,
   DEFAULT_SPACE,
@@ -15,6 +15,9 @@ import {
   slugify,
   workspaceRoot,
 } from "./aidlc-workspace.ts";
+
+const TOOL_DIR = dirname(fileURLToPath(import.meta.url));
+const CORE_MEMORY_DIR = resolve(TOOL_DIR, "..", "memory");
 
 export interface SpaceInfo {
   name: string;
@@ -74,12 +77,27 @@ export function createSpace(projectDir: string, rawName: string): CreatedSpace {
     ? readFileSync(defaultOrgPath, "utf8")
     : "# Organization defaults\n";
   writeFileSync(join(memoryDir, "org.md"), organizationRules, "utf8");
-  writeFileSync(join(memoryDir, "team.md"), "# Team practices\n", "utf8");
-  writeFileSync(
-    join(memoryDir, "project.md"),
-    "# Project overrides\n",
-    "utf8",
-  );
+  for (const filename of ["team.md", "project.md"]) {
+    // New Spaces inherit organization policy, but start with clean team and
+    // project layers rather than copying another Space's learned practices.
+    const source = join(CORE_MEMORY_DIR, filename);
+    writeFileSync(
+      join(memoryDir, filename),
+      existsSync(source) ? readFileSync(source, "utf8") : `# ${filename}\n`,
+      "utf8",
+    );
+  }
+  const defaultPhasesDir = join(defaultSpaceDir, "memory", "phases");
+  if (existsSync(defaultPhasesDir)) {
+    for (const entry of readdirSync(defaultPhasesDir, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+      writeFileSync(
+        join(memoryDir, "phases", entry.name),
+        readFileSync(join(defaultPhasesDir, entry.name), "utf8"),
+        "utf8",
+      );
+    }
+  }
   writeFileSync(join(memoryDir, "templates", ".gitkeep"), "", "utf8");
   writeFileSync(join(spaceDir, "codekb", ".gitkeep"), "", "utf8");
   writeFileSync(join(spaceDir, "knowledge", ".gitkeep"), "", "utf8");

@@ -14,6 +14,8 @@
     "intent:birth": "tsx core/tools/aidlc-intent.ts birth",
     "intent:list": "tsx core/tools/aidlc-intent.ts list",
     "intent:switch": "tsx core/tools/aidlc-intent.ts switch",
+    "learnings:persist": "tsx core/tools/aidlc-learnings.ts persist",
+    "learnings:surface": "tsx core/tools/aidlc-learnings.ts surface",
     "orchestrate:next": "tsx core/tools/aidlc-orchestrate.ts next",
     "orchestrate:report": "tsx core/tools/aidlc-orchestrate.ts report",
     "rule:check": "tsx core/tools/aidlc-rule-loader.ts check",
