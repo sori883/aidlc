@@ -4,8 +4,8 @@ import {
   readdirSync,
   statSync,
 } from "node:fs";
-import { basename, join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { basename, dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseDocument } from "yaml";
 import {
   type LoadedStage,
@@ -33,7 +33,8 @@ export interface ScopeGridLike {
   };
 }
 
-const DEFAULT_SCOPES_DIR = resolve("core/scopes");
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+const DEFAULT_SCOPES_DIR = resolve(MODULE_DIR, "../scopes");
 const SCOPE_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const FRONTMATTER_KEYS = new Set([
   "name",

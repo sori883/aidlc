@@ -8,6 +8,8 @@
     "agent:plan": "tsx core/tools/aidlc-executor.ts plan",
     "artifact:check": "tsx core/tools/aidlc-artifacts.ts check",
     "artifact:show": "tsx core/tools/aidlc-artifacts.ts show",
+    "bundle:check": "tsx core/tools/aidlc-codex-bundle.ts check",
+    "bundle:write": "tsx core/tools/aidlc-codex-bundle.ts write",
     "graph:check": "tsx core/tools/aidlc-graph.ts compile --check",
     "graph:compile": "tsx core/tools/aidlc-graph.ts compile",
     "graph:resolve": "tsx core/tools/aidlc-graph.ts resolve",

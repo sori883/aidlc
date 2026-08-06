@@ -55,6 +55,7 @@ const DEFAULT_AUTHORED_SKILL_DIR = resolve(
   "../../harness/codex/skills/aidlc",
 );
 const OPENAI_YAML = "policy:\n  allow_implicit_invocation: false\n";
+const RUNTIME = "pnpm --dir .codex run";
 
 function portable(path: string): string {
   return path.replaceAll("\\", "/");
@@ -103,7 +104,7 @@ branch. Do not update the active Intent's Current Stage.
 
 1. Request the isolated directive:
 
-   \`pnpm exec tsx .codex/tools/aidlc-orchestrate.ts next --project-dir . --stage ${stage.slug} --single\`
+   \`${RUNTIME} orchestrate next --project-dir .. --stage ${stage.slug} --single\`
 
 2. Preserve every \`load-steering\` part and repeat the same command with
    \`--continue-token <token>\` until \`run-stage\` is returned.
@@ -112,7 +113,7 @@ branch. Do not update the active Intent's Current Stage.
    isolated directive has \`single: true\` and \`gate: false\`.
 4. Record the isolated lifecycle:
 
-   \`pnpm exec tsx .codex/tools/aidlc-orchestrate.ts report --project-dir . --stage ${stage.slug} --result completed --single\`
+   \`${RUNTIME} orchestrate report --project-dir .. --stage ${stage.slug} --result completed --single\`
 
 Stop after the \`done\` directive. Never report against the main workflow.
 `;
@@ -131,15 +132,21 @@ description: Create an AI-DLC Intent and run the complete Initialization phase.
 Create one Intent. Initialization is atomic; its three bootstrap Stages are not
 available as isolated Stage runners.
 
-1. Parse \`$ARGUMENTS\` as an optional \`--scope <name>\` and a free-form
+Run every command below from the repository root.
+
+1. Ensure the workspace shell exists:
+
+   \`${RUNTIME} workspace init ..\`
+
+2. Parse \`$ARGUMENTS\` as an optional \`--scope <name>\` and a free-form
    description. Scope defaults to \`poc\`.
-2. Derive a concise two-to-four word label from the description. If no
+3. Derive a concise two-to-four word label from the description. If no
    description exists, use the scope name.
-3. Run:
+4. Run:
 
-   \`pnpm exec tsx .codex/tools/aidlc-intent.ts birth . "<label>" --scope <scope>\`
+   \`${RUNTIME} intent birth .. "<label>" --scope <scope>\`
 
-4. Print the result and stop. Continue later with \`$aidlc\`.
+5. Print the result and stop. Continue later with \`$aidlc\`.
 `;
 }
 
@@ -157,15 +164,19 @@ description: Run AI-DLC with the ${scope.name} Scope fixed. ${scope.description}
 Read \`../aidlc/SKILL.md\` and follow the same engine loop with scope
 \`${scope.name}\` fixed.
 
-1. Inspect the active Intent with
-   \`pnpm exec tsx .codex/tools/aidlc-intent.ts list . --json\`.
-2. If no Intent exists, derive a concise label from \`$ARGUMENTS\` and birth it:
-   \`pnpm exec tsx .codex/tools/aidlc-intent.ts birth . "<label>" --scope ${scope.name}\`.
-3. If an active Intent exists, read its Scope with
-   \`pnpm exec tsx .codex/tools/aidlc-state.ts resume .\`. If it differs from
+Run every command below from the repository root.
+
+1. Ensure the workspace shell exists:
+   \`${RUNTIME} workspace init ..\`.
+2. Inspect the active Intent with
+   \`${RUNTIME} intent list .. --json\`.
+3. If no Intent exists, derive a concise label from \`$ARGUMENTS\` and birth it:
+   \`${RUNTIME} intent birth .. "<label>" --scope ${scope.name}\`.
+4. If an active Intent exists, read its Scope with
+   \`${RUNTIME} state resume ..\`. If it differs from
    \`${scope.name}\`, stop and explain that Scope is fixed at Intent Birth;
    never rewrite its plan implicitly.
-4. Run the \`$aidlc\` forwarding loop until the engine returns \`done\`.
+5. Run the \`$aidlc\` forwarding loop until the engine returns \`done\`.
 `;
 }
 
@@ -179,7 +190,10 @@ function loadRunnerScopes(options: RunnerGeneratorOptions): ScopeDefinition[] {
   return runnerScopes(loadScopes(options.scopesDir ?? DEFAULT_SCOPES_DIR));
 }
 
-function expectedFiles(options: RunnerGeneratorOptions): Map<string, string> {
+/** Render every Skill file relative to the configured Skills directory. */
+export function runnerSkillFiles(
+  options: RunnerGeneratorOptions = {},
+): Map<string, string> {
   const files = new Map<string, string>();
   const authoredDir = resolvedAuthoredSkillDir(options);
   for (const filename of [
@@ -217,7 +231,7 @@ export function writeRunnerSkills(
   options: RunnerGeneratorOptions = {},
 ): RunnerWriteResult {
   const skillsDir = resolvedSkillsDir(options);
-  const expected = expectedFiles(options);
+  const expected = runnerSkillFiles(options);
   mkdirSync(skillsDir, { recursive: true });
   const expectedDirectories = new Set(
     [...expected.keys()].map((path) => path.split(/[\\/]/, 1)[0]),
@@ -251,7 +265,7 @@ export function checkRunnerSkills(
   options: RunnerGeneratorOptions = {},
 ): RunnerCheckResult {
   const skillsDir = resolvedSkillsDir(options);
-  const expected = expectedFiles(options);
+  const expected = runnerSkillFiles(options);
   const missing: string[] = [];
   const stale: string[] = [];
   for (const [relativePath, content] of expected) {
