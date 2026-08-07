@@ -5,6 +5,7 @@
   "packageManager": "pnpm@11.7.0",
   "scripts": {
     "artifact": "tsx tools/aidlc-artifacts.ts",
+    "contract": "tsx tools/aidlc-runtime-contract.ts",
     "doctor": "tsx tools/aidlc-doctor.ts",
     "intent": "tsx tools/aidlc-intent.ts",
     "learnings": "tsx tools/aidlc-learnings.ts",

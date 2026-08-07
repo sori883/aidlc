@@ -39,6 +39,14 @@ import { loadActiveUnitDag } from "./aidlc-unit-graph.ts";
 import { resolveSteeringDirective } from "./aidlc-steering.ts";
 import { assertLearningGateCompleted } from "./aidlc-learnings.ts";
 import { appendAuditEntries } from "./aidlc-audit.ts";
+import {
+  cliAcceptsResult,
+  cliHasCommand,
+  cliUnknownFlags,
+  loadCliContract,
+} from "./aidlc-cli-contract.ts";
+
+const ORCHESTRATE_CLI_CONTRACT = loadCliContract("aidlc-orchestrate.ts");
 
 export type ReportResult =
   | "approved"
@@ -595,9 +603,16 @@ function runCli(): void {
     "[--repo <name>] [--continue-token <token>] [--stage <slug> --single]\n" +
     "       aidlc-orchestrate report --project-dir <project-dir> --stage <slug> " +
     "--result <completed|approved|skipped> [--reason <text>] [--unit <name>] [--single]";
-  if (!["next", "report"].includes(command ?? "")) {
+  if (!cliHasCommand(ORCHESTRATE_CLI_CONTRACT, command)) {
     console.error(usage);
     process.exitCode = 1;
+    return;
+  }
+  const unknownFlags = cliUnknownFlags(ORCHESTRATE_CLI_CONTRACT, command, args);
+  if (unknownFlags.length > 0) {
+    emit(errorDirective(
+      `Unknown flag(s) for ${command}: ${unknownFlags.join(", ")}`,
+    ));
     return;
   }
   if (command === "next") {
@@ -623,13 +638,7 @@ function runCli(): void {
     ));
     return;
   }
-  if (![
-    "approved",
-    "completed",
-    "complete",
-    "done",
-    "skipped",
-  ].includes(result)) {
+  if (!cliAcceptsResult(ORCHESTRATE_CLI_CONTRACT, "report", result)) {
     emit(errorDirective(`Unknown --result "${result}".`));
     return;
   }

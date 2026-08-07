@@ -24,6 +24,13 @@ import {
 import { withWorkspaceLock } from "./aidlc-workspace-lock.ts";
 import { appendAuditEntry } from "./aidlc-audit.ts";
 import type { UnitDag } from "./aidlc-unit-graph.ts";
+import {
+  cliHasCommand,
+  cliUnknownFlags,
+  loadCliContract,
+} from "./aidlc-cli-contract.ts";
+
+const STATE_CLI_CONTRACT = loadCliContract("aidlc-state.ts");
 
 export const STATE_VERSION = 7;
 
@@ -1058,12 +1065,20 @@ function runCli(): void {
     "       aidlc-state skip <project-dir> <current-stage> --reason <text>\n" +
     "       aidlc-state resume <project-dir>\n" +
     "       aidlc-state check <project-dir>";
-  if (command === undefined || projectDir === undefined) {
+  if (!cliHasCommand(STATE_CLI_CONTRACT, command) || projectDir === undefined) {
     console.error(usage);
     process.exitCode = 1;
     return;
   }
   try {
+    const unknownFlags = cliUnknownFlags(
+      STATE_CLI_CONTRACT,
+      command,
+      [slug, ...args].filter((item): item is string => item !== undefined),
+    );
+    if (unknownFlags.length > 0) {
+      throw new Error(`Unknown flag(s) for ${command}: ${unknownFlags.join(", ")}`);
+    }
     if (command === "init") {
       const scope = flagValue([slug, ...args].filter((item): item is string => item !== undefined), "--scope");
       if (scope === undefined) throw new Error("--scope is required");

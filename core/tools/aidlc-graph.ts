@@ -34,6 +34,13 @@ import {
   validateStageScopeReferences,
 } from "./aidlc-scope-loader.ts";
 import { activeSpace, workspaceRoot } from "./aidlc-workspace.ts";
+import {
+  cliHasCommand,
+  cliUnknownFlags,
+  loadCliContract,
+} from "./aidlc-cli-contract.ts";
+
+const GRAPH_CLI_CONTRACT = loadCliContract("aidlc-graph.ts");
 
 export interface CompiledStage extends Omit<LoadedStage, "sourcePath"> {
   rules_in_context: RuleResolution[];
@@ -485,6 +492,13 @@ export function checkCompiledStageGraph(options: CompileOptions = {}): {
 function runCli(): void {
   const [command, ...args] = process.argv.slice(2);
   try {
+    if (!cliHasCommand(GRAPH_CLI_CONTRACT, command)) {
+      throw new Error(`Unknown command: ${command ?? ""}`);
+    }
+    const unknownFlags = cliUnknownFlags(GRAPH_CLI_CONTRACT, command, args);
+    if (unknownFlags.length > 0) {
+      throw new Error(`Unknown flag(s) for ${command}: ${unknownFlags.join(", ")}`);
+    }
     if (command === "compile" && args.every((arg) => arg === "--check")) {
       if (args.includes("--check")) {
         const { result, staleFiles } = checkCompiledStageGraph();

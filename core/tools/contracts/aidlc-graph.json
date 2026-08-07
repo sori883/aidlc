@@ -1,0 +1,13 @@
+{
+  "tool": "aidlc-graph.ts",
+  "commands": {
+    "compile": {
+      "flags": ["--check"],
+      "results": []
+    },
+    "resolve": {
+      "flags": ["--project", "--stdout"],
+      "results": []
+    }
+  }
+}
