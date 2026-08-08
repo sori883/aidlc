@@ -91,6 +91,7 @@ function collectTree(
   files: Map<string, string>,
   sourceDir: string,
   destinationDir: string,
+  transform?: (path: string, content: string) => string,
 ): void {
   if (!existsSync(sourceDir) || !statSync(sourceDir).isDirectory()) {
     throw new Error(`Missing Codex bundle source directory: ${sourceDir}`);
@@ -101,13 +102,55 @@ function collectTree(
     const sourcePath = join(sourceDir, entry.name);
     const destinationPath = join(destinationDir, entry.name);
     if (entry.isDirectory()) {
-      collectTree(files, sourcePath, destinationPath);
+      collectTree(files, sourcePath, destinationPath, transform);
     } else if (entry.isFile()) {
-      files.set(portable(destinationPath), readFileSync(sourcePath, "utf8"));
+      const path = portable(destinationPath);
+      const content = readFileSync(sourcePath, "utf8");
+      files.set(path, transform?.(path, content) ?? content);
     } else {
       throw new Error(`Unsupported Codex bundle source entry: ${sourcePath}`);
     }
   }
+}
+
+export function codexRuntimeToolScripts(
+  runtimePackageSource: string,
+): ReadonlyMap<string, string> {
+  const parsed = JSON.parse(runtimePackageSource) as {
+    scripts?: Record<string, unknown>;
+  };
+  const scripts = new Map<string, string>();
+  for (const [name, command] of Object.entries(parsed.scripts ?? {})) {
+    if (typeof command !== "string") continue;
+    const match = command.match(/^tsx tools\/(aidlc-[a-z0-9-]+\.ts)$/);
+    if (match?.[1] !== undefined) scripts.set(match[1], name);
+  }
+  return scripts;
+}
+
+function escapedRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Render Harness-neutral Markdown as executable Codex instructions. */
+export function transformCodexMarkdown(
+  content: string,
+  toolScripts: ReadonlyMap<string, string>,
+): string {
+  let rendered = content;
+  for (const [tool, script] of toolScripts) {
+    const toolPath = `{{HARNESS_DIR}}/tools/${tool}`;
+    rendered = rendered.replace(
+      new RegExp(`bun\\s+${escapedRegex(toolPath)}`, "g"),
+      `pnpm --dir .codex run ${script}`,
+    );
+  }
+  return rendered
+    .replaceAll(
+      "{{HARNESS_DIR}}/tools/data/scope-grid.json",
+      ".codex/aidlc-common/data/scope-grid.json",
+    )
+    .replaceAll("{{HARNESS_DIR}}/", ".codex/");
 }
 
 function tomlString(value: string): string {
@@ -115,9 +158,14 @@ function tomlString(value: string): string {
 }
 
 /** Render one project-scoped Codex custom Agent from an AI-DLC Agent. */
-export function renderCodexAgentToml(agent: AgentDefinition): string {
+export function renderCodexAgentToml(
+  agent: AgentDefinition,
+  toolScripts: ReadonlyMap<string, string> = codexRuntimeToolScripts(
+    requireFile(join(DEFAULT_HARNESS_DIR, "runtime", "package.json")),
+  ),
+): string {
   const instructions = [
-    agent.instructions,
+    transformCodexMarkdown(agent.instructions, toolScripts),
     "",
     "AI-DLC Codex constraints:",
     "- Work only on the exact Stage task and paths supplied by the conductor.",
@@ -167,11 +215,19 @@ export function codexBundleFiles(
 ): Map<string, string> {
   const { coreDir, harnessDir } = resolvedPaths(options);
   const files = new Map<string, string>();
+  const runtimePackageSource = requireFile(
+    join(harnessDir, "runtime", "package.json"),
+  );
+  const toolScripts = codexRuntimeToolScripts(runtimePackageSource);
+  const transformCore = (path: string, content: string): string =>
+    path.endsWith(".md")
+      ? transformCodexMarkdown(content, toolScripts)
+      : content;
   files.set("AGENTS.md", requireFile(join(harnessDir, "AGENTS.md")));
   files.set(".codex/hooks.json", requireFile(join(harnessDir, "hooks.json")));
   files.set(
     ".codex/package.json",
-    requireFile(join(harnessDir, "runtime", "package.json")),
+    runtimePackageSource,
   );
   files.set(
     ".codex/pnpm-lock.yaml",
@@ -182,7 +238,12 @@ export function codexBundleFiles(
     requireFile(join(harnessDir, "runtime", "pnpm-workspace.yaml")),
   );
   for (const tree of CORE_TREES) {
-    collectTree(files, join(coreDir, tree), join(".codex", tree));
+    collectTree(
+      files,
+      join(coreDir, tree),
+      join(".codex", tree),
+      transformCore,
+    );
   }
   files.set(
     ".codex/hooks/aidlc-sensor-core.ts",
@@ -198,7 +259,7 @@ export function codexBundleFiles(
   for (const agent of loadAgents(join(coreDir, "agents"))) {
     files.set(
       `.codex/agents/${agent.name}.toml`,
-      renderCodexAgentToml(agent),
+      renderCodexAgentToml(agent, toolScripts),
     );
   }
   for (const [path, content] of runnerSkillFiles({

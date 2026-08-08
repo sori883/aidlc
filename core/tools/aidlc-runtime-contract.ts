@@ -71,16 +71,14 @@ function markdownFiles(directory: string): string[] {
   return files;
 }
 
-function generatedInstructionFiles(directory: string): string[] {
+function generatedBundleFiles(directory: string): string[] {
   if (!existsSync(directory)) return [];
   const files: string[] = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })
     .sort((left, right) => left.name.localeCompare(right.name))) {
     const path = join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...generatedInstructionFiles(path));
-    else if (
-      entry.isFile() && (entry.name.endsWith(".md") || entry.name.endsWith(".toml"))
-    ) files.push(path);
+    if (entry.isDirectory()) files.push(...generatedBundleFiles(path));
+    else if (entry.isFile()) files.push(path);
   }
   return files;
 }
@@ -168,8 +166,44 @@ function pushIssue(
 
 function expectedResourcePath(reference: string): string {
   if (reference.startsWith("knowledge/")) return reference;
+  if (reference === "tools/data/scope-grid.json") {
+    return "aidlc-common/data/scope-grid.json";
+  }
   if (reference.startsWith("tools/")) return reference;
   throw new Error(`Unsupported Harness resource: ${reference}`);
+}
+
+function inspectGeneratedInstructions(
+  generatedFiles: ReadonlyMap<string, string>,
+  issues: RuntimeContractIssue[],
+): void {
+  const instructionFiles = [...generatedFiles].filter(([path]) =>
+    path.endsWith(".md") || path.endsWith(".toml")
+  );
+  for (const [path, content] of instructionFiles) {
+    for (const match of content.matchAll(/\{\{HARNESS_DIR\}\}/g)) {
+      pushIssue(issues, {
+        code: "unresolved-harness-placeholder",
+        source: portable(path),
+        line: lineAt(content, match.index ?? 0),
+        subject: "{{HARNESS_DIR}}",
+        detail: "Generated Codex bundle still contains an unresolved Harness path",
+      });
+    }
+    for (const match of content.matchAll(
+      /(?:^|[\s`("'=])(\.codex\/[A-Za-z0-9_./-]+\.(?:json|md|toml|ts|yaml))(?=$|[\s`'"),.:;])/gm,
+    )) {
+      const reference = match[1]!;
+      if (generatedFiles.has(reference)) continue;
+      pushIssue(issues, {
+        code: "missing-resource",
+        source: portable(path),
+        line: lineAt(content, (match.index ?? 0) + match[0].indexOf(reference)),
+        subject: reference,
+        detail: `Referenced Codex bundle resource does not exist: ${reference}`,
+      });
+    }
+  }
 }
 
 function loadNamedResources(coreDir: string): Record<string, string> {
@@ -403,23 +437,12 @@ export function inspectRuntimeContract(
   const generatedFiles = existsSync(join(harnessDir, "runtime", "package.json"))
     ? codexBundleFiles({ coreDir, harnessDir })
     : new Map(
-      generatedInstructionFiles(coreDir).map((path) => [
+      generatedBundleFiles(coreDir).map((path) => [
         portable(relative(repositoryRoot, path)),
         readFileSync(path, "utf8"),
       ]),
     );
-  for (const [path, content] of generatedFiles) {
-    if (!path.endsWith(".md") && !path.endsWith(".toml")) continue;
-    const index = content.indexOf("{{HARNESS_DIR}}");
-    if (index === -1) continue;
-    pushIssue(issues, {
-      code: "unresolved-harness-placeholder",
-      source: portable(path),
-      line: lineAt(content, index),
-      subject: "{{HARNESS_DIR}}",
-      detail: "Generated Codex bundle still contains an unresolved Harness path",
-    });
-  }
+  inspectGeneratedInstructions(generatedFiles, issues);
 
   issues.sort((left, right) =>
     left.source.localeCompare(right.source) || left.line - right.line ||

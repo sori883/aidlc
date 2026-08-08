@@ -19,6 +19,8 @@ import type {
 import {
   checkCodexBundle,
   CODEX_BUNDLE_MANIFEST,
+  codexRuntimeToolScripts,
+  transformCodexMarkdown,
   writeCodexBundle,
 } from "../core/tools/aidlc-codex-bundle.ts";
 
@@ -78,6 +80,34 @@ function runtimeRunnable(outDir: string): RunStageDirective {
   return directive;
 }
 
+test("translates Harness-neutral Markdown to Codex pnpm commands and paths", () => {
+  const scripts = codexRuntimeToolScripts(JSON.stringify({
+    scripts: {
+      graph: "tsx tools/aidlc-graph.ts",
+      utility: "tsx tools/aidlc-utility.ts",
+      ignored: "node tools/not-an-aidlc-tool.ts",
+    },
+  }));
+  assert.deepEqual([...scripts], [
+    ["aidlc-graph.ts", "graph"],
+    ["aidlc-utility.ts", "utility"],
+  ]);
+
+  const rendered = transformCodexMarkdown([
+    "bun {{HARNESS_DIR}}/tools/aidlc-graph.ts ars",
+    "bun\n{{HARNESS_DIR}}/tools/aidlc-utility.ts scope-table",
+    "{{HARNESS_DIR}}/knowledge/aidlc-shared/rules-reading.md",
+    "{{HARNESS_DIR}}/tools/data/scope-grid.json",
+  ].join("\n"), scripts);
+  assert.equal(rendered, [
+    "pnpm --dir .codex run graph ars",
+    "pnpm --dir .codex run utility scope-table",
+    ".codex/knowledge/aidlc-shared/rules-reading.md",
+    ".codex/aidlc-common/data/scope-grid.json",
+  ].join("\n"));
+  assert.doesNotMatch(rendered, /\{\{HARNESS_DIR\}\}/);
+});
+
 test("writes a complete Codex bundle with local tsx and yaml runtime", () => {
   const outDir = freshBundleDir();
   const result = writeCodexBundle({ outDir });
@@ -94,6 +124,11 @@ test("writes a complete Codex bundle with local tsx and yaml runtime", () => {
     ".codex/hooks/aidlc-sensor-core.ts",
     ".codex/hooks/aidlc-sensor-fire.ts",
     ".codex/aidlc-common/data/stage-graph.json",
+    ".codex/aidlc-common/protocols/stage-protocol.md",
+    ".codex/knowledge/aidlc-shared/rules-reading.md",
+    ".codex/knowledge/aidlc-design-agent/component-spec-template.md",
+    ".codex/knowledge/aidlc-developer-agent/re-artifacts.md",
+    ".codex/knowledge/aidlc-pipeline-deploy-agent/branching-strategies.md",
     ".agents/skills/aidlc/SKILL.md",
   ]) {
     assert.equal(existsSync(join(outDir, path)), true, path);
@@ -106,12 +141,67 @@ test("writes a complete Codex bundle with local tsx and yaml runtime", () => {
   };
   assert.deepEqual(runtime.dependencies, { tsx: "4.23.1", yaml: "2.9.0" });
   assert.equal(runtime.scripts.graph, "tsx tools/aidlc-graph.ts");
+  assert.equal(
+    runtime.scripts["sensor-linter"],
+    "tsx tools/aidlc-sensor-linter.ts",
+  );
   const hook = readFileSync(
     join(outDir, ".codex", "hooks", "aidlc-sensor-fire.ts"),
     "utf8",
   );
   assert.match(hook, /from "\.\/aidlc-sensor-core\.ts"/);
   assert.doesNotMatch(hook, /\.\.\/\.\.\/\.\.\/core/);
+  const skill = readFileSync(
+    join(outDir, ".agents", "skills", "aidlc", "SKILL.md"),
+    "utf8",
+  );
+  assert.match(
+    skill,
+    /\.codex\/aidlc-common\/protocols\/stage-protocol\.md/,
+  );
+  const composer = readFileSync(
+    join(outDir, ".codex", "agents", "aidlc-composer-agent.md"),
+    "utf8",
+  );
+  assert.match(composer, /pnpm --dir \.codex run graph ars/);
+  const composerToml = readFileSync(
+    join(outDir, ".codex", "agents", "aidlc-composer-agent.toml"),
+    "utf8",
+  );
+  assert.match(composerToml, /pnpm --dir \.codex run graph ars/);
+  const protocol = readFileSync(
+    join(outDir, ".codex", "aidlc-common", "protocols", "stage-protocol.md"),
+    "utf8",
+  );
+  assert.match(protocol, /pnpm --dir \.codex run log decision/);
+  assert.match(protocol, /pnpm --dir \.codex run utility scope-table/);
+  const sensor = readFileSync(
+    join(outDir, ".codex", "sensors", "aidlc-linter.md"),
+    "utf8",
+  );
+  assert.match(sensor, /^command: pnpm --dir \.codex run sensor-linter$/m);
+  const stateInit = readFileSync(
+    join(
+      outDir,
+      ".codex",
+      "aidlc-common",
+      "stages",
+      "initialization",
+      "state-init.md",
+    ),
+    "utf8",
+  );
+  assert.match(stateInit, /\.codex\/aidlc-common\/data\/scope-grid\.json/);
+
+  for (const path of result.files.filter((path) =>
+    path.endsWith(".md") || path.endsWith(".toml")
+  )) {
+    assert.doesNotMatch(
+      readFileSync(join(outDir, path), "utf8"),
+      /\{\{HARNESS_DIR\}\}/,
+      path,
+    );
+  }
 
   const agents = loadAgents();
   for (const agent of agents) {
