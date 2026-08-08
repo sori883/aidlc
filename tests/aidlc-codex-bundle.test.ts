@@ -19,6 +19,7 @@ import type {
 import {
   checkCodexBundle,
   CODEX_BUNDLE_MANIFEST,
+  codexProjectCommands,
   codexRuntimeToolScripts,
   transformCodexMarkdown,
   writeCodexBundle,
@@ -96,12 +97,16 @@ test("translates Harness-neutral Markdown to Codex pnpm commands and paths", () 
   const rendered = transformCodexMarkdown([
     "bun {{HARNESS_DIR}}/tools/aidlc-graph.ts ars",
     "bun\n{{HARNESS_DIR}}/tools/aidlc-utility.ts scope-table",
+    "bun {{HARNESS_DIR}}/tools/aidlc-utility.ts detect --json",
     "{{HARNESS_DIR}}/knowledge/aidlc-shared/rules-reading.md",
     "{{HARNESS_DIR}}/tools/data/scope-grid.json",
-  ].join("\n"), scripts);
+  ].join("\n"), scripts, new Map([
+    ["aidlc-utility.ts", new Set(["detect"])],
+  ]));
   assert.equal(rendered, [
     "pnpm --dir .codex run graph ars",
     "pnpm --dir .codex run utility scope-table",
+    "pnpm --dir .codex run utility detect --project-dir .. --json",
     ".codex/knowledge/aidlc-shared/rules-reading.md",
     ".codex/aidlc-common/data/scope-grid.json",
   ].join("\n"));
@@ -173,8 +178,30 @@ test("writes a complete Codex bundle with local tsx and yaml runtime", () => {
     join(outDir, ".codex", "aidlc-common", "protocols", "stage-protocol.md"),
     "utf8",
   );
-  assert.match(protocol, /pnpm --dir \.codex run log decision/);
+  assert.match(
+    protocol,
+    /pnpm --dir \.codex run log decision --project-dir \.\./,
+  );
   assert.match(protocol, /pnpm --dir \.codex run utility scope-table/);
+  const practices = readFileSync(
+    join(
+      outDir,
+      ".codex",
+      "aidlc-common",
+      "stages",
+      "inception",
+      "practices-discovery.md",
+    ),
+    "utf8",
+  );
+  assert.match(
+    practices,
+    /pnpm --dir \.codex run state practices-promote --project-dir \.\./,
+  );
+  assert.match(
+    practices,
+    /pnpm --dir \.codex run orchestrate report --project-dir \.\./,
+  );
   const sensor = readFileSync(
     join(outDir, ".codex", "sensors", "aidlc-linter.md"),
     "utf8",
@@ -220,6 +247,15 @@ test("writes a complete Codex bundle with local tsx and yaml runtime", () => {
   );
   assert.match(conductor, /pnpm --dir \.codex install --frozen-lockfile/);
   assert.match(conductor, /pnpm --dir \.codex run orchestrate/);
+});
+
+test("derives project-aware Codex commands from CLI contracts", () => {
+  const commands = codexProjectCommands();
+  assert.equal(commands.get("aidlc-orchestrate.ts")?.has("report"), true);
+  assert.equal(commands.get("aidlc-state.ts")?.has("practices-promote"), true);
+  assert.equal(commands.get("aidlc-utility.ts")?.has("detect"), true);
+  assert.equal(commands.get("aidlc-utility.ts")?.has("scope-table"), false);
+  assert.equal(commands.get("aidlc-graph.ts"), undefined);
 });
 
 test("bundle check detects drift and write refuses an unmanaged directory", () => {

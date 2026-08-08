@@ -29,6 +29,8 @@ import {
   cloneIdPath,
 } from "../core/tools/aidlc-audit.ts";
 
+const PNPM = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+
 function freshProject(): string {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-state-"));
   initializeWorkspace(projectDir);
@@ -136,7 +138,7 @@ test("set-construction-iteration validates and persists Runtime State without Au
   assert.equal(readFileSync(born.auditPath, "utf8"), beforeAudit);
 
   const cli = spawnSync(
-    "pnpm",
+    PNPM,
     [
       "exec",
       "tsx",
@@ -165,8 +167,27 @@ test("set-construction-iteration validates and persists Runtime State without Au
   assert.equal(readFileSync(born.state.planPath, "utf8"), beforePlan);
   assert.equal(readFileSync(born.auditPath, "utf8"), beforeAudit);
 
+  const projectFlagFirst = spawnSync(
+    PNPM,
+    [
+      "exec",
+      "tsx",
+      "core/tools/aidlc-state.ts",
+      "set-construction-iteration",
+      "--project-dir",
+      projectDir,
+      "unit-major",
+    ],
+    { cwd: process.cwd(), encoding: "utf8" },
+  );
+  assert.equal(projectFlagFirst.status, 0, projectFlagFirst.stderr);
+  assert.equal(
+    JSON.parse(projectFlagFirst.stdout).construction_iteration,
+    "unit-major",
+  );
+
   const invalid = spawnSync(
-    "pnpm",
+    PNPM,
     [
       "exec",
       "tsx",

@@ -33,10 +33,10 @@ const UTILITY_COMMANDS = [
 ] as const;
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const SCOPE_TABLE_BEGIN =
-  "<!-- BEGIN: compiled scope grid via `bun aidlc-utility.ts scope-table` - do NOT hand-edit -->";
+  "<!-- BEGIN: compiled scope grid - do NOT hand-edit -->";
 const SCOPE_TABLE_END = "<!-- END: compiled scope grid -->";
 const STAGE_TABLE_BEGIN =
-  "<!-- BEGIN: compiled stage graph via `bun aidlc-utility.ts stage-table` - do NOT hand-edit -->";
+  "<!-- BEGIN: compiled stage graph - do NOT hand-edit -->";
 const STAGE_TABLE_END = "<!-- END: compiled stage graph -->";
 
 export interface UtilityDetectResult {

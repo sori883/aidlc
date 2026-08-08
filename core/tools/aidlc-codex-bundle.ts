@@ -14,6 +14,7 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadAgents, type AgentDefinition } from "./aidlc-agent-loader.ts";
+import { loadCliContracts } from "./aidlc-cli-contract.ts";
 import { runnerSkillFiles } from "./aidlc-runner-gen.ts";
 
 export const CODEX_BUNDLE_GENERATOR = "aidlc-codex-bundle";
@@ -128,6 +129,23 @@ export function codexRuntimeToolScripts(
   return scripts;
 }
 
+export function codexProjectCommands(
+  coreDir: string = DEFAULT_CORE_DIR,
+): ReadonlyMap<string, ReadonlySet<string>> {
+  const commands = new Map<string, ReadonlySet<string>>();
+  for (const [tool, contract] of loadCliContracts(
+    join(coreDir, "tools", "contracts"),
+  )) {
+    const projectAware = new Set(
+      Object.entries(contract.commands)
+        .filter(([, command]) => command.flags.includes("--project-dir"))
+        .map(([name]) => name),
+    );
+    if (projectAware.size > 0) commands.set(tool, projectAware);
+  }
+  return commands;
+}
+
 function escapedRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -136,10 +154,20 @@ function escapedRegex(value: string): string {
 export function transformCodexMarkdown(
   content: string,
   toolScripts: ReadonlyMap<string, string>,
+  projectCommands: ReadonlyMap<string, ReadonlySet<string>> = new Map(),
 ): string {
   let rendered = content;
   for (const [tool, script] of toolScripts) {
     const toolPath = `{{HARNESS_DIR}}/tools/${tool}`;
+    for (const command of projectCommands.get(tool) ?? []) {
+      rendered = rendered.replace(
+        new RegExp(
+          `bun\\s+${escapedRegex(toolPath)}\\s+${escapedRegex(command)}\\b`,
+          "g",
+        ),
+        `pnpm --dir .codex run ${script} ${command} --project-dir ..`,
+      );
+    }
     rendered = rendered.replace(
       new RegExp(`bun\\s+${escapedRegex(toolPath)}`, "g"),
       `pnpm --dir .codex run ${script}`,
@@ -163,9 +191,11 @@ export function renderCodexAgentToml(
   toolScripts: ReadonlyMap<string, string> = codexRuntimeToolScripts(
     requireFile(join(DEFAULT_HARNESS_DIR, "runtime", "package.json")),
   ),
+  projectCommands: ReadonlyMap<string, ReadonlySet<string>> =
+    codexProjectCommands(),
 ): string {
   const instructions = [
-    transformCodexMarkdown(agent.instructions, toolScripts),
+    transformCodexMarkdown(agent.instructions, toolScripts, projectCommands),
     "",
     "AI-DLC Codex constraints:",
     "- Work only on the exact Stage task and paths supplied by the conductor.",
@@ -219,9 +249,10 @@ export function codexBundleFiles(
     join(harnessDir, "runtime", "package.json"),
   );
   const toolScripts = codexRuntimeToolScripts(runtimePackageSource);
+  const projectCommands = codexProjectCommands(coreDir);
   const transformCore = (path: string, content: string): string =>
     path.endsWith(".md")
-      ? transformCodexMarkdown(content, toolScripts)
+      ? transformCodexMarkdown(content, toolScripts, projectCommands)
       : content;
   files.set("AGENTS.md", requireFile(join(harnessDir, "AGENTS.md")));
   files.set(".codex/hooks.json", requireFile(join(harnessDir, "hooks.json")));
@@ -259,7 +290,7 @@ export function codexBundleFiles(
   for (const agent of loadAgents(join(coreDir, "agents"))) {
     files.set(
       `.codex/agents/${agent.name}.toml`,
-      renderCodexAgentToml(agent, toolScripts),
+      renderCodexAgentToml(agent, toolScripts, projectCommands),
     );
   }
   for (const [path, content] of runnerSkillFiles({
