@@ -7,6 +7,7 @@
     "artifact": "tsx tools/aidlc-artifacts.ts",
     "contract": "tsx tools/aidlc-runtime-contract.ts",
     "doctor": "tsx tools/aidlc-doctor.ts",
+    "graph": "tsx tools/aidlc-graph.ts",
     "intent": "tsx tools/aidlc-intent.ts",
     "learnings": "tsx tools/aidlc-learnings.ts",
     "log": "tsx tools/aidlc-log.ts",
@@ -20,7 +21,8 @@
     "utility": "tsx tools/aidlc-utility.ts",
     "workspace": "tsx tools/aidlc-workspace.ts",
     "workspace-detect": "tsx tools/aidlc-workspace-detect.ts",
-    "workspace-migrate": "tsx tools/aidlc-workspace-migrate.ts"
+    "workspace-migrate": "tsx tools/aidlc-workspace-migrate.ts",
+    "worktree": "tsx tools/aidlc-worktree.ts"
   },
   "dependencies": {
     "tsx": "4.23.1",

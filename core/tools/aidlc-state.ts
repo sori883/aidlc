@@ -120,6 +120,15 @@ export interface DerivedStateInspection {
   workflowCompleted: boolean;
 }
 
+export interface RecomposePlanResult {
+  recordDir: string;
+  added: string[];
+  stagesInScope: number;
+  completedStages: number;
+  currentStage: string;
+  nextStage: string | null;
+}
+
 export interface UnitStageTransition {
   recordDir: string;
   stage: string;
@@ -127,6 +136,13 @@ export interface UnitStageTransition {
   replay: boolean;
   nextUnit: string | null;
   allUnitsCompleted: boolean;
+}
+
+export type ConstructionIteration = "unit-major" | "stage-major";
+
+export interface ConstructionIterationUpdate {
+  recordDir: string;
+  constructionIteration: ConstructionIteration;
 }
 
 const MARKER_BY_STATE: Record<StateCheckbox, string> = {
@@ -293,6 +309,31 @@ function setStateField(content: string, field: string, value: string): string {
     throw new Error(`State file is missing required field "${field}"`);
   }
   return content.replace(pattern, () => `- **${field}**: ${value}`);
+}
+
+function setOrInsertStateField(
+  content: string,
+  section: string,
+  field: string,
+  value: string,
+): string {
+  const pattern = new RegExp(
+    `^- \\*\\*${escapeRegExp(field)}\\*\\*:[^\\n]*$`,
+    "m",
+  );
+  if (pattern.test(content)) {
+    return content.replace(pattern, () => `- **${field}**: ${value}`);
+  }
+  const heading = `## ${section}`;
+  const headingIndex = content.indexOf(heading);
+  if (headingIndex === -1) {
+    throw new Error(`State file is missing required section "${section}"`);
+  }
+  const lineEnd = content.indexOf("\n", headingIndex + heading.length);
+  if (lineEnd === -1) {
+    return `${content}\n- **${field}**: ${value}\n`;
+  }
+  return `${content.slice(0, lineEnd + 1)}- **${field}**: ${value}\n${content.slice(lineEnd + 1)}`;
 }
 
 function checkboxState(content: string, slug: string): StateCheckbox | "unknown" {
@@ -680,6 +721,69 @@ export function hydrateConstructionUnitProgress(
     content = setStateField(content, "Last Updated", isoTimestamp());
     writeFileAtomic(path, content);
     return units;
+  });
+}
+
+/** Persist the opt-in Construction Unit walk order under Runtime State. */
+export function setConstructionIteration(
+  projectDir: string,
+  value: ConstructionIteration,
+): ConstructionIterationUpdate {
+  if (value !== "unit-major" && value !== "stage-major") {
+    throw new Error(
+      `Invalid construction iteration "${String(value)}". ` +
+        "Valid values: unit-major, stage-major",
+    );
+  }
+  const projectRoot = resolve(projectDir);
+  return withWorkspaceLock(projectRoot, () => {
+    const recordDir = activeIntentRecordDir(projectRoot);
+    const path = join(recordDir, "aidlc-state.md");
+    const content = readFileSync(path, "utf8");
+    const updated = setOrInsertStateField(
+      content,
+      "Runtime State",
+      "Construction Iteration",
+      value,
+    );
+    writeFileAtomic(path, updated);
+    return { recordDir, constructionIteration: value };
+  });
+}
+
+/** Mark every Unit row for the current per-Unit Stage complete in one update. */
+export function completeAllCurrentStageUnits(
+  projectDir: string,
+  slug: string,
+): string[] {
+  const projectRoot = resolve(projectDir);
+  return withWorkspaceLock(projectRoot, () => {
+    const recordDir = activeIntentRecordDir(projectRoot);
+    const path = join(recordDir, "aidlc-state.md");
+    let content = readFileSync(path, "utf8");
+    const current = stateField(content, "Current Stage");
+    if (current !== slug) {
+      throw new Error(
+        `Cannot complete Units for "${slug}": Current Stage is "${current ?? "unknown"}"`,
+      );
+    }
+    const node = graphBySlug().get(slug);
+    if (node?.for_each !== "unit-of-work") {
+      throw new Error(`Stage "${slug}" is not a per-Unit stage`);
+    }
+    const rows = unitProgressRows(content).filter((row) => row.stage === slug);
+    if (rows.length === 0) {
+      throw new Error(`Stage "${slug}" has no Unit progress rows`);
+    }
+    for (const row of rows) {
+      if (row.marker !== "x" && row.marker !== "S") {
+        content = setUnitProgressMarker(content, slug, row.unit, "x");
+      }
+    }
+    content = setStateField(content, "Next Action", `Complete ${slug} after all Units`);
+    content = setStateField(content, "Last Updated", isoTimestamp());
+    writeFileAtomic(path, content);
+    return rows.map((row) => row.unit);
   });
 }
 
@@ -1412,6 +1516,183 @@ export function resumeIntentState(projectDir: string): ResumePoint {
   };
 }
 
+function skipTokenSlug(token: string): string {
+  const wrapped = /^\S+ \((.+)\)$/.exec(token)?.[1] ?? token;
+  return wrapped.split(" — ")[0] ?? wrapped;
+}
+
+/** Promote pending forward Stages into the active Intent's live execution plan. */
+export function addStagesToExecutionPlan(
+  projectDir: string,
+  additions: readonly string[],
+): RecomposePlanResult {
+  const projectRoot = resolve(projectDir);
+  const normalized = additions.map((slug) => slug.trim()).filter(Boolean);
+  if (normalized.length === 0) {
+    throw new Error("recompose requires at least one Stage in --add");
+  }
+  if (new Set(normalized).size !== normalized.length) {
+    throw new Error("recompose --add contains a duplicate Stage");
+  }
+
+  return withWorkspaceLock(projectRoot, () => {
+    const recordDir = activeIntentRecordDir(projectRoot);
+    const statePath = join(recordDir, "aidlc-state.md");
+    const planPath = join(recordDir, ".aidlc-plan.json");
+    const originalState = readFileSync(statePath, "utf8");
+    if (stateField(originalState, "Status") !== "Running") {
+      throw new Error("Cannot recompose: workflow Status is not Running");
+    }
+    if (stateField(originalState, "Construction Autonomy Mode") === "autonomous") {
+      throw new Error(
+        "Cannot recompose: Construction Autonomy Mode is autonomous; switch to gated execution first",
+      );
+    }
+
+    const graph = loadCompiledStageGraph();
+    const graphBySlug = new Map(graph.map((stage) => [stage.slug, stage]));
+    const plan = readPlan(recordDir);
+    const planBySlug = new Map(plan.map((stage) => [stage.slug, stage]));
+    const currentStage = stateField(originalState, "Current Stage") ?? "";
+    const currentIndex = graph.findIndex((stage) => stage.slug === currentStage);
+    if (currentIndex === -1) {
+      throw new Error(`Cannot recompose: unknown Current Stage "${currentStage || "none"}"`);
+    }
+
+    const effectiveAction = (slug: string): "EXECUTE" | "SKIP" => {
+      const row = planBySlug.get(slug);
+      if (row === undefined) throw new Error(`Execution plan has no Stage "${slug}"`);
+      return stageProgressAction(originalState, slug) ?? row.action;
+    };
+    for (const slug of normalized) {
+      const stage = graphBySlug.get(slug);
+      if (stage === undefined) throw new Error(`Cannot recompose "${slug}": unknown Stage`);
+      if (checkboxState(originalState, slug) !== "pending") {
+        throw new Error(
+          `Cannot recompose "${slug}": only a pending Stage can be added`,
+        );
+      }
+      const targetIndex = graph.findIndex((entry) => entry.slug === slug);
+      if (targetIndex <= currentIndex) {
+        throw new Error(
+          `Cannot recompose "${slug}": Stage is at or behind Current Stage "${currentStage}"`,
+        );
+      }
+      if (effectiveAction(slug) !== "SKIP") {
+        throw new Error(`Cannot recompose "${slug}": Stage already executes`);
+      }
+    }
+
+    const beforeAnchor = graph.find(
+      (stage) => stage.phase === "construction" &&
+        effectiveAction(stage.slug) === "EXECUTE",
+    )?.slug;
+    const additionSet = new Set(normalized);
+    const afterAction = (slug: string): "EXECUTE" | "SKIP" =>
+      additionSet.has(slug) ? "EXECUTE" : effectiveAction(slug);
+    const afterAnchor = graph.find(
+      (stage) => stage.phase === "construction" && afterAction(stage.slug) === "EXECUTE",
+    )?.slug;
+    if (beforeAnchor !== afterAnchor) {
+      throw new Error(
+        `Cannot recompose: addition moves the Construction walking-skeleton anchor ` +
+          `from "${beforeAnchor ?? "none"}" to "${afterAnchor ?? "none"}"`,
+      );
+    }
+
+    const completed = (slug: string): boolean =>
+      checkboxState(originalState, slug) === "completed";
+    for (const slug of normalized) {
+      const stage = graphBySlug.get(slug)!;
+      for (const dependency of stage.requires_stage) {
+        if (afterAction(dependency) !== "EXECUTE" && !completed(dependency)) {
+          throw new Error(
+            `Cannot recompose "${slug}": required Stage "${dependency}" is skipped`,
+          );
+        }
+      }
+      const projectType = (stateField(originalState, "Project Type") ?? "").toLowerCase();
+      for (const consume of stage.consumes.filter(
+        (entry) => entry.required &&
+          (entry.conditional_on === undefined || entry.conditional_on === projectType),
+      )) {
+        const producer = graph.find((entry) =>
+          entry.produces.includes(consume.artifact) ||
+          entry.optional_produces?.includes(consume.artifact) === true
+        );
+        if (
+          producer !== undefined && afterAction(producer.slug) !== "EXECUTE" &&
+          !completed(producer.slug)
+        ) {
+          throw new Error(
+            `Cannot recompose "${slug}": required artifact "${consume.artifact}" ` +
+              `is produced by skipped Stage "${producer.slug}"`,
+          );
+        }
+      }
+    }
+
+    const proposedPlan = plan.map((stage) =>
+      additionSet.has(stage.slug) ? { ...stage, action: "EXECUTE" as const } : stage
+    );
+    let state = originalState;
+    for (const slug of normalized) {
+      state = setStageProgressSuffix(state, slug, "EXECUTE");
+    }
+    const effectivePlan = proposedPlan.map((stage) => ({
+      ...stage,
+      action: stageProgressAction(state, stage.slug) ?? stage.action,
+    }));
+    const executable = effectivePlan.filter((stage) => stage.action === "EXECUTE");
+    const previousSkipTokens = (stateField(state, "Stages to Skip") ?? "")
+      .split(", ")
+      .filter((token) => token !== "" && token !== "none");
+    const previousSkipBySlug = new Map(
+      previousSkipTokens.map((token) => [skipTokenSlug(token), token]),
+    );
+    const skipped = graph
+      .filter((stage) =>
+        effectivePlan.find((row) => row.slug === stage.slug)?.action === "SKIP"
+      )
+      .map((stage) => previousSkipBySlug.get(stage.slug) ?? `${stage.number} (${stage.slug})`);
+    const executeNumbers = graph
+      .filter((stage) =>
+        effectivePlan.find((row) => row.slug === stage.slug)?.action === "EXECUTE"
+      )
+      .map((stage) => stage.number);
+    const next = nextExecutableStage(effectivePlan, state, currentStage);
+    state = setStateField(state, "Stages to Execute", executeNumbers.join(", "));
+    state = setStateField(state, "Stages to Skip", skipped.length === 0 ? "none" : skipped.join(", "));
+    state = setStateField(state, "Total Stages", String(executable.length));
+    state = setStateField(state, "Next Stage", next?.slug ?? "none");
+    for (const slug of normalized) {
+      const stage = graphBySlug.get(slug)!;
+      if (stateField(state, phaseLabel(stage.phase)) === "Skipped") {
+        state = setPhaseState(state, stage.phase, "Pending");
+      }
+    }
+    state = setStateField(state, "Last Updated", isoTimestamp());
+
+    const completedStages = completedCheckboxCount(state);
+    const scope = stateField(state, "Scope") ?? "unknown";
+    appendAuditEntry(projectRoot, recordDir, "RECOMPOSED", {
+      Scope: scope,
+      "Stages added": normalized.join(", "),
+      "Stages in Scope": String(executable.length),
+    });
+    writeFileAtomic(planPath, `${JSON.stringify(proposedPlan, null, 2)}\n`);
+    writeFileAtomic(statePath, state);
+    return {
+      recordDir,
+      added: normalized,
+      stagesInScope: executable.length,
+      completedStages,
+      currentStage,
+      nextStage: next?.slug ?? null,
+    };
+  });
+}
+
 export function validateIntentState(projectDir: string): void {
   const recordDir = activeIntentRecordDir(projectDir);
   const content = readFileSync(join(recordDir, "aidlc-state.md"), "utf8");
@@ -1552,8 +1833,9 @@ function runCli(): void {
   const [command, projectDirArgument, slug, ...args] = process.argv.slice(2);
   const practicesCommand =
     command === "practices-event" || command === "practices-promote";
+  const constructionIterationCommand = command === "set-construction-iteration";
   const rawCommandArgs = process.argv.slice(3);
-  const projectDir = practicesCommand
+  const projectDir = practicesCommand || constructionIterationCommand
     ? flagValue(rawCommandArgs, "--project-dir") ?? process.cwd()
     : projectDirArgument;
   const usage =
@@ -1566,14 +1848,16 @@ function runCli(): void {
     "       aidlc-state practices-event --type <discovered|override|empty> " +
     "[--field \"Key: Value\"] [--project-dir <dir>]\n" +
     "       aidlc-state practices-promote --team-practices <path> " +
-    "--discovered-rules <path> [--affirming-user <name>] [--project-dir <dir>]";
+    "--discovered-rules <path> [--affirming-user <name>] [--project-dir <dir>]\n" +
+    "       aidlc-state set-construction-iteration <unit-major|stage-major> " +
+    "[--project-dir <dir>]";
   if (!cliHasCommand(STATE_CLI_CONTRACT, command) || projectDir === undefined) {
     console.error(usage);
     process.exitCode = 1;
     return;
   }
   try {
-    const commandArgs = practicesCommand
+    const commandArgs = practicesCommand || constructionIterationCommand
       ? rawCommandArgs
       : [slug, ...args].filter((item): item is string => item !== undefined);
     const unknownFlags = cliUnknownFlags(
@@ -1623,6 +1907,23 @@ function runCli(): void {
         discoveredRules,
         flagValue(commandArgs, "--affirming-user") ?? "unknown",
       )));
+      return;
+    }
+    if (command === "set-construction-iteration") {
+      const value = commandArgs[0];
+      if (value !== "unit-major" && value !== "stage-major") {
+        throw new Error(
+          `Invalid construction iteration "${value ?? ""}". ` +
+            "Valid values: unit-major, stage-major",
+        );
+      }
+      const update = setConstructionIteration(projectDir, value);
+      process.stdout.write(
+        `${JSON.stringify({
+          updated: true,
+          construction_iteration: update.constructionIteration,
+        })}\n`,
+      );
       return;
     }
     if (command === "init") {

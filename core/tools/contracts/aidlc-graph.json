@@ -5,8 +5,16 @@
       "flags": ["--check"],
       "results": []
     },
+    "ars": {
+      "flags": ["--iae", "--csu", "--ve", "--r", "--ua", "--completed", "--project-type"],
+      "results": []
+    },
     "resolve": {
       "flags": ["--project", "--stdout"],
+      "results": []
+    },
+    "validate-grid": {
+      "flags": ["--proposal", "--strict", "--project-type", "--keywords"],
       "results": []
     }
   }

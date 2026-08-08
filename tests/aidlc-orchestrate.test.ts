@@ -28,6 +28,7 @@ import {
   completeCurrentStage,
   activeIntentRecordDir,
   resumeIntentState,
+  setConstructionIteration,
 } from "../core/tools/aidlc-state.ts";
 import { initializeWorkspace } from "../core/tools/aidlc-workspace.ts";
 
@@ -497,6 +498,7 @@ units:
   }).kind, "done");
 
   assert.equal(resumeIntentState(projectDir).currentStage, "delivery-planning");
+  setConstructionIteration(projectDir, "stage-major");
   completeCurrentStage(projectDir, "delivery-planning");
   assert.equal(resumeIntentState(projectDir).currentStage, "functional-design");
   assert.equal(resumeIntentState(projectDir).currentUnit, "database");
@@ -554,6 +556,95 @@ units:
     [...audit.matchAll(/\*\*Event\*\*: STAGE_COMPLETED\n\*\*Stage\*\*: functional-design/g)].length,
     1,
   );
+});
+
+test("unit-major walks design Stages within each Unit and cascades Stage gates", () => {
+  const projectDir = freshProject();
+  const born = birthIntentWithState(projectDir, "Payment API", "default", "mvp");
+  while (resumeIntentState(projectDir).currentStage !== "units-generation") {
+    completeCurrentStage(projectDir, resumeIntentState(projectDir).currentStage);
+  }
+
+  const unitsDirective = resolveRunnable(projectDir).directive;
+  for (const path of unitsDirective.produces) {
+    const absolute = resolve(projectDir, path);
+    mkdirSync(dirname(absolute), { recursive: true });
+    writeFileSync(
+      absolute,
+      path.endsWith("unit-of-work-dependency.md")
+        ? `# Unit dependencies
+
+\`\`\`yaml
+units:
+  - name: alpha
+    depends_on: []
+  - name: beta
+    depends_on: [alpha]
+\`\`\`
+`
+        : "# Test artifact\n",
+      "utf8",
+    );
+  }
+  confirmLearningGate(projectDir, unitsDirective);
+  assert.equal(reportStageResult(projectDir, {
+    stage: "units-generation",
+    result: "approved",
+    userInput: "Approve",
+  }).kind, "done");
+
+  assert.equal(resumeIntentState(projectDir).currentStage, "delivery-planning");
+  setConstructionIteration(projectDir, "unit-major");
+  completeCurrentStage(projectDir, "delivery-planning");
+  assert.equal(resumeIntentState(projectDir).currentStage, "functional-design");
+
+  const designStages = [
+    "functional-design",
+    "nfr-requirements",
+    "nfr-design",
+    "infrastructure-design",
+  ];
+  const expectedPairs = [
+    ...designStages.map((stage) => [stage, "alpha"] as const),
+    ...designStages.map((stage) => [stage, "beta"] as const),
+  ];
+  for (const [expectedStage, expectedUnit] of expectedPairs) {
+    const directive = resolveRunnable(projectDir).directive;
+    assert.equal(directive.stage, expectedStage);
+    assert.equal(directive.unit, expectedUnit);
+    assert.equal(directive.gate, false);
+    materialize(projectDir, directive.produces);
+    confirmLearningGate(projectDir, directive);
+  }
+
+  for (const expectedStage of designStages) {
+    const gate = resolveRunnable(projectDir).directive;
+    assert.equal(gate.stage, expectedStage);
+    assert.equal(gate.unit, "beta");
+    assert.equal(gate.gate, true);
+    assert.equal(reportStageResult(projectDir, {
+      stage: expectedStage,
+      result: "approved",
+      userInput: "Approve",
+    }).kind, "done");
+  }
+
+  const resume = resumeIntentState(projectDir);
+  assert.equal(resume.currentStage, "code-generation");
+  assert.equal(resume.currentUnit, "alpha");
+  const codeGeneration = resolveRunnable(projectDir).directive;
+  assert.equal(codeGeneration.stage, "code-generation");
+  assert.equal(codeGeneration.unit, "alpha");
+  assert.equal(codeGeneration.gate, true);
+  const state = readFileSync(born.state.statePath, "utf8");
+  for (const stage of designStages) {
+    for (const unit of ["alpha", "beta"]) {
+      assert.match(
+        state,
+        new RegExp(`^- \\[x\\] Unit: ${unit} — ${stage}$`, "m"),
+      );
+    }
+  }
 });
 
 test("next emits done after the active workflow completes", () => {

@@ -37,6 +37,10 @@
         "--affirming-user"
       ],
       "results": []
+    },
+    "set-construction-iteration": {
+      "flags": ["--project-dir"],
+      "results": []
     }
   }
 }

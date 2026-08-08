@@ -75,30 +75,28 @@ test("checks an installed Codex bundle without authored Harness sources", () => 
   });
   assert.equal(report.documents, 46);
   assert.equal(report.valid, false);
-  assert.ok(report.issues.some((issue) =>
-    issue.code === "missing-command" &&
-    issue.subject === "aidlc-utility.ts recompose"
-  ));
+  assert.ok(report.issues.some((issue) => issue.code === "missing-resource"));
 });
 
 test("finds runtime tools referenced by authored instructions but not implemented", () => {
   const missing = new Set(subjects("missing-tool"));
   assert.equal(missing.has("aidlc-log.ts"), false);
   assert.equal(missing.has("aidlc-utility.ts"), false);
-  assert.ok(missing.has("aidlc-worktree.ts"));
+  assert.equal(missing.has("aidlc-worktree.ts"), false);
 });
 
 test("finds implemented tools that lack referenced commands", () => {
   const missing = new Set(subjects("missing-command"));
   assert.equal(missing.has("aidlc-state.ts practices-event"), false);
   assert.equal(missing.has("aidlc-state.ts practices-promote"), false);
-  assert.ok(missing.has("aidlc-state.ts set-construction-iteration"));
-  assert.ok(missing.has("aidlc-graph.ts ars"));
-  assert.ok(missing.has("aidlc-graph.ts validate-grid"));
+  assert.equal(missing.has("aidlc-state.ts set-construction-iteration"), false);
+  assert.equal(missing.has("aidlc-graph.ts ars"), false);
+  assert.equal(missing.has("aidlc-graph.ts validate-grid"), false);
   assert.equal(missing.has("aidlc-utility.ts detect"), false);
+  assert.equal(missing.has("aidlc-utility.ts codekb-path"), false);
   assert.equal(missing.has("aidlc-utility.ts scope-table"), false);
   assert.equal(missing.has("aidlc-utility.ts stage-table"), false);
-  assert.ok(missing.has("aidlc-utility.ts recompose"));
+  assert.equal(missing.has("aidlc-utility.ts recompose"), false);
 });
 
 test("implements report approval lifecycle values and user input", () => {
