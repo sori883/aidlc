@@ -11,14 +11,24 @@ import {
 } from "./aidlc-cli-contract.ts";
 import { loadScopes } from "./aidlc-scope-loader.ts";
 import {
+  loadCompiledScopeGrid,
+  loadCompiledStageGraph,
+} from "./aidlc-graph.ts";
+import {
   detectWorkspace,
   type SubmoduleEntry,
   type WorkspaceScan,
 } from "./aidlc-workspace-detect.ts";
 
 const UTILITY_CLI_CONTRACT = loadCliContract("aidlc-utility.ts");
-const UTILITY_COMMANDS = ["detect"] as const;
+const UTILITY_COMMANDS = ["detect", "scope-table", "stage-table"] as const;
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+const SCOPE_TABLE_BEGIN =
+  "<!-- BEGIN: compiled scope grid via `bun aidlc-utility.ts scope-table` - do NOT hand-edit -->";
+const SCOPE_TABLE_END = "<!-- END: compiled scope grid -->";
+const STAGE_TABLE_BEGIN =
+  "<!-- BEGIN: compiled stage graph via `bun aidlc-utility.ts stage-table` - do NOT hand-edit -->";
+const STAGE_TABLE_END = "<!-- END: compiled stage graph -->";
 
 export interface UtilityDetectResult {
   projectType: WorkspaceScan["projectType"];
@@ -47,6 +57,59 @@ export function detectProject(projectDir: string): UtilityDetectResult {
     scopeGridPath: resolve(MODULE_DIR, "../aidlc-common/data/scope-grid.json"),
     scopes: loadScopes(scopesDir).map((scope) => scope.name),
   };
+}
+
+/** Render the compiled Scope grid in the canonical upstream table shape. */
+export function renderScopeTable(): string {
+  const grid = loadCompiledScopeGrid();
+  const lines = [
+    "| Scope          | Depth         | TestStrategy | EXECUTE / Total |",
+    "|----------------|---------------|--------------|-----------------|",
+  ];
+  for (const scope of loadScopes()) {
+    const stages = grid[scope.name]?.stages;
+    if (stages === undefined) {
+      throw new Error(`Scope grid has no entry for "${scope.name}"`);
+    }
+    const total = Object.keys(stages).length;
+    const execute = Object.values(stages).filter((action) => action === "EXECUTE").length;
+    const testStrategy = scope.testStrategy ?? "(default)";
+    lines.push(
+      `| ${scope.name.padEnd(14)} | ${scope.depth.padEnd(13)} | ` +
+        `${testStrategy.padEnd(12)} | ${`${execute} / ${total}`.padEnd(15)} |`,
+    );
+  }
+  return lines.join("\n");
+}
+
+export function canonicalScopeTable(): string {
+  return `${SCOPE_TABLE_BEGIN}\n\n${renderScopeTable()}\n\n${SCOPE_TABLE_END}`;
+}
+
+function titleCase(value: string): string {
+  return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
+}
+
+/** Render the runtime Stage graph in graph order without recomputing it. */
+export function renderStageTable(): string {
+  const lines = [
+    "| Slug | # | Stage | Phase | Execution | Lead Agent | Support Agents | Mode |",
+    "|------|---|-------|-------|-----------|------------|----------------|------|",
+  ];
+  for (const stage of loadCompiledStageGraph()) {
+    lines.push(
+      `| ${stage.slug} | ${stage.number} | ${stage.name} | ` +
+        `${titleCase(stage.phase)} | ${stage.execution} | ` +
+        `${stage.lead_agent === "orchestrator" ? "(orchestrator)" : stage.lead_agent} | ` +
+        `${stage.support_agents.length === 0 ? "—" : stage.support_agents.join(", ")} | ` +
+        `${stage.mode} |`,
+    );
+  }
+  return lines.join("\n");
+}
+
+export function canonicalStageTable(): string {
+  return `${STAGE_TABLE_BEGIN}\n\n${renderStageTable()}\n\n${STAGE_TABLE_END}`;
 }
 
 function renderText(result: UtilityDetectResult): string {
@@ -78,7 +141,9 @@ function flagValue(args: readonly string[], flag: string): string | undefined {
 function runCli(): void {
   const [command, ...args] = process.argv.slice(2);
   const usage =
-    "Usage: aidlc-utility detect [--project-dir <path>] [--json]";
+    "Usage: aidlc-utility detect [--project-dir <path>] [--json]\n" +
+    "       aidlc-utility scope-table\n" +
+    "       aidlc-utility stage-table";
   if (
     !UTILITY_COMMANDS.includes(command as (typeof UTILITY_COMMANDS)[number]) ||
     !cliHasCommand(UTILITY_CLI_CONTRACT, command)
@@ -92,12 +157,18 @@ function runCli(): void {
     if (unknownFlags.length > 0) {
       throw new Error(`Unknown flag(s) for ${command}: ${unknownFlags.join(", ")}`);
     }
+    if (command === "scope-table") {
+      process.stdout.write(`${canonicalScopeTable()}\n`);
+      return;
+    }
+    if (command === "stage-table") {
+      process.stdout.write(`${canonicalStageTable()}\n`);
+      return;
+    }
     const projectDir = flagValue(args, "--project-dir") ?? process.cwd();
     const result = detectProject(projectDir);
     process.stdout.write(
-      args.includes("--json")
-        ? `${JSON.stringify(result)}\n`
-        : renderText(result),
+      args.includes("--json") ? `${JSON.stringify(result)}\n` : renderText(result),
     );
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

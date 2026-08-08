@@ -4,6 +4,14 @@
     "detect": {
       "flags": ["--project-dir", "--json"],
       "results": []
+    },
+    "scope-table": {
+      "flags": [],
+      "results": []
+    },
+    "stage-table": {
+      "flags": [],
+      "results": []
     }
   }
 }

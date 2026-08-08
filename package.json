@@ -52,6 +52,8 @@
     "unit:check": "tsx core/tools/aidlc-unit-graph.ts check",
     "unit:show": "tsx core/tools/aidlc-unit-graph.ts show",
     "utility:detect": "tsx core/tools/aidlc-utility.ts detect",
+    "utility:scope-table": "tsx core/tools/aidlc-utility.ts scope-table",
+    "utility:stage-table": "tsx core/tools/aidlc-utility.ts stage-table",
     "workspace:detect": "tsx core/tools/aidlc-workspace-detect.ts detect",
     "workspace:init": "tsx core/tools/aidlc-workspace.ts init",
     "workspace:migrate": "tsx core/tools/aidlc-workspace-migrate.ts migrate"
