@@ -77,7 +77,7 @@ test("checks an installed Codex bundle without authored Harness sources", () => 
   assert.equal(report.valid, false);
   assert.ok(report.issues.some((issue) =>
     issue.code === "missing-command" &&
-    issue.subject === "aidlc-utility.ts scope-table"
+    issue.subject === "aidlc-utility.ts recompose"
   ));
 });
 
@@ -96,7 +96,9 @@ test("finds implemented tools that lack referenced commands", () => {
   assert.ok(missing.has("aidlc-graph.ts ars"));
   assert.ok(missing.has("aidlc-graph.ts validate-grid"));
   assert.equal(missing.has("aidlc-utility.ts detect"), false);
-  assert.ok(missing.has("aidlc-utility.ts scope-table"));
+  assert.equal(missing.has("aidlc-utility.ts scope-table"), false);
+  assert.equal(missing.has("aidlc-utility.ts stage-table"), false);
+  assert.ok(missing.has("aidlc-utility.ts recompose"));
 });
 
 test("implements report approval lifecycle values and user input", () => {
