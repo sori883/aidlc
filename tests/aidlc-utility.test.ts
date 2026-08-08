@@ -105,7 +105,11 @@ test("scope-table is deterministic, alphabetical, and covers all Scope rows", ()
     ],
   );
   assert.match(first, /\| workshop\s+\| Standard\s+\| Minimal\s+\|/);
-  assert.match(canonicalScopeTable(), /^<!-- BEGIN: compiled scope grid/);
+  assert.match(
+    canonicalScopeTable(),
+    /^<!-- BEGIN: compiled scope grid - do NOT hand-edit -->/,
+  );
+  assert.doesNotMatch(canonicalScopeTable(), /\bbun\b/);
   assert.match(canonicalScopeTable(), /<!-- END: compiled scope grid -->$/);
 });
 
@@ -124,7 +128,11 @@ test("stage-table names every compiled Stage exactly once in graph order", () =>
       1,
     );
   }
-  assert.match(canonicalStageTable(), /^<!-- BEGIN: compiled stage graph/);
+  assert.match(
+    canonicalStageTable(),
+    /^<!-- BEGIN: compiled stage graph - do NOT hand-edit -->/,
+  );
+  assert.doesNotMatch(canonicalStageTable(), /\bbun\b/);
   assert.match(canonicalStageTable(), /<!-- END: compiled stage graph -->$/);
 });
 

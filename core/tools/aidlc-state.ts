@@ -1910,7 +1910,9 @@ function runCli(): void {
       return;
     }
     if (command === "set-construction-iteration") {
-      const value = commandArgs[0];
+      const value = commandArgs.find((item, index) =>
+        !item.startsWith("--") && commandArgs[index - 1] !== "--project-dir"
+      );
       if (value !== "unit-major" && value !== "stage-major") {
         throw new Error(
           `Invalid construction iteration "${value ?? ""}". ` +
