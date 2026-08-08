@@ -24,6 +24,19 @@
     "check": {
       "flags": [],
       "results": []
+    },
+    "practices-event": {
+      "flags": ["--project-dir", "--type", "--field"],
+      "results": []
+    },
+    "practices-promote": {
+      "flags": [
+        "--project-dir",
+        "--team-practices",
+        "--discovered-rules",
+        "--affirming-user"
+      ],
+      "results": []
     }
   }
 }

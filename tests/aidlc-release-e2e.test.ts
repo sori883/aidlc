@@ -21,7 +21,10 @@ import {
   resolveNextDirective,
 } from "../core/tools/aidlc-orchestrate.ts";
 import { writeRunnerSkills } from "../core/tools/aidlc-runner-gen.ts";
-import { resumeIntentState } from "../core/tools/aidlc-state.ts";
+import {
+  promotePractices,
+  resumeIntentState,
+} from "../core/tools/aidlc-state.ts";
 import { initializeWorkspace } from "../core/tools/aidlc-workspace.ts";
 
 const SCOPES = [
@@ -154,9 +157,39 @@ function completeDirective(
 ): void {
   materializeOutputs(projectDir, directive);
   confirmLearningGate(projectDir, recordDir, directive);
+  if (directive.stage === "practices-discovery") {
+    const stageDir = join(recordDir, "inception", "practices-discovery");
+    writeFileSync(
+      join(stageDir, "team-practices.md"),
+      "# Team Practices\n\n## Way of Working\n\nUse short-lived branches.\n\n" +
+        "## Walking Skeleton\n\nBuild one thin slice first.\n\n" +
+        "## Testing Posture\n\nTest behavior at boundaries.\n\n" +
+        "## Deployment\n\nPromote after checks pass.\n\n" +
+        "## Code Style\n\nFollow the repository formatter.\n",
+      "utf8",
+    );
+    writeFileSync(
+      join(stageDir, "discovered-rules.md"),
+      "# Discovered Rules\n\n## Mandated\n\nALWAYS run tests before merge\n\n" +
+        "## Forbidden\n\nNEVER commit secrets\n",
+      "utf8",
+    );
+    for (const agent of directive.support_agents) {
+      const path = join(stageDir, "contributions", `${agent}.md`);
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, `**Collaborator:** ${agent}\n\n## Contribution\n\nChecked.\n`, "utf8");
+    }
+    promotePractices(
+      projectDir,
+      join(stageDir, "team-practices.md"),
+      join(stageDir, "discovered-rules.md"),
+      "Release test",
+    );
+  }
   const result = reportStageResult(projectDir, {
     stage: directive.stage,
     result: "approved",
+    userInput: "Approve",
     ...(directive.unit === undefined ? {} : { unit: directive.unit }),
   });
   assert.equal(

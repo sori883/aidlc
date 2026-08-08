@@ -21,8 +21,18 @@ export type AuditEvent =
   | "PHASE_VERIFIED"
   | "PHASE_SKIPPED"
   | "STAGE_STARTED"
+  | "STAGE_AWAITING_APPROVAL"
+  | "GATE_APPROVED"
+  | "GATE_REJECTED"
+  | "STAGE_REVISING"
   | "STAGE_COMPLETED"
   | "STAGE_SKIPPED"
+  | "DECISION_RECORDED"
+  | "QUESTION_ANSWERED"
+  | "PRACTICES_DISCOVERED"
+  | "PRACTICES_AFFIRMED"
+  | "PRACTICES_OVERRIDE"
+  | "PRACTICES_SECTION_EMPTY"
   | "SENSOR_FIRED"
   | "SENSOR_PASSED"
   | "SENSOR_FAILED"
@@ -60,8 +70,18 @@ const EVENT_HEADINGS: Record<AuditEvent, string> = {
   PHASE_VERIFIED: "Phase Verification",
   PHASE_SKIPPED: "Phase Skip",
   STAGE_STARTED: "Stage Start",
+  STAGE_AWAITING_APPROVAL: "Stage Awaiting Approval",
+  GATE_APPROVED: "Gate Approved",
+  GATE_REJECTED: "Gate Rejected",
+  STAGE_REVISING: "Stage Revising",
   STAGE_COMPLETED: "Stage Completion",
   STAGE_SKIPPED: "Stage Skip",
+  DECISION_RECORDED: "Decision Recorded",
+  QUESTION_ANSWERED: "Question Answered",
+  PRACTICES_DISCOVERED: "Practices Discovered",
+  PRACTICES_AFFIRMED: "Practices Affirmed",
+  PRACTICES_OVERRIDE: "Practices Override",
+  PRACTICES_SECTION_EMPTY: "Practices Section Empty",
   SENSOR_FIRED: "Sensor Fired",
   SENSOR_PASSED: "Sensor Passed",
   SENSOR_FAILED: "Sensor Failed",

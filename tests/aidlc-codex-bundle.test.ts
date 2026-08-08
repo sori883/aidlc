@@ -240,6 +240,8 @@ test("generated runtime installs and starts a real Intent", { timeout: 30_000 },
     directive.stage,
     "--result",
     "approved",
+    "--user-input",
+    "Approve",
   ]).stdout);
   assert.equal(report.kind, "done");
 

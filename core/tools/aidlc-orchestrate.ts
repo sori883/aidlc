@@ -25,11 +25,16 @@ import {
 } from "./aidlc-artifacts.ts";
 import {
   activeIntentRecordDir,
+  approveCurrentStage,
   completeCurrentUnitStage,
   completeCurrentStage,
+  hasFreshPracticesAffirmation,
   hydrateConstructionUnitProgress,
+  openApprovalGate,
   planFilePath,
+  rejectApprovalGate,
   resumeIntentState,
+  reviseApprovalGate,
   skipCurrentStage,
   stateFilePath,
   validateIntentState,
@@ -50,15 +55,19 @@ const ORCHESTRATE_CLI_CONTRACT = loadCliContract("aidlc-orchestrate.ts");
 
 export type ReportResult =
   | "approved"
+  | "awaiting-approval"
   | "completed"
   | "complete"
   | "done"
+  | "rejected"
+  | "revised"
   | "skipped";
 
 export interface ReportOptions {
   stage: string;
   result: ReportResult;
   reason?: string;
+  userInput?: string;
   unit?: string;
 }
 
@@ -75,6 +84,11 @@ const FORWARD_RESULTS = new Set<ReportResult>([
   "completed",
   "complete",
   "done",
+]);
+const GATE_RESULTS = new Set<ReportResult>([
+  "awaiting-approval",
+  "rejected",
+  "revised",
 ]);
 
 function errorDirective(message: string): ErrorDirective {
@@ -495,6 +509,67 @@ export function reportStageResult(
           "State routed forward; run next to continue.",
       };
     }
+    if (GATE_RESULTS.has(options.result)) {
+      if (node.phase === "initialization") {
+        return errorDirective(
+          `Stage "${stage}" is an ungated initialization stage; it cannot report ${options.result}.`,
+        );
+      }
+      if (options.result === "awaiting-approval") {
+        if (resume.checkboxState === "awaiting-approval") {
+          return { kind: "done", reason: `Stage "${stage}" is already awaiting approval.` };
+        }
+        if (resume.checkboxState !== "in-progress") {
+          return errorDirective(
+            `Stage "${stage}" is ${resume.checkboxState}; only an in-progress Stage can open a gate.`,
+          );
+        }
+        assertLearningGateCompleted(projectRoot, stage, options.unit);
+        const evidence = verifyStageArtifactEvidence(projectRoot, node, {
+          ...(options.unit === undefined ? {} : { unit: options.unit }),
+          ...(node.for_each === "unit-of-work" && options.unit === undefined
+            ? { singlePass: true }
+            : {}),
+        });
+        if (!evidence.valid) {
+          return errorDirective(
+            `Cannot open approval for "${stage}": missing required artifact evidence:\n` +
+              evidence.missing.map((path) => `- ${path}`).join("\n"),
+          );
+        }
+        openApprovalGate(projectRoot, stage);
+        return { kind: "done", reason: `Recorded awaiting-approval for "${stage}".` };
+      }
+      if (options.result === "rejected") {
+        const feedback = (options.userInput ?? options.reason)?.trim();
+        if (!feedback) {
+          return errorDirective(
+            `report --result rejected for "${stage}" requires nonblank --user-input or --reason feedback.`,
+          );
+        }
+        rejectApprovalGate(projectRoot, stage, feedback);
+        return { kind: "done", reason: `Recorded rejected for "${stage}".` };
+      }
+      if (resume.checkboxState !== "revising") {
+        return errorDirective(
+          `Stage "${stage}" is ${resume.checkboxState}; only a revising Stage can re-enter its gate.`,
+        );
+      }
+      const revisedEvidence = verifyStageArtifactEvidence(projectRoot, node, {
+        ...(options.unit === undefined ? {} : { unit: options.unit }),
+        ...(node.for_each === "unit-of-work" && options.unit === undefined
+          ? { singlePass: true }
+          : {}),
+      });
+      if (!revisedEvidence.valid) {
+        return errorDirective(
+          `Cannot re-open approval for "${stage}": missing required artifact evidence:\n` +
+            revisedEvidence.missing.map((path) => `- ${path}`).join("\n"),
+        );
+      }
+      reviseApprovalGate(projectRoot, stage);
+      return { kind: "done", reason: `Recorded revised for "${stage}".` };
+    }
     if (!FORWARD_RESULTS.has(options.result)) {
       return errorDirective(`Unknown report result: "${options.result}".`);
     }
@@ -502,6 +577,17 @@ export function reportStageResult(
       return errorDirective(
         `Stage "${stage}" has a human gate; report it with --result approved ` +
           "after completing the Learnings Ritual.",
+      );
+    }
+    const userInput = options.userInput?.trim();
+    if (node.phase !== "initialization" && !userInput) {
+      return errorDirective(
+        `report --result approved for "${stage}" requires --user-input with the human's exact approval choice.`,
+      );
+    }
+    if (resume.checkboxState === "revising") {
+      return errorDirective(
+        `Stage "${stage}" is revising; report --result revised before approval.`,
       );
     }
     const dag = loadActiveUnitDag(projectRoot);
@@ -534,7 +620,15 @@ export function reportStageResult(
             evidence.missing.map((path) => `- ${path}`).join("\n"),
         );
       }
-      const unitTransition = completeCurrentUnitStage(projectRoot, stage, unit);
+      if (resume.checkboxState === "in-progress") {
+        openApprovalGate(projectRoot, stage);
+      }
+      const unitTransition = completeCurrentUnitStage(
+        projectRoot,
+        stage,
+        unit,
+        userInput,
+      );
       if (!unitTransition.allUnitsCompleted) {
         return {
           kind: "done",
@@ -543,7 +637,7 @@ export function reportStageResult(
             `Next Unit: "${unitTransition.nextUnit}"; run next to continue.`,
         };
       }
-      completeCurrentStage(projectRoot, stage);
+      approveCurrentStage(projectRoot, stage, userInput ?? "");
       return {
         kind: "done",
         reason:
@@ -578,7 +672,20 @@ export function reportStageResult(
       }
       hydrateConstructionUnitProgress(projectRoot, unitDag);
     }
-    completeCurrentStage(projectRoot, stage);
+    if (stage === "practices-discovery" && !hasFreshPracticesAffirmation(projectRoot)) {
+      return errorDirective(
+        'Cannot approve "practices-discovery" before practices-promote succeeds. ' +
+          "Run practices-promote after the human approves, then report approved again.",
+      );
+    }
+    if (node.phase === "initialization") {
+      completeCurrentStage(projectRoot, stage);
+    } else {
+      if (resume.checkboxState === "in-progress") {
+        openApprovalGate(projectRoot, stage);
+      }
+      approveCurrentStage(projectRoot, stage, userInput ?? "");
+    }
     return {
       kind: "done",
       reason:
@@ -602,7 +709,8 @@ function runCli(): void {
     "Usage: aidlc-orchestrate next --project-dir <project-dir> [--unit <name>] " +
     "[--repo <name>] [--continue-token <token>] [--stage <slug> --single]\n" +
     "       aidlc-orchestrate report --project-dir <project-dir> --stage <slug> " +
-    "--result <completed|approved|skipped> [--reason <text>] [--unit <name>] [--single]";
+    "--result <awaiting-approval|approved|rejected|revised|completed|skipped> " +
+    "[--user-input <text>] [--reason <text>] [--unit <name>] [--single]";
   if (!cliHasCommand(ORCHESTRATE_CLI_CONTRACT, command)) {
     console.error(usage);
     process.exitCode = 1;
@@ -634,7 +742,8 @@ function runCli(): void {
   const result = flagValue(args, "--result");
   if (stage === undefined || result === undefined) {
     emit(errorDirective(
-      "report requires --stage <slug> and --result <completed|approved|skipped>.",
+      "report requires --stage <slug> and --result " +
+        "<awaiting-approval|approved|rejected|revised|completed|skipped>.",
     ));
     return;
   }
@@ -643,6 +752,7 @@ function runCli(): void {
     return;
   }
   const reason = flagValue(args, "--reason");
+  const userInput = flagValue(args, "--user-input");
   const unit = flagValue(args, "--unit");
   if (args.includes("--single")) {
     emit(reportSingleStageResult(projectDir, stage, result as ReportResult));
@@ -652,6 +762,7 @@ function runCli(): void {
     stage,
     result: result as ReportResult,
     ...(reason === undefined ? {} : { reason }),
+    ...(userInput === undefined ? {} : { userInput }),
     ...(unit === undefined ? {} : { unit }),
   }));
 }

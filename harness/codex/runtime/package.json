@@ -9,6 +9,7 @@
     "doctor": "tsx tools/aidlc-doctor.ts",
     "intent": "tsx tools/aidlc-intent.ts",
     "learnings": "tsx tools/aidlc-learnings.ts",
+    "log": "tsx tools/aidlc-log.ts",
     "memory": "tsx tools/aidlc-memory.ts",
     "orchestrate": "tsx tools/aidlc-orchestrate.ts",
     "sensor": "tsx tools/aidlc-sensor.ts",

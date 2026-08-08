@@ -401,6 +401,7 @@ test("gated Agent success waits for approval, then reports and advances State", 
     projectDir,
     directive,
     execution,
+    "Approve",
   );
   assert.equal(approved.status, "completed");
   assert.equal(approved.report?.kind, "done");

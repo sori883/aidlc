@@ -243,6 +243,7 @@ test("report completion delegates to State and next sees the advanced stage", ()
   const rejected = reportStageResult(projectDir, {
     stage: "intent-capture",
     result: "approved",
+    userInput: "Approve",
   });
   assert.equal(rejected.kind, "error");
   if (rejected.kind === "error") {
@@ -254,6 +255,7 @@ test("report completion delegates to State and next sees the advanced stage", ()
   const report = reportStageResult(projectDir, {
     stage: "intent-capture",
     result: "approved",
+    userInput: "Approve",
   });
 
   assert.equal(report.kind, "done");
@@ -284,6 +286,7 @@ test("gated report refuses completion before the Learnings Ritual", () => {
   const unconfirmed = reportStageResult(projectDir, {
     stage: directive.stage,
     result: "approved",
+    userInput: "Approve",
   });
   assert.equal(unconfirmed.kind, "error");
   if (unconfirmed.kind === "error") assert.match(unconfirmed.message, /Learning gate is incomplete/);
@@ -310,6 +313,7 @@ test("report skip requires a conditional stage and a reason", () => {
   reportStageResult(projectDir, {
     stage: "intent-capture",
     result: "approved",
+    userInput: "Approve",
   });
   const conditional = resumeIntentState(projectDir).currentStage;
   const node = loadCompiledStageGraph().find((stage) => stage.slug === conditional);
@@ -349,6 +353,7 @@ test("a missing Unit DAG falls back to single-pass artifact evidence", () => {
   const result = reportStageResult(projectDir, {
     stage: "functional-design",
     result: "approved",
+    userInput: "Approve",
   });
 
   assert.equal(result.kind, "error");
@@ -381,6 +386,7 @@ test("POC runs per-Unit Construction stages once when no Unit DAG exists", () =>
   const report = reportStageResult(projectDir, {
     stage: "code-generation",
     result: "approved",
+    userInput: "Approve",
   });
   assert.equal(report.kind, "done");
   assert.equal(resumeIntentState(projectDir).currentStage, "build-and-test");
@@ -419,6 +425,7 @@ test("reverse-engineering completes only after every registered Repo has evidenc
   const incomplete = reportStageResult(projectDir, {
     stage: "reverse-engineering",
     result: "approved",
+    userInput: "Approve",
   });
   assert.equal(incomplete.kind, "error");
   if (incomplete.kind === "error") assert.match(incomplete.message, /\/worker\//);
@@ -428,6 +435,7 @@ test("reverse-engineering completes only after every registered Repo has evidenc
   const completed = reportStageResult(projectDir, {
     stage: "reverse-engineering",
     result: "approved",
+    userInput: "Approve",
   });
   assert.equal(completed.kind, "done");
   assert.notEqual(resumeIntentState(projectDir).currentStage, "reverse-engineering");
@@ -485,6 +493,7 @@ units:
   assert.equal(reportStageResult(projectDir, {
     stage: "units-generation",
     result: "approved",
+    userInput: "Approve",
   }).kind, "done");
 
   assert.equal(resumeIntentState(projectDir).currentStage, "delivery-planning");
@@ -496,6 +505,7 @@ units:
     stage: "functional-design",
     unit: "monitoring",
     result: "approved",
+    userInput: "Approve",
   });
   assert.equal(outOfOrder.kind, "error");
   if (outOfOrder.kind === "error") assert.match(outOfOrder.message, /out of order/);
@@ -527,6 +537,7 @@ units:
       stage: directive.stage,
       unit: expectedUnit,
       result: "approved",
+      userInput: "Approve",
     });
     assert.equal(result.kind, "done");
   }

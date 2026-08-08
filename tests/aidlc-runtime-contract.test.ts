@@ -76,35 +76,35 @@ test("checks an installed Codex bundle without authored Harness sources", () => 
   assert.equal(report.documents, 46);
   assert.equal(report.valid, false);
   assert.ok(report.issues.some((issue) =>
-    issue.code === "missing-command" &&
-    issue.subject === "aidlc-state.ts practices-event"
+    issue.code === "missing-tool" &&
+    issue.subject === "aidlc-utility.ts"
   ));
 });
 
 test("finds runtime tools referenced by authored instructions but not implemented", () => {
   const missing = new Set(subjects("missing-tool"));
-  assert.ok(missing.has("aidlc-log.ts"));
+  assert.equal(missing.has("aidlc-log.ts"), false);
   assert.ok(missing.has("aidlc-utility.ts"));
   assert.ok(missing.has("aidlc-worktree.ts"));
 });
 
 test("finds implemented tools that lack referenced commands", () => {
   const missing = new Set(subjects("missing-command"));
-  assert.ok(missing.has("aidlc-state.ts practices-event"));
-  assert.ok(missing.has("aidlc-state.ts practices-promote"));
+  assert.equal(missing.has("aidlc-state.ts practices-event"), false);
+  assert.equal(missing.has("aidlc-state.ts practices-promote"), false);
   assert.ok(missing.has("aidlc-state.ts set-construction-iteration"));
   assert.ok(missing.has("aidlc-graph.ts ars"));
   assert.ok(missing.has("aidlc-graph.ts validate-grid"));
 });
 
-test("finds report lifecycle values and flags absent from the runtime", () => {
+test("implements report approval lifecycle values and user input", () => {
   const results = new Set(subjects("missing-result"));
-  assert.ok(results.has("aidlc-orchestrate.ts report --result awaiting-approval"));
-  assert.ok(results.has("aidlc-orchestrate.ts report --result rejected"));
-  assert.ok(results.has("aidlc-orchestrate.ts report --result revised"));
-  assert.ok(subjects("missing-flag").includes(
+  assert.equal(results.has("aidlc-orchestrate.ts report --result awaiting-approval"), false);
+  assert.equal(results.has("aidlc-orchestrate.ts report --result rejected"), false);
+  assert.equal(results.has("aidlc-orchestrate.ts report --result revised"), false);
+  assert.equal(subjects("missing-flag").includes(
     "aidlc-orchestrate.ts report --user-input",
-  ));
+  ), false);
 });
 
 test("finds missing shared resources and unresolved Codex placeholders", () => {
