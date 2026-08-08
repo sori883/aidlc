@@ -26,6 +26,7 @@ import {
 import {
   activeIntentRecordDir,
   approveCurrentStage,
+  completeAllCurrentStageUnits,
   completeCurrentUnitStage,
   completeCurrentStage,
   hasFreshPracticesAffirmation,
@@ -40,7 +41,7 @@ import {
   validateIntentState,
 } from "./aidlc-state.ts";
 import { activeSpace, workspaceRoot } from "./aidlc-workspace.ts";
-import { loadActiveUnitDag } from "./aidlc-unit-graph.ts";
+import { loadActiveUnitDag, type UnitDag } from "./aidlc-unit-graph.ts";
 import { resolveSteeringDirective } from "./aidlc-steering.ts";
 import { assertLearningGateCompleted } from "./aidlc-learnings.ts";
 import { appendAuditEntries } from "./aidlc-audit.ts";
@@ -142,6 +143,81 @@ function stateField(content: string, field: string): string | null {
   const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`^- \\*\\*${escaped}\\*\\*:[ \\t]*(.*)$`, "m")
     .exec(content)?.[1]?.trim() ?? null;
+}
+
+function stateStageAction(
+  content: string,
+  slug: string,
+): "EXECUTE" | "SKIP" | null {
+  const escaped = slug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const action = new RegExp(
+    `^- \\[[ xS?R-]\\] ${escaped} — (EXECUTE|SKIP)(?::|$)`,
+    "m",
+  ).exec(content)?.[1];
+  return action === "EXECUTE" || action === "SKIP" ? action : null;
+}
+
+function stateStageSettled(content: string, slug: string): boolean {
+  const escaped = slug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^- \\[xS\\] ${escaped}(?:\\s|$)`, "m").test(content);
+}
+
+function usesUnitMajorIteration(content: string): boolean {
+  return stateField(content, "Construction Iteration") === "unit-major";
+}
+
+function constructionDesignBlock(
+  graph: readonly CompiledStage[],
+  plan: readonly ResolvedPlanStage[],
+  stateContent: string,
+): CompiledStage[] {
+  const planBySlug = new Map(plan.map((stage) => [stage.slug, stage.action]));
+  return graph.filter((stage) =>
+    stage.phase === "construction" &&
+    stage.for_each === "unit-of-work" &&
+    stage.mode === "inline" &&
+    !stateStageSettled(stateContent, stage.slug) &&
+    (stateStageAction(stateContent, stage.slug) ?? planBySlug.get(stage.slug)) ===
+      "EXECUTE"
+  );
+}
+
+function unitArtifactEvidence(
+  projectDir: string,
+  stage: CompiledStage,
+  dag: UnitDag,
+): { valid: boolean; missing: string[] } {
+  const missing = dag.batches.flatMap((batch) =>
+    batch.flatMap((unit) => {
+      const definition = dag.units.find((candidate) => candidate.name === unit);
+      return verifyStageArtifactEvidence(projectDir, stage, {
+        unit,
+        ...(definition?.kind === undefined ? {} : { unitKind: definition.kind }),
+      }).missing;
+    })
+  );
+  return { valid: missing.length === 0, missing };
+}
+
+function unitMajorGridEvidence(
+  projectDir: string,
+  block: readonly CompiledStage[],
+  dag: UnitDag,
+): { valid: boolean; missing: string[] } {
+  const missing = block.flatMap((stage) =>
+    unitArtifactEvidence(projectDir, stage, dag).missing
+  );
+  return { valid: missing.length === 0, missing };
+}
+
+function assertEveryUnitLearningGate(
+  projectDir: string,
+  stage: string,
+  dag: UnitDag,
+): void {
+  for (const unit of dag.batches.flat()) {
+    assertLearningGateCompleted(projectDir, stage, unit);
+  }
 }
 
 function markdownFilesUnder(directory: string): string[] {
@@ -271,6 +347,84 @@ function buildRunStageDirective(
   return directive;
 }
 
+function resolveUnitMajorDirective(
+  projectDir: string,
+  currentStage: CompiledStage,
+  graph: readonly CompiledStage[],
+  plan: readonly ResolvedPlanStage[],
+  stateContent: string,
+  dag: UnitDag,
+  options: ResolveNextOptions,
+): RunStageDirective | ErrorDirective | null {
+  if (
+    !usesUnitMajorIteration(stateContent) ||
+    currentStage.phase !== "construction" ||
+    currentStage.for_each !== "unit-of-work" ||
+    currentStage.mode !== "inline"
+  ) return null;
+
+  const block = constructionDesignBlock(graph, plan, stateContent);
+  if (!block.some((stage) => stage.slug === currentStage.slug)) return null;
+  const units = dag.batches.flat();
+  if (units.length === 0) return null;
+
+  for (const unit of units) {
+    const definition = dag.units.find((candidate) => candidate.name === unit);
+    if (definition === undefined) {
+      return errorDirective(`Unit "${unit}" is not in the active Unit DAG.`);
+    }
+    for (const stage of block) {
+      const evidence = verifyStageArtifactEvidence(projectDir, stage, {
+        unit,
+        ...(definition.kind === undefined ? {} : { unitKind: definition.kind }),
+      });
+      if (evidence.valid) continue;
+      if (options.unit !== undefined && options.unit !== unit) {
+        return errorDirective(
+          `Cannot run Unit "${options.unit}" out of order; next Unit is "${unit}".`,
+        );
+      }
+      const directive = buildRunStageDirective(
+        projectDir,
+        stage,
+        graph,
+        plan,
+        stateContent,
+        {
+          ...options,
+          unit,
+          ...(definition.kind === undefined ? {} : { unitKind: definition.kind }),
+        },
+      );
+      directive.gate = false;
+      return directive;
+    }
+  }
+
+  const lastUnit = units.at(-1)!;
+  if (options.unit !== undefined && options.unit !== lastUnit) {
+    return errorDirective(
+      `The unit-major design grid is complete; the approval gate is on Unit "${lastUnit}".`,
+    );
+  }
+  const definition = dag.units.find((candidate) => candidate.name === lastUnit);
+  if (definition === undefined) {
+    return errorDirective(`Unit "${lastUnit}" is not in the active Unit DAG.`);
+  }
+  return buildRunStageDirective(
+    projectDir,
+    currentStage,
+    graph,
+    plan,
+    stateContent,
+    {
+      ...options,
+      unit: lastUnit,
+      ...(definition.kind === undefined ? {} : { unitKind: definition.kind }),
+    },
+  );
+}
+
 const SINGLE_INIT_ERROR =
   "Cannot run an initialization stage with --single. Initialization is bootstrap; use the aidlc-init Skill.";
 
@@ -372,6 +526,26 @@ export function resolveNextDirective(
     }
     const stateContent = readFileSync(stateFilePath(projectRoot), "utf8");
     const dag = loadActiveUnitDag(projectRoot);
+    const plan = readPlan(projectRoot);
+    if (dag !== null) {
+      const unitMajor = resolveUnitMajorDirective(
+        projectRoot,
+        stage,
+        graph,
+        plan,
+        stateContent,
+        dag,
+        options,
+      );
+      if (unitMajor !== null) {
+        if (unitMajor.kind === "error") return unitMajor;
+        return resolveSteeringDirective(projectRoot, unitMajor, {
+          ...(options.continueToken === undefined
+            ? {}
+            : { continueToken: options.continueToken }),
+        });
+      }
+    }
     const artifactOptions: ArtifactResolutionOptions = {
       ...(options.unit === undefined ? {} : { unit: options.unit }),
       ...(options.repo === undefined ? {} : { repo: options.repo }),
@@ -406,7 +580,7 @@ export function resolveNextDirective(
       projectRoot,
       stage,
       graph,
-      readPlan(projectRoot),
+      plan,
       stateContent,
       artifactOptions,
     );
@@ -489,6 +663,19 @@ export function reportStageResult(
     if (node === undefined) {
       return errorDirective(`Reported stage "${stage}" is not in the compiled graph.`);
     }
+    const stateContent = readFileSync(stateFilePath(projectRoot), "utf8");
+    const dag = loadActiveUnitDag(projectRoot);
+    const unitMajorBlock = dag === null
+      ? []
+      : constructionDesignBlock(
+          loadCompiledStageGraph(),
+          readPlan(projectRoot),
+          stateContent,
+        );
+    const unitMajor = dag !== null && usesUnitMajorIteration(stateContent) &&
+      node.phase === "construction" && node.for_each === "unit-of-work" &&
+      node.mode === "inline" &&
+      unitMajorBlock.some((candidate) => candidate.slug === node.slug);
     if (options.result === "skipped") {
       if (node.execution !== "CONDITIONAL") {
         return errorDirective(
@@ -524,18 +711,24 @@ export function reportStageResult(
             `Stage "${stage}" is ${resume.checkboxState}; only an in-progress Stage can open a gate.`,
           );
         }
-        assertLearningGateCompleted(projectRoot, stage, options.unit);
-        const evidence = verifyStageArtifactEvidence(projectRoot, node, {
-          ...(options.unit === undefined ? {} : { unit: options.unit }),
-          ...(node.for_each === "unit-of-work" && options.unit === undefined
-            ? { singlePass: true }
-            : {}),
-        });
+        const evidence = unitMajor && dag !== null
+          ? unitMajorGridEvidence(projectRoot, unitMajorBlock, dag)
+          : verifyStageArtifactEvidence(projectRoot, node, {
+              ...(options.unit === undefined ? {} : { unit: options.unit }),
+              ...(node.for_each === "unit-of-work" && options.unit === undefined
+                ? { singlePass: true }
+                : {}),
+            });
         if (!evidence.valid) {
           return errorDirective(
             `Cannot open approval for "${stage}": missing required artifact evidence:\n` +
               evidence.missing.map((path) => `- ${path}`).join("\n"),
           );
+        }
+        if (unitMajor && dag !== null) {
+          assertEveryUnitLearningGate(projectRoot, stage, dag);
+        } else {
+          assertLearningGateCompleted(projectRoot, stage, options.unit);
         }
         openApprovalGate(projectRoot, stage);
         return { kind: "done", reason: `Recorded awaiting-approval for "${stage}".` };
@@ -555,12 +748,14 @@ export function reportStageResult(
           `Stage "${stage}" is ${resume.checkboxState}; only a revising Stage can re-enter its gate.`,
         );
       }
-      const revisedEvidence = verifyStageArtifactEvidence(projectRoot, node, {
-        ...(options.unit === undefined ? {} : { unit: options.unit }),
-        ...(node.for_each === "unit-of-work" && options.unit === undefined
-          ? { singlePass: true }
-          : {}),
-      });
+      const revisedEvidence = unitMajor && dag !== null
+        ? unitMajorGridEvidence(projectRoot, unitMajorBlock, dag)
+        : verifyStageArtifactEvidence(projectRoot, node, {
+            ...(options.unit === undefined ? {} : { unit: options.unit }),
+            ...(node.for_each === "unit-of-work" && options.unit === undefined
+              ? { singlePass: true }
+              : {}),
+          });
       if (!revisedEvidence.valid) {
         return errorDirective(
           `Cannot re-open approval for "${stage}": missing required artifact evidence:\n` +
@@ -590,8 +785,33 @@ export function reportStageResult(
         `Stage "${stage}" is revising; report --result revised before approval.`,
       );
     }
-    const dag = loadActiveUnitDag(projectRoot);
     if (node.for_each === "unit-of-work" && dag !== null) {
+      if (unitMajor) {
+        const gridEvidence = unitMajorGridEvidence(
+          projectRoot,
+          unitMajorBlock,
+          dag,
+        );
+        if (!gridEvidence.valid) {
+          return errorDirective(
+            `Cannot approve "${stage}": the unit-major design grid has ` +
+              `missing per-unit artifact evidence:\n` +
+              gridEvidence.missing.map((path) => `- ${path}`).join("\n"),
+          );
+        }
+        assertEveryUnitLearningGate(projectRoot, stage, dag);
+        if (resume.checkboxState === "in-progress") {
+          openApprovalGate(projectRoot, stage);
+        }
+        completeAllCurrentStageUnits(projectRoot, stage);
+        approveCurrentStage(projectRoot, stage, userInput ?? "");
+        return {
+          kind: "done",
+          reason:
+            `Completed unit-major design Stage "${stage}" after all Units. ` +
+            "State advanced; run next to continue.",
+        };
+      }
       const unit = options.unit?.trim();
       if (!unit) {
         return errorDirective(

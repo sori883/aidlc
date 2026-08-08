@@ -100,8 +100,12 @@ test("writes a complete Codex bundle with local tsx and yaml runtime", () => {
   }
   const runtime = JSON.parse(
     readFileSync(join(outDir, ".codex", "package.json"), "utf8"),
-  ) as { dependencies: Record<string, string> };
+  ) as {
+    dependencies: Record<string, string>;
+    scripts: Record<string, string>;
+  };
   assert.deepEqual(runtime.dependencies, { tsx: "4.23.1", yaml: "2.9.0" });
+  assert.equal(runtime.scripts.graph, "tsx tools/aidlc-graph.ts");
   const hook = readFileSync(
     join(outDir, ".codex", "hooks", "aidlc-sensor-fire.ts"),
     "utf8",

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdtempSync,
@@ -18,6 +19,7 @@ import {
 import {
   completeCurrentStage,
   resumeIntentState,
+  setConstructionIteration,
   skipCurrentStage,
   validateIntentState,
 } from "../core/tools/aidlc-state.ts";
@@ -116,6 +118,68 @@ test("Intent Birth writes the v2 state contract and adjusted plan", () => {
     ],
   );
   assert.match(audit, /\*\*Stage\*\*: intent-capture/);
+});
+
+test("set-construction-iteration validates and persists Runtime State without Audit", () => {
+  const projectDir = freshProject();
+  const born = birthIntentWithState(projectDir, "Payment API", "default", "mvp");
+  const beforePlan = readFileSync(born.state.planPath, "utf8");
+  const beforeAudit = readFileSync(born.auditPath, "utf8");
+
+  const update = setConstructionIteration(projectDir, "unit-major");
+  assert.equal(update.constructionIteration, "unit-major");
+  assert.match(
+    readFileSync(born.state.statePath, "utf8"),
+    /## Runtime State\n- \*\*Construction Iteration\*\*: unit-major/,
+  );
+  assert.equal(readFileSync(born.state.planPath, "utf8"), beforePlan);
+  assert.equal(readFileSync(born.auditPath, "utf8"), beforeAudit);
+
+  const cli = spawnSync(
+    "pnpm",
+    [
+      "exec",
+      "tsx",
+      "core/tools/aidlc-state.ts",
+      "set-construction-iteration",
+      "stage-major",
+      "--project-dir",
+      projectDir,
+    ],
+    { cwd: process.cwd(), encoding: "utf8" },
+  );
+  assert.equal(cli.status, 0, cli.stderr);
+  assert.deepEqual(JSON.parse(cli.stdout), {
+    updated: true,
+    construction_iteration: "stage-major",
+  });
+  assert.equal(
+    (readFileSync(born.state.statePath, "utf8")
+      .match(/Construction Iteration/g) ?? []).length,
+    1,
+  );
+  assert.match(
+    readFileSync(born.state.statePath, "utf8"),
+    /- \*\*Construction Iteration\*\*: stage-major/,
+  );
+  assert.equal(readFileSync(born.state.planPath, "utf8"), beforePlan);
+  assert.equal(readFileSync(born.auditPath, "utf8"), beforeAudit);
+
+  const invalid = spawnSync(
+    "pnpm",
+    [
+      "exec",
+      "tsx",
+      "core/tools/aidlc-state.ts",
+      "set-construction-iteration",
+      "bogus",
+      "--project-dir",
+      projectDir,
+    ],
+    { cwd: process.cwd(), encoding: "utf8" },
+  );
+  assert.notEqual(invalid.status, 0);
+  assert.match(invalid.stderr, /Invalid construction iteration/);
 });
 
 test("brownfield routing starts with reverse-engineering", () => {

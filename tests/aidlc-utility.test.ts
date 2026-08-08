@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   readdirSync,
   writeFileSync,
 } from "node:fs";
@@ -15,8 +16,14 @@ import {
   detectProject,
   renderScopeTable,
   renderStageTable,
+  resolveCodekbPath,
 } from "../core/tools/aidlc-utility.ts";
 import { loadCompiledStageGraph } from "../core/tools/aidlc-graph.ts";
+import {
+  birthIntent,
+  birthIntentWithState,
+} from "../core/tools/aidlc-intent.ts";
+import { initializeWorkspace } from "../core/tools/aidlc-workspace.ts";
 
 function brownfieldFixture(): string {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-utility-"));
@@ -134,4 +141,86 @@ test("scope-table and stage-table CLI commands emit their canonical regions", ()
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout, `${expected}\n`);
   }
+});
+
+test("resolveCodekbPath uses the only Repo recorded by the active Intent", () => {
+  const projectDir = mkdtempSync(join(tmpdir(), "aidlc-utility-codekb-"));
+  initializeWorkspace(projectDir);
+  birthIntent(projectDir, "Payment API", "default", "mvp", ["payment-api"]);
+
+  assert.deepEqual(resolveCodekbPath(projectDir), {
+    space: "default",
+    repo: "payment-api",
+    dir: "aidlc/spaces/default/codekb/payment-api",
+  });
+});
+
+test("codekb-path is read-only and honours explicit Repo and JSON output", () => {
+  const projectDir = mkdtempSync(join(tmpdir(), "aidlc-utility-codekb-"));
+  initializeWorkspace(projectDir);
+  const born = birthIntentWithState(
+    projectDir,
+    "Payment API",
+    "default",
+    "mvp",
+    ["payment-api"],
+  );
+  const before = readdirSync(projectDir).sort();
+  const beforePlan = readFileSync(born.state.planPath, "utf8");
+  const beforeState = readFileSync(born.state.statePath, "utf8");
+  const beforeAudit = readFileSync(born.auditPath, "utf8");
+  const plain = spawnSync(
+    "pnpm",
+    [
+      "exec",
+      "tsx",
+      "core/tools/aidlc-utility.ts",
+      "codekb-path",
+      "--project-dir",
+      projectDir,
+      "--repo",
+      "payment-api",
+    ],
+    { cwd: process.cwd(), encoding: "utf8" },
+  );
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.equal(plain.stdout, "aidlc/spaces/default/codekb/payment-api/\n");
+
+  const json = spawnSync(
+    "pnpm",
+    [
+      "exec",
+      "tsx",
+      "core/tools/aidlc-utility.ts",
+      "codekb-path",
+      "--project-dir",
+      projectDir,
+      "--repo",
+      "payment-api",
+      "--json",
+    ],
+    { cwd: process.cwd(), encoding: "utf8" },
+  );
+  assert.equal(json.status, 0, json.stderr);
+  assert.deepEqual(JSON.parse(json.stdout), {
+    space: "default",
+    repo: "payment-api",
+    dir: "aidlc/spaces/default/codekb/payment-api",
+  });
+  assert.deepEqual(readdirSync(projectDir).sort(), before);
+  assert.equal(readFileSync(born.state.planPath, "utf8"), beforePlan);
+  assert.equal(readFileSync(born.state.statePath, "utf8"), beforeState);
+  assert.equal(readFileSync(born.auditPath, "utf8"), beforeAudit);
+});
+
+test("codekb-path defaults to the project basename and rejects path traversal", () => {
+  const projectDir = mkdtempSync(join(tmpdir(), "aidlc-utility-codekb-"));
+  assert.equal(
+    resolveCodekbPath(projectDir).repo,
+    projectDir.split("/").at(-1),
+  );
+  assert.throws(
+    () => resolveCodekbPath(projectDir, "../outside"),
+    /Repository name must be one non-empty path segment/,
+  );
 });

@@ -12,6 +12,14 @@
     "stage-table": {
       "flags": [],
       "results": []
+    },
+    "codekb-path": {
+      "flags": ["--project-dir", "--repo", "--json"],
+      "results": []
+    },
+    "recompose": {
+      "flags": ["--project-dir", "--add", "--json"],
+      "results": []
     }
   }
 }

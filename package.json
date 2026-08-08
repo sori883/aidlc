@@ -14,6 +14,8 @@
     "doctor": "tsx core/tools/aidlc-doctor.ts",
     "graph:check": "tsx core/tools/aidlc-graph.ts compile --check",
     "graph:compile": "tsx core/tools/aidlc-graph.ts compile",
+    "graph:ars": "tsx core/tools/aidlc-graph.ts ars",
+    "graph:validate-grid": "tsx core/tools/aidlc-graph.ts validate-grid",
     "graph:resolve": "tsx core/tools/aidlc-graph.ts resolve",
     "intent:birth": "tsx core/tools/aidlc-intent.ts birth",
     "intent:list": "tsx core/tools/aidlc-intent.ts list",
@@ -45,6 +47,7 @@
     "state:practices-event": "tsx core/tools/aidlc-state.ts practices-event",
     "state:practices-promote": "tsx core/tools/aidlc-state.ts practices-promote",
     "state:resume": "tsx core/tools/aidlc-state.ts resume",
+    "state:set-construction-iteration": "tsx core/tools/aidlc-state.ts set-construction-iteration",
     "state:show": "tsx core/tools/aidlc-state.ts show",
     "state:skip": "tsx core/tools/aidlc-state.ts skip",
     "test": "tsx --test tests/**/*.test.ts",
@@ -52,11 +55,20 @@
     "unit:check": "tsx core/tools/aidlc-unit-graph.ts check",
     "unit:show": "tsx core/tools/aidlc-unit-graph.ts show",
     "utility:detect": "tsx core/tools/aidlc-utility.ts detect",
+    "utility:codekb-path": "tsx core/tools/aidlc-utility.ts codekb-path",
     "utility:scope-table": "tsx core/tools/aidlc-utility.ts scope-table",
     "utility:stage-table": "tsx core/tools/aidlc-utility.ts stage-table",
+    "utility:recompose": "tsx core/tools/aidlc-utility.ts recompose",
     "workspace:detect": "tsx core/tools/aidlc-workspace-detect.ts detect",
     "workspace:init": "tsx core/tools/aidlc-workspace.ts init",
-    "workspace:migrate": "tsx core/tools/aidlc-workspace-migrate.ts migrate"
+    "workspace:migrate": "tsx core/tools/aidlc-workspace-migrate.ts migrate",
+    "worktree:create": "tsx core/tools/aidlc-worktree.ts create",
+    "worktree:discard": "tsx core/tools/aidlc-worktree.ts discard",
+    "worktree:info": "tsx core/tools/aidlc-worktree.ts info",
+    "worktree:list": "tsx core/tools/aidlc-worktree.ts list",
+    "worktree:merge": "tsx core/tools/aidlc-worktree.ts merge",
+    "worktree:validate": "tsx core/tools/aidlc-worktree.ts validate",
+    "worktree:verify": "tsx core/tools/aidlc-worktree.ts verify"
   },
   "dependencies": {
     "yaml": "2.9.0"

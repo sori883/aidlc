@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   mkdtempSync,
   readFileSync,
@@ -10,11 +11,14 @@ import test from "node:test";
 import {
   checkCompiledStageGraph,
   compileStageGraph,
+  computeArs,
+  loadArsPriors,
   loadCompiledScopeGrid,
   loadCompiledStageGraph,
   resolvePlanForScope,
   resolvedPlanPath,
   subgraphForScope,
+  validateGrid,
   validateStageDependencies,
   writeCompiledStageGraph,
   writeResolvedPlanForScope,
@@ -195,4 +199,113 @@ test("runtime loaders reject malformed compiled data", () => {
     () => loadCompiledScopeGrid({ scopeGridPath }),
     /must be EXECUTE or SKIP/,
   );
+});
+
+test("ARS reproduces the upstream deterministic arithmetic and project screen", () => {
+  const result = computeArs({
+    iae: 0.55,
+    csu: 0.75,
+    ve: 0.65,
+    r: 0.5,
+    ua: 0.55,
+  });
+  assert.equal(result.composite.raw, 62.75);
+  assert.equal(result.composite.total, 63);
+  assert.equal(result.composite.label, "Comprehensive");
+  assert.match(result.tables.arsScores, /\*\*63 \/ 100\*\*/);
+  assert.equal(result.evScreen.length, loadCompiledStageGraph().length);
+  assert.equal(result.evScreen.some((row) => row.screen === "no-prior"), false);
+  assert.equal(loadArsPriors().schemaVersion, 1);
+
+  const greenfield = computeArs(
+    { iae: 0, csu: 0.8, ve: 0, r: 0, ua: 0 },
+    { projectType: "greenfield" },
+  );
+  assert.equal(greenfield.screenGrid["reverse-engineering"], "SKIP");
+  assert.equal(
+    greenfield.evScreen.find((row) => row.stage === "reverse-engineering")?.screen,
+    "project-type",
+  );
+  assert.throws(
+    () => computeArs({ iae: 0.299, csu: 0, ve: 0, r: 0, ua: 0 }),
+    /at most two decimals/,
+  );
+});
+
+test("validateGrid preserves lenient and strict upstream postures", () => {
+  const infra = loadCompiledScopeGrid().infra?.stages;
+  assert.ok(infra);
+  const lenient = validateGrid({ ...infra }, { label: "infra" });
+  assert.equal(lenient.valid, true);
+  assert.equal(lenient.errors.length, 0);
+  assert.equal(lenient.advisories.length > 0, true);
+  assert.match(lenient.advisories[0] ?? "", /"infra" path/);
+
+  const strict = validateGrid({ ...infra }, { strict: true });
+  assert.equal(strict.valid, false);
+  assert.equal(
+    strict.errors.some((error) => error.includes("Strict (recompose) mode")),
+    true,
+  );
+  assert.equal(validateGrid({ "missing-stage": "EXECUTE" }).valid, false);
+  assert.equal(validateGrid({ "intent-capture": "MAYBE" }).valid, false);
+});
+
+test("ars and validate-grid CLIs return JSON and enforce keyword collisions", () => {
+  const ars = spawnSync(
+    "pnpm",
+    [
+      "exec",
+      "tsx",
+      "core/tools/aidlc-graph.ts",
+      "ars",
+      "--iae",
+      "0.55",
+      "--csu",
+      "0.75",
+      "--ve",
+      "0.65",
+      "--r",
+      "0.5",
+      "--ua",
+      "0.55",
+      "--project-type",
+      "brownfield",
+    ],
+    { cwd: process.cwd(), encoding: "utf8" },
+  );
+  assert.equal(ars.status, 0, ars.stderr);
+  assert.equal(JSON.parse(ars.stdout).composite.total, 63);
+
+  const directory = mkdtempSync(join(tmpdir(), "aidlc-grid-proposal-"));
+  const proposal = join(directory, "proposal.json");
+  writeFileSync(
+    proposal,
+    JSON.stringify({ stages: loadCompiledScopeGrid().mvp?.stages }),
+    "utf8",
+  );
+  const validation = spawnSync(
+    "pnpm",
+    [
+      "exec",
+      "tsx",
+      "core/tools/aidlc-graph.ts",
+      "validate-grid",
+      "--proposal",
+      proposal,
+      "--keywords",
+      "mvp,new-keyword",
+    ],
+    { cwd: process.cwd(), encoding: "utf8" },
+  );
+  assert.equal(validation.status, 1);
+  const body = JSON.parse(validation.stdout) as {
+    valid: boolean;
+    errors: string[];
+  };
+  assert.equal(body.valid, false);
+  assert.equal(body.errors.some((error) =>
+    error.includes('Keyword "mvp"') && error.includes("mvp")
+  ), true);
+  assert.equal(body.errors.some((error) => error.includes("new-keyword")), false);
 });

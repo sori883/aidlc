@@ -2,7 +2,7 @@
 // M17 starts with upstream-compatible workspace detection; later verbs are
 // added behind the same auto-discovered CLI contract.
 
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   cliHasCommand,
@@ -19,9 +19,18 @@ import {
   type SubmoduleEntry,
   type WorkspaceScan,
 } from "./aidlc-workspace-detect.ts";
+import { activeIntent, readIntentRegistry } from "./aidlc-intent.ts";
+import { activeSpace } from "./aidlc-workspace.ts";
+import { addStagesToExecutionPlan } from "./aidlc-state.ts";
 
 const UTILITY_CLI_CONTRACT = loadCliContract("aidlc-utility.ts");
-const UTILITY_COMMANDS = ["detect", "scope-table", "stage-table"] as const;
+const UTILITY_COMMANDS = [
+  "detect",
+  "scope-table",
+  "stage-table",
+  "codekb-path",
+  "recompose",
+] as const;
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const SCOPE_TABLE_BEGIN =
   "<!-- BEGIN: compiled scope grid via `bun aidlc-utility.ts scope-table` - do NOT hand-edit -->";
@@ -40,6 +49,50 @@ export interface UtilityDetectResult {
   scopesDir: string;
   scopeGridPath: string;
   scopes: string[];
+}
+
+export interface CodekbPathResult {
+  space: string;
+  repo: string;
+  dir: string;
+}
+
+function safePathSegment(value: string, label: string): string {
+  if (
+    value === "" || value !== value.trim() || value === "." || value === ".." ||
+    value.includes("/") || value.includes("\\") || value.includes("\0")
+  ) {
+    throw new Error(`${label} must be one non-empty path segment`);
+  }
+  return value;
+}
+
+/** Resolve the active Space's durable per-Repo code knowledge directory. */
+export function resolveCodekbPath(
+  projectDir: string,
+  requestedRepo?: string,
+): CodekbPathResult {
+  const resolvedProjectDir = resolve(projectDir);
+  const space = safePathSegment(activeSpace(resolvedProjectDir), "Space name");
+  const selectedIntent = activeIntent(resolvedProjectDir, space);
+  const recordedRepos = selectedIntent === null
+    ? []
+    : readIntentRegistry(resolvedProjectDir, space)
+      .find((entry) => entry.dirName === selectedIntent)?.repos
+      ?.map((repo) => repo.trim())
+      .filter(Boolean) ?? [];
+  const repo = safePathSegment(
+    requestedRepo ??
+      (recordedRepos.length === 1
+        ? recordedRepos[0]!
+        : basename(resolvedProjectDir)),
+    "Repository name",
+  );
+  return {
+    space,
+    repo,
+    dir: `aidlc/spaces/${space}/codekb/${repo}`,
+  };
 }
 
 /** Read the project and name the exact Scope registries used by this runtime. */
@@ -135,7 +188,12 @@ function renderText(result: UtilityDetectResult): string {
 
 function flagValue(args: readonly string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
-  return index === -1 ? undefined : args[index + 1];
+  if (index === -1) return undefined;
+  const value = args[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error(`${flag} requires a value`);
+  }
+  return value;
 }
 
 function runCli(): void {
@@ -143,7 +201,9 @@ function runCli(): void {
   const usage =
     "Usage: aidlc-utility detect [--project-dir <path>] [--json]\n" +
     "       aidlc-utility scope-table\n" +
-    "       aidlc-utility stage-table";
+    "       aidlc-utility stage-table\n" +
+    "       aidlc-utility codekb-path [--project-dir <path>] [--repo <name>] [--json]\n" +
+    "       aidlc-utility recompose --add <stage[,stage...]> [--project-dir <path>] [--json]";
   if (
     !UTILITY_COMMANDS.includes(command as (typeof UTILITY_COMMANDS)[number]) ||
     !cliHasCommand(UTILITY_CLI_CONTRACT, command)
@@ -166,6 +226,30 @@ function runCli(): void {
       return;
     }
     const projectDir = flagValue(args, "--project-dir") ?? process.cwd();
+    if (command === "codekb-path") {
+      const result = resolveCodekbPath(projectDir, flagValue(args, "--repo"));
+      process.stdout.write(
+        args.includes("--json")
+          ? `${JSON.stringify(result)}\n`
+          : `${result.dir}/\n`,
+      );
+      return;
+    }
+    if (command === "recompose") {
+      const additions = (flagValue(args, "--add") ?? "")
+        .split(",")
+        .map((slug) => slug.trim())
+        .filter(Boolean);
+      const result = addStagesToExecutionPlan(projectDir, additions);
+      process.stdout.write(
+        args.includes("--json")
+          ? `${JSON.stringify(result)}\n`
+          : `Recomposed: added ${result.added.join(", ")}\n` +
+            `Stages in scope: ${result.stagesInScope}\n` +
+            `Next stage: ${result.nextStage ?? "none"}\n`,
+      );
+      return;
+    }
     const result = detectProject(projectDir);
     process.stdout.write(
       args.includes("--json") ? `${JSON.stringify(result)}\n` : renderText(result),
