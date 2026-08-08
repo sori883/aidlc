@@ -17,6 +17,7 @@
     "space": "tsx tools/aidlc-space.ts",
     "state": "tsx tools/aidlc-state.ts",
     "unit": "tsx tools/aidlc-unit-graph.ts",
+    "utility": "tsx tools/aidlc-utility.ts",
     "workspace": "tsx tools/aidlc-workspace.ts",
     "workspace-detect": "tsx tools/aidlc-workspace-detect.ts",
     "workspace-migrate": "tsx tools/aidlc-workspace-migrate.ts"

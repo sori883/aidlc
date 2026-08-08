@@ -51,6 +51,7 @@
     "typecheck": "tsc --noEmit",
     "unit:check": "tsx core/tools/aidlc-unit-graph.ts check",
     "unit:show": "tsx core/tools/aidlc-unit-graph.ts show",
+    "utility:detect": "tsx core/tools/aidlc-utility.ts detect",
     "workspace:detect": "tsx core/tools/aidlc-workspace-detect.ts detect",
     "workspace:init": "tsx core/tools/aidlc-workspace.ts init",
     "workspace:migrate": "tsx core/tools/aidlc-workspace-migrate.ts migrate"
