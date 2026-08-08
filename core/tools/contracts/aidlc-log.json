@@ -1,0 +1,19 @@
+{
+  "tool": "aidlc-log.ts",
+  "commands": {
+    "decision": {
+      "flags": [
+        "--project-dir",
+        "--stage",
+        "--decision",
+        "--options",
+        "--rationale"
+      ],
+      "results": []
+    },
+    "answer": {
+      "flags": ["--project-dir", "--stage", "--details"],
+      "results": []
+    }
+  }
+}

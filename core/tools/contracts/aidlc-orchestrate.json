@@ -17,11 +17,21 @@
         "--project-dir",
         "--stage",
         "--result",
+        "--user-input",
         "--reason",
         "--unit",
         "--single"
       ],
-      "results": ["approved", "completed", "complete", "done", "skipped"]
+      "results": [
+        "approved",
+        "awaiting-approval",
+        "completed",
+        "complete",
+        "done",
+        "rejected",
+        "revised",
+        "skipped"
+      ]
     }
   }
 }

@@ -580,6 +580,7 @@ export function reportApprovedStageExecution(
   projectDir: string,
   directive: RunStageDirective,
   execution: StageExecutionResult,
+  userInput: string,
 ): StageExecutionResult {
   if (execution.stage !== directive.stage || execution.mode !== directive.mode) {
     return {
@@ -599,6 +600,7 @@ export function reportApprovedStageExecution(
   const report = reportStageResult(projectDir, {
     stage: directive.stage,
     result: "approved",
+    userInput,
     ...(directive.unit === undefined ? {} : { unit: directive.unit }),
   });
   if (report.kind === "error") {

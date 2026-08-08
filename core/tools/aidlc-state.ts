@@ -3,11 +3,12 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   renameSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   type CompiledStage,
@@ -22,7 +23,7 @@ import {
   type WorkspaceScan,
 } from "./aidlc-workspace-detect.ts";
 import { withWorkspaceLock } from "./aidlc-workspace-lock.ts";
-import { appendAuditEntry } from "./aidlc-audit.ts";
+import { appendAuditEntries, appendAuditEntry } from "./aidlc-audit.ts";
 import type { UnitDag } from "./aidlc-unit-graph.ts";
 import {
   cliHasCommand,
@@ -85,6 +86,23 @@ export interface StateTransition {
   nextStage: string | null;
   workflowCompleted: boolean;
   completedStages: number;
+}
+
+export interface ApprovalTransition {
+  recordDir: string;
+  stage: string;
+  stageState: "awaiting-approval" | "revising";
+  revisionCount: number;
+}
+
+export interface PracticesPromotionResult {
+  emitted: "PRACTICES_AFFIRMED";
+  affirmedAt: string;
+  teamPath: string;
+  projectPath: string;
+  sectionsWritten: string[];
+  mandatedAppended: number;
+  forbiddenAppended: number;
 }
 
 export interface DerivedStateRepair {
@@ -670,6 +688,7 @@ export function completeCurrentUnitStage(
   projectDir: string,
   slug: string,
   unit: string,
+  approvalInput?: string,
 ): UnitStageTransition {
   const projectRoot = resolve(projectDir);
   return withWorkspaceLock(projectRoot, () => {
@@ -692,12 +711,31 @@ export function completeCurrentUnitStage(
     if (before === undefined) {
       throw new Error(`Unknown Unit "${unit}" for stage "${slug}"`);
     }
+    if (
+      approvalInput !== undefined &&
+      checkboxState(content, slug) !== "awaiting-approval"
+    ) {
+      throw new Error(
+        `Cannot approve Unit "${unit}" for "${slug}": Stage is not awaiting-approval`,
+      );
+    }
     const replay = before.marker === "x";
     if (!replay) content = setUnitProgressMarker(content, slug, unit, "x");
     const remaining = unitProgressRows(content).filter(
       (row) => row.stage === slug && row.marker !== "x" && row.marker !== "S",
     );
     const nextUnit = remaining[0]?.unit ?? null;
+    if (approvalInput !== undefined && nextUnit !== null) {
+      const exactInput = approvalInput.trim();
+      if (!exactInput) throw new Error("A non-empty human approval choice is required");
+      appendAuditEntry(projectRoot, recordDir, "GATE_APPROVED", {
+        Stage: slug,
+        Unit: unit,
+        "User Input": exactInput,
+      });
+      content = setCheckboxState(content, slug, "in-progress");
+      content = setStateField(content, "Revision Count", "0");
+    }
     content = setStateField(
       content,
       "Next Action",
@@ -723,6 +761,7 @@ function transitionCurrentStage(
   slug: string,
   result: "completed" | "skipped",
   reason?: string,
+  approvalInput?: string,
 ): StateTransition {
   const projectRoot = resolve(projectDir);
   return withWorkspaceLock(projectRoot, () => {
@@ -738,6 +777,11 @@ function transitionCurrentStage(
     const currentState = checkboxState(content, slug);
     if (!["in-progress", "awaiting-approval", "revising"].includes(currentState)) {
       throw new Error(`Stage "${slug}" is ${currentState}, not active`);
+    }
+    if (approvalInput !== undefined && currentState !== "awaiting-approval") {
+      throw new Error(
+        `Cannot approve "${slug}": Stage is ${currentState}, not awaiting-approval`,
+      );
     }
 
     const plan = readPlan(recordDir);
@@ -807,6 +851,7 @@ function transitionCurrentStage(
     }
     if (result === "completed") {
       content = setStateField(content, "Last Completed Stage", slug);
+      content = setStateField(content, "Revision Count", "0");
     }
     const completedStages = completedCheckboxCount(content);
     content = setStateField(content, "Completed", String(completedStages));
@@ -816,6 +861,12 @@ function transitionCurrentStage(
     // serializes the audit append and State write as one mutation path. If an
     // audit append throws, the State write below is not attempted.
     if (result === "completed") {
+      if (approvalInput !== undefined) {
+        appendAuditEntry(projectRoot, recordDir, "GATE_APPROVED", {
+          Stage: slug,
+          "User Input": approvalInput,
+        });
+      }
       appendAuditEntry(projectRoot, recordDir, "STAGE_COMPLETED", {
         Stage: slug,
         Details: next === null
@@ -887,6 +938,156 @@ export function completeCurrentStage(
   return transitionCurrentStage(projectDir, slug, "completed");
 }
 
+/** Approve an open human gate and route to the next Stage atomically. */
+export function approveCurrentStage(
+  projectDir: string,
+  slug: string,
+  userInput: string,
+): StateTransition {
+  const exactInput = userInput.trim();
+  if (!exactInput) {
+    throw new Error("A non-empty human approval choice is required");
+  }
+  return transitionCurrentStage(
+    projectDir,
+    slug,
+    "completed",
+    undefined,
+    exactInput,
+  );
+}
+
+function transitionApprovalState(
+  projectDir: string,
+  slug: string,
+  action: "open" | "reject" | "revise",
+  feedback?: string,
+): ApprovalTransition {
+  const projectRoot = resolve(projectDir);
+  return withWorkspaceLock(projectRoot, () => {
+    const recordDir = activeIntentRecordDir(projectRoot);
+    const path = join(recordDir, "aidlc-state.md");
+    let content = readFileSync(path, "utf8");
+    const current = stateField(content, "Current Stage");
+    if (current !== slug) {
+      throw new Error(
+        `Cannot update approval for "${slug}": Current Stage is "${current ?? "unknown"}"`,
+      );
+    }
+    const before = checkboxState(content, slug);
+    const revisionCount = Number(stateField(content, "Revision Count") ?? "0");
+    const safeRevisionCount = Number.isInteger(revisionCount) && revisionCount >= 0
+      ? revisionCount
+      : 0;
+    const timestamp = isoTimestamp();
+
+    if (action === "open") {
+      if (before !== "in-progress") {
+        throw new Error(
+          `Cannot open approval for "${slug}": Stage is ${before}, not in-progress`,
+        );
+      }
+      content = setCheckboxState(content, slug, "awaiting-approval");
+      content = setStateField(content, "Next Action", `Await approval for ${slug}`);
+      content = setStateField(content, "Last Updated", timestamp);
+      appendAuditEntry(projectRoot, recordDir, "STAGE_AWAITING_APPROVAL", {
+        Stage: slug,
+      });
+      writeFileAtomic(path, content);
+      return {
+        recordDir,
+        stage: slug,
+        stageState: "awaiting-approval",
+        revisionCount: safeRevisionCount,
+      };
+    }
+
+    if (action === "reject") {
+      const exactFeedback = feedback?.trim() ?? "";
+      if (!exactFeedback) throw new Error("A non-empty rejection reason is required");
+      if (before !== "in-progress" && before !== "awaiting-approval") {
+        throw new Error(
+          `Cannot reject "${slug}": Stage is ${before}, not active or awaiting-approval`,
+        );
+      }
+      const nextRevisionCount = safeRevisionCount + 1;
+      content = setCheckboxState(content, slug, "revising");
+      content = setStateField(content, "Revision Count", String(nextRevisionCount));
+      content = setStateField(content, "Next Action", `Revise ${slug}`);
+      content = setStateField(content, "Last Updated", timestamp);
+      appendAuditEntries(projectRoot, recordDir, [
+        ...(before === "in-progress"
+          ? [{
+              event: "STAGE_AWAITING_APPROVAL" as const,
+              fields: { Stage: slug, Recovered: "true" },
+            }]
+          : []),
+        {
+          event: "GATE_REJECTED",
+          fields: { Stage: slug, Feedback: exactFeedback },
+        },
+        {
+          event: "STAGE_REVISING",
+          fields: {
+            Stage: slug,
+            "Revision count": String(nextRevisionCount),
+            Feedback: exactFeedback,
+          },
+        },
+      ]);
+      writeFileAtomic(path, content);
+      return {
+        recordDir,
+        stage: slug,
+        stageState: "revising",
+        revisionCount: nextRevisionCount,
+      };
+    }
+
+    if (before !== "revising") {
+      throw new Error(
+        `Cannot re-open approval for "${slug}": Stage is ${before}, not revising`,
+      );
+    }
+    content = setCheckboxState(content, slug, "awaiting-approval");
+    content = setStateField(content, "Next Action", `Await approval for ${slug}`);
+    content = setStateField(content, "Last Updated", timestamp);
+    appendAuditEntry(projectRoot, recordDir, "STAGE_AWAITING_APPROVAL", {
+      Stage: slug,
+      Details: "Re-entering gate after revision",
+    });
+    writeFileAtomic(path, content);
+    return {
+      recordDir,
+      stage: slug,
+      stageState: "awaiting-approval",
+      revisionCount: safeRevisionCount,
+    };
+  });
+}
+
+export function openApprovalGate(
+  projectDir: string,
+  slug: string,
+): ApprovalTransition {
+  return transitionApprovalState(projectDir, slug, "open");
+}
+
+export function rejectApprovalGate(
+  projectDir: string,
+  slug: string,
+  feedback: string,
+): ApprovalTransition {
+  return transitionApprovalState(projectDir, slug, "reject", feedback);
+}
+
+export function reviseApprovalGate(
+  projectDir: string,
+  slug: string,
+): ApprovalTransition {
+  return transitionApprovalState(projectDir, slug, "revise");
+}
+
 export function skipCurrentStage(
   projectDir: string,
   slug: string,
@@ -896,6 +1097,297 @@ export function skipCurrentStage(
     throw new Error("A non-empty skip reason is required");
   }
   return transitionCurrentStage(projectDir, slug, "skipped", reason.trim());
+}
+
+interface ParsedAuditEvent {
+  event: string;
+  stage: string | null;
+  timestamp: string;
+  position: number;
+}
+
+function auditField(block: string, field: string): string | null {
+  const prefix = `**${field}**:`;
+  return block.split("\n")
+    .find((line) => line.startsWith(prefix))
+    ?.slice(prefix.length).trim() ?? null;
+}
+
+function activeAuditEvents(recordDir: string): ParsedAuditEvent[] {
+  const auditDir = join(recordDir, "audit");
+  let position = 0;
+  const events: ParsedAuditEvent[] = [];
+  let names: string[] = [];
+  try {
+    names = readdirSync(auditDir).filter((name) => name.endsWith(".md")).sort();
+  } catch {
+    return [];
+  }
+  for (const name of names) {
+    const source = readFileSync(join(auditDir, name), "utf8").replace(/\r\n/g, "\n");
+    for (const block of source.split(/\n---\n/)) {
+      const event = auditField(block, "Event");
+      const timestamp = auditField(block, "Timestamp");
+      if (event !== null && timestamp !== null) {
+        events.push({
+          event,
+          stage: auditField(block, "Stage"),
+          timestamp,
+          position,
+        });
+      }
+      position += 1;
+    }
+  }
+  return events.sort((left, right) =>
+    left.timestamp.localeCompare(right.timestamp) || left.position - right.position
+  );
+}
+
+/** Require a successful promotion after the current practices Stage attempt/revision. */
+export function hasFreshPracticesAffirmation(projectDir: string): boolean {
+  const projectRoot = resolve(projectDir);
+  const recordDir = activeIntentRecordDir(projectRoot);
+  const state = readFileSync(join(recordDir, "aidlc-state.md"), "utf8");
+  const recordedTimestamp = stateField(state, "Practices Affirmed Timestamp");
+  if (!recordedTimestamp) return false;
+  const relevant = activeAuditEvents(recordDir).filter((event) =>
+    (event.event === "PRACTICES_AFFIRMED" &&
+      (event.stage === null || event.stage === "practices-discovery")) ||
+    ((event.event === "STAGE_STARTED" || event.event === "GATE_REJECTED") &&
+      event.stage === "practices-discovery")
+  );
+  const boundary = relevant.findLast((event) =>
+    event.event === "STAGE_STARTED" || event.event === "GATE_REJECTED"
+  );
+  const affirmed = relevant.findLast((event) =>
+    event.event === "PRACTICES_AFFIRMED" &&
+    (boundary === undefined ||
+      event.timestamp > boundary.timestamp ||
+      (event.timestamp === boundary.timestamp && event.position > boundary.position))
+  );
+  return affirmed?.timestamp === recordedTimestamp;
+}
+
+const PRACTICES_TEAM_SECTIONS = [
+  "Way of Working",
+  "Walking Skeleton",
+  "Testing Posture",
+  "Deployment",
+  "Code Style",
+] as const;
+
+function markdownSection(source: string, heading: string): string {
+  const normalized = source.replace(/\r\n/g, "\n");
+  const marker = `## ${heading}`;
+  const start = normalized.split("\n").findIndex((line) => line.trim() === marker);
+  if (start === -1) return "";
+  const lines = normalized.split("\n");
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (lines[index]?.startsWith("## ")) {
+      end = index;
+      break;
+    }
+  }
+  return lines.slice(start + 1, end).join("\n").trim();
+}
+
+function replaceMarkdownSection(
+  source: string,
+  heading: string,
+  body: string,
+): string {
+  const normalized = source.replace(/\r\n/g, "\n");
+  const lines = normalized.split("\n");
+  const marker = `## ${heading}`;
+  const start = lines.findIndex((line) => line.trim() === marker);
+  if (start === -1) throw new Error(`Target is missing ${marker}`);
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (lines[index]?.startsWith("## ")) {
+      end = index;
+      break;
+    }
+  }
+  return [
+    ...lines.slice(0, start + 1),
+    "",
+    body.trim(),
+    "",
+    ...lines.slice(end).filter((line, index) => index > 0 || line !== ""),
+  ].join("\n").replace(/\n+$/, "\n");
+}
+
+function appendMarkdownLines(
+  source: string,
+  heading: string,
+  additions: readonly string[],
+): { content: string; appended: number } {
+  let content = source;
+  let appended = 0;
+  const existing = new Set(source.split(/\r?\n/).map((line) => line.trim()));
+  for (const addition of additions) {
+    if (existing.has(addition)) continue;
+    const current = markdownSection(content, heading);
+    const body = current === "" ? addition : `${current}\n${addition}`;
+    content = replaceMarkdownSection(content, heading, body);
+    existing.add(addition);
+    appended += 1;
+  }
+  return { content, appended };
+}
+
+function practicesDraftPath(
+  projectRoot: string,
+  recordDir: string,
+  input: string,
+  expectedName: string,
+): string {
+  const path = resolve(isAbsolute(input) ? input : join(projectRoot, input));
+  const stageDir = resolve(recordDir, "inception", "practices-discovery");
+  const rel = relative(stageDir, path);
+  if (
+    rel !== expectedName || rel.startsWith("..") || isAbsolute(rel)
+  ) {
+    throw new Error(
+      `${expectedName} must be the declared practices-discovery artifact inside the active Intent`,
+    );
+  }
+  return path;
+}
+
+/** Promote affirmed practices into active-Space memory and mint its receipt. */
+export function promotePractices(
+  projectDir: string,
+  teamPracticesInput: string,
+  discoveredRulesInput: string,
+  affirmingUser = "unknown",
+): PracticesPromotionResult {
+  const projectRoot = resolve(projectDir);
+  const recordDir = activeIntentRecordDir(projectRoot);
+  const fail = (reason: string): never => {
+    try {
+      appendAuditEntry(projectRoot, recordDir, "PRACTICES_OVERRIDE", {
+        Stage: "practices-discovery",
+        Reason: reason,
+      });
+    } catch {
+      // Preserve the promotion failure as the primary error.
+    }
+    throw new Error(`practices-promote failed: ${reason}`);
+  };
+
+  return withWorkspaceLock(projectRoot, () => {
+    try {
+      const teamDraftPath = practicesDraftPath(
+        projectRoot,
+        recordDir,
+        teamPracticesInput,
+        "team-practices.md",
+      );
+      const rulesDraftPath = practicesDraftPath(
+        projectRoot,
+        recordDir,
+        discoveredRulesInput,
+        "discovered-rules.md",
+      );
+      const stage = graphBySlug().get("practices-discovery");
+      if (stage === undefined) throw new Error("practices-discovery is not in the graph");
+      for (const agent of stage.support_agents ?? []) {
+        const contribution = join(dirname(teamDraftPath), "contributions", `${agent}.md`);
+        const firstLine = readFileSync(contribution, "utf8").split(/\r?\n/, 1)[0]?.trim();
+        if (firstLine !== `**Collaborator:** ${agent}`) {
+          throw new Error(
+            `ensemble evidence is incomplete for ${agent}: missing identity marker`,
+          );
+        }
+      }
+
+      const teamDraft = readFileSync(teamDraftPath, "utf8");
+      const rulesDraft = readFileSync(rulesDraftPath, "utf8");
+      const memoryDir = join(
+        workspaceRoot(projectRoot),
+        "spaces",
+        activeSpace(projectRoot),
+        "memory",
+      );
+      const teamPath = join(memoryDir, "team.md");
+      const projectPath = join(memoryDir, "project.md");
+      let teamContent = readFileSync(teamPath, "utf8");
+      let projectContent = readFileSync(projectPath, "utf8");
+      const sectionsWritten: string[] = [];
+      for (const heading of PRACTICES_TEAM_SECTIONS) {
+        const body = markdownSection(teamDraft, heading);
+        if (!body) continue;
+        teamContent = replaceMarkdownSection(teamContent, heading, body);
+        sectionsWritten.push(heading);
+      }
+
+      const today = isoTimestamp().slice(0, 10);
+      const rules = (heading: "Mandated" | "Forbidden") =>
+        markdownSection(rulesDraft, heading)
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line !== "" && !line.startsWith("#") && !line.startsWith("<!--"))
+          .map((line) => `${line} (affirmed ${today})`);
+      const mandated = appendMarkdownLines(projectContent, "Mandated", rules("Mandated"));
+      projectContent = mandated.content;
+      const forbidden = appendMarkdownLines(projectContent, "Forbidden", rules("Forbidden"));
+      projectContent = forbidden.content;
+
+      // Upstream order is intentional: constrained project rules first, then
+      // broader team practices. Exact stamped rows make retries idempotent.
+      writeFileAtomic(projectPath, projectContent);
+      writeFileAtomic(teamPath, teamContent);
+
+      const affirmedAt = isoTimestamp();
+      appendAuditEntry(
+        projectRoot,
+        recordDir,
+        "PRACTICES_AFFIRMED",
+        {
+          Stage: "practices-discovery",
+          "Affirming User": affirmingUser.trim() || "unknown",
+          "Sections Written": sectionsWritten.join(", "),
+          "Mandated Rules Appended": String(mandated.appended),
+          "Forbidden Rules Appended": String(forbidden.appended),
+        },
+        affirmedAt,
+      );
+      const statePath = join(recordDir, "aidlc-state.md");
+      let state = readFileSync(statePath, "utf8");
+      state = setStateField(state, "Practices Affirmed Timestamp", affirmedAt);
+      state = setStateField(state, "Last Updated", affirmedAt);
+      writeFileAtomic(statePath, state);
+      return {
+        emitted: "PRACTICES_AFFIRMED",
+        affirmedAt,
+        teamPath,
+        projectPath,
+        sectionsWritten,
+        mandatedAppended: mandated.appended,
+        forbiddenAppended: forbidden.appended,
+      };
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : String(error));
+    }
+  });
+}
+
+export function emitPracticesEvent(
+  projectDir: string,
+  type: "discovered" | "override" | "empty",
+  fields: Readonly<Record<string, string>>,
+): void {
+  const projectRoot = resolve(projectDir);
+  const recordDir = activeIntentRecordDir(projectRoot);
+  const event = type === "discovered"
+    ? "PRACTICES_DISCOVERED"
+    : type === "override"
+    ? "PRACTICES_OVERRIDE"
+    : "PRACTICES_SECTION_EMPTY";
+  appendAuditEntry(projectRoot, recordDir, event, fields);
 }
 
 export function resumeIntentState(projectDir: string): ResumePoint {
@@ -1057,27 +1549,81 @@ function flagValue(args: string[], flag: string): string | undefined {
 }
 
 function runCli(): void {
-  const [command, projectDir, slug, ...args] = process.argv.slice(2);
+  const [command, projectDirArgument, slug, ...args] = process.argv.slice(2);
+  const practicesCommand =
+    command === "practices-event" || command === "practices-promote";
+  const rawCommandArgs = process.argv.slice(3);
+  const projectDir = practicesCommand
+    ? flagValue(rawCommandArgs, "--project-dir") ?? process.cwd()
+    : projectDirArgument;
   const usage =
     "Usage: aidlc-state init <project-dir> --scope <scope> [--description <text>] [--force]\n" +
     "       aidlc-state show <project-dir>\n" +
     "       aidlc-state advance <project-dir> <current-stage>\n" +
     "       aidlc-state skip <project-dir> <current-stage> --reason <text>\n" +
     "       aidlc-state resume <project-dir>\n" +
-    "       aidlc-state check <project-dir>";
+    "       aidlc-state check <project-dir>\n" +
+    "       aidlc-state practices-event --type <discovered|override|empty> " +
+    "[--field \"Key: Value\"] [--project-dir <dir>]\n" +
+    "       aidlc-state practices-promote --team-practices <path> " +
+    "--discovered-rules <path> [--affirming-user <name>] [--project-dir <dir>]";
   if (!cliHasCommand(STATE_CLI_CONTRACT, command) || projectDir === undefined) {
     console.error(usage);
     process.exitCode = 1;
     return;
   }
   try {
+    const commandArgs = practicesCommand
+      ? rawCommandArgs
+      : [slug, ...args].filter((item): item is string => item !== undefined);
     const unknownFlags = cliUnknownFlags(
       STATE_CLI_CONTRACT,
       command,
-      [slug, ...args].filter((item): item is string => item !== undefined),
+      commandArgs,
     );
     if (unknownFlags.length > 0) {
       throw new Error(`Unknown flag(s) for ${command}: ${unknownFlags.join(", ")}`);
+    }
+    if (command === "practices-event") {
+      const type = flagValue(commandArgs, "--type");
+      if (type !== "discovered" && type !== "override" && type !== "empty") {
+        throw new Error("--type must be discovered, override, or empty");
+      }
+      const fields: Record<string, string> = {};
+      for (let index = 0; index < commandArgs.length; index += 1) {
+        if (commandArgs[index] !== "--field") continue;
+        const value = commandArgs[index + 1] ?? "";
+        const separator = value.indexOf(":");
+        if (separator <= 0) {
+          throw new Error(`--field must use \"Key: Value\": ${value}`);
+        }
+        fields[value.slice(0, separator).trim()] = value.slice(separator + 1).trim();
+        index += 1;
+      }
+      emitPracticesEvent(projectDir, type, fields);
+      console.log(JSON.stringify({
+        emitted: type === "discovered"
+          ? "PRACTICES_DISCOVERED"
+          : type === "override"
+          ? "PRACTICES_OVERRIDE"
+          : "PRACTICES_SECTION_EMPTY",
+        fields_count: Object.keys(fields).length,
+      }));
+      return;
+    }
+    if (command === "practices-promote") {
+      const teamPractices = flagValue(commandArgs, "--team-practices");
+      const discoveredRules = flagValue(commandArgs, "--discovered-rules");
+      if (teamPractices === undefined || discoveredRules === undefined) {
+        throw new Error("--team-practices and --discovered-rules are required");
+      }
+      console.log(JSON.stringify(promotePractices(
+        projectDir,
+        teamPractices,
+        discoveredRules,
+        flagValue(commandArgs, "--affirming-user") ?? "unknown",
+      )));
+      return;
     }
     if (command === "init") {
       const scope = flagValue([slug, ...args].filter((item): item is string => item !== undefined), "--scope");
