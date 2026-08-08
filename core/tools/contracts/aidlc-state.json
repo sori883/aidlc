@@ -1,0 +1,29 @@
+{
+  "tool": "aidlc-state.ts",
+  "commands": {
+    "init": {
+      "flags": ["--scope", "--description", "--force"],
+      "results": []
+    },
+    "show": {
+      "flags": [],
+      "results": []
+    },
+    "advance": {
+      "flags": [],
+      "results": []
+    },
+    "skip": {
+      "flags": ["--reason"],
+      "results": []
+    },
+    "resume": {
+      "flags": [],
+      "results": []
+    },
+    "check": {
+      "flags": [],
+      "results": []
+    }
+  }
+}

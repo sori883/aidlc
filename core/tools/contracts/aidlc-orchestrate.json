@@ -1,0 +1,27 @@
+{
+  "tool": "aidlc-orchestrate.ts",
+  "commands": {
+    "next": {
+      "flags": [
+        "--project-dir",
+        "--unit",
+        "--repo",
+        "--continue-token",
+        "--stage",
+        "--single"
+      ],
+      "results": []
+    },
+    "report": {
+      "flags": [
+        "--project-dir",
+        "--stage",
+        "--result",
+        "--reason",
+        "--unit",
+        "--single"
+      ],
+      "results": ["approved", "completed", "complete", "done", "skipped"]
+    }
+  }
+}
