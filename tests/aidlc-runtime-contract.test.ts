@@ -76,15 +76,15 @@ test("checks an installed Codex bundle without authored Harness sources", () => 
   assert.equal(report.documents, 46);
   assert.equal(report.valid, false);
   assert.ok(report.issues.some((issue) =>
-    issue.code === "missing-tool" &&
-    issue.subject === "aidlc-utility.ts"
+    issue.code === "missing-command" &&
+    issue.subject === "aidlc-utility.ts scope-table"
   ));
 });
 
 test("finds runtime tools referenced by authored instructions but not implemented", () => {
   const missing = new Set(subjects("missing-tool"));
   assert.equal(missing.has("aidlc-log.ts"), false);
-  assert.ok(missing.has("aidlc-utility.ts"));
+  assert.equal(missing.has("aidlc-utility.ts"), false);
   assert.ok(missing.has("aidlc-worktree.ts"));
 });
 
@@ -95,6 +95,8 @@ test("finds implemented tools that lack referenced commands", () => {
   assert.ok(missing.has("aidlc-state.ts set-construction-iteration"));
   assert.ok(missing.has("aidlc-graph.ts ars"));
   assert.ok(missing.has("aidlc-graph.ts validate-grid"));
+  assert.equal(missing.has("aidlc-utility.ts detect"), false);
+  assert.ok(missing.has("aidlc-utility.ts scope-table"));
 });
 
 test("implements report approval lifecycle values and user input", () => {

@@ -1,0 +1,9 @@
+{
+  "tool": "aidlc-utility.ts",
+  "commands": {
+    "detect": {
+      "flags": ["--project-dir", "--json"],
+      "results": []
+    }
+  }
+}
