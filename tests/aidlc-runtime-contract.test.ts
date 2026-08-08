@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -74,8 +74,37 @@ test("checks an installed Codex bundle without authored Harness sources", () => 
     harnessDir: join(root, "absent-authored-harness"),
   });
   assert.equal(report.documents, 46);
+  assert.equal(report.valid, true);
+  assert.deepEqual(report.issues, []);
+});
+
+test("detects unresolved placeholders and missing files in an installed bundle", () => {
+  const root = mkdtempSync(join(tmpdir(), "aidlc-broken-contract-"));
+  writeCodexBundle({ outDir: root });
+  const instruction = join(
+    root,
+    ".codex",
+    "aidlc-common",
+    "stages",
+    "initialization",
+    "state-init.md",
+  );
+  writeFileSync(
+    instruction,
+    `${readFileSync(instruction, "utf8")}\nSee {{HARNESS_DIR}}/knowledge/aidlc-shared/state-template.md and .codex/knowledge/aidlc-shared/not-present.md.\n`,
+  );
+  const report = inspectRuntimeContract({
+    coreDir: join(root, ".codex"),
+    harnessDir: join(root, "absent-authored-harness"),
+  });
   assert.equal(report.valid, false);
-  assert.ok(report.issues.some((issue) => issue.code === "missing-resource"));
+  assert.ok(report.issues.some((issue) =>
+    issue.code === "unresolved-harness-placeholder"
+  ));
+  assert.ok(report.issues.some((issue) =>
+    issue.code === "missing-resource" &&
+    issue.subject === ".codex/knowledge/aidlc-shared/not-present.md"
+  ));
 });
 
 test("finds runtime tools referenced by authored instructions but not implemented", () => {
@@ -109,21 +138,28 @@ test("implements report approval lifecycle values and user input", () => {
   ), false);
 });
 
-test("finds missing shared resources and unresolved Codex placeholders", () => {
+test("resolves shared resources and Codex placeholders", () => {
   const resources = new Set(subjects("missing-resource"));
-  assert.ok(resources.has("stage-protocol.md"));
-  assert.ok(resources.has("knowledge/aidlc-shared/rules-reading.md"));
-  assert.ok(resources.has("knowledge/aidlc-design-agent/component-spec-template.md"));
-  assert.ok(resources.has("knowledge/aidlc-developer-agent/re-artifacts.md"));
-  assert.ok(resources.has("branching-strategies.md"));
-  assert.ok(resources.has("tools/data/scope-grid.json"));
-  assert.ok(subjects("unresolved-harness-placeholder").length > 0);
+  assert.equal(resources.has("stage-protocol.md"), false);
+  assert.equal(resources.has("knowledge/aidlc-shared/rules-reading.md"), false);
+  assert.equal(
+    resources.has("knowledge/aidlc-design-agent/component-spec-template.md"),
+    false,
+  );
+  assert.equal(
+    resources.has("knowledge/aidlc-developer-agent/re-artifacts.md"),
+    false,
+  );
+  assert.equal(resources.has("branching-strategies.md"), false);
+  assert.equal(resources.has("tools/data/scope-grid.json"), false);
+  assert.deepEqual(subjects("unresolved-harness-placeholder"), []);
 });
 
 test("reports stable source locations and no capability catalog drift", () => {
   const report = inspectRuntimeContract();
   assert.equal(report.documents, 46);
-  assert.equal(report.valid, false);
+  assert.equal(report.valid, true);
   assert.ok(report.issues.every((issue) => issue.line >= 1));
+  assert.deepEqual(report.issues, []);
   assert.deepEqual(subjects("capability-drift"), []);
 });

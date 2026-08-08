@@ -10,6 +10,10 @@ owns routing, paths, State, and Audit. You own inference, Agent collaboration,
 human questions, and the quality of the Stage outputs. Never infer a route or
 edit `aidlc-state.md` directly.
 
+All stages follow `.codex/aidlc-common/protocols/stage-protocol.md` for
+approval gates, question format, state tracking, and completion messages.
+Read that protocol before acting on every `run-stage` directive.
+
 Run every packaged command below from the repository root. If
 `.codex/node_modules/.bin/tsx` is absent, first run
 `pnpm --dir .codex install --frozen-lockfile`.
