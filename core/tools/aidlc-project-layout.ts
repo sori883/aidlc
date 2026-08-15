@@ -13,12 +13,18 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { codexBundleFiles } from "./aidlc-codex-bundle.ts";
+import {
+  isRuntimeDistributionPath,
+  nativeCliCommand,
+  PROJECT_LAYOUT_FORMAT,
+  PROJECT_LAYOUT_MANIFEST,
+  PROJECT_LAYOUT_SCHEMA,
+  type DistributionPlatform,
+} from "./aidlc-distribution-contract.ts";
 import { writeCompiledStageGraph } from "./aidlc-graph.ts";
 
-export const PROJECT_LAYOUT_SCHEMA = 1;
-export const PROJECT_LAYOUT_MANIFEST = ".codex/distribution-manifest.json";
-
-export type DistributionPlatform = "darwin" | "linux" | "win32";
+export { PROJECT_LAYOUT_MANIFEST, PROJECT_LAYOUT_SCHEMA } from "./aidlc-distribution-contract.ts";
+export type { DistributionPlatform } from "./aidlc-distribution-contract.ts";
 
 export interface ProjectLayoutOptions {
   outDir?: string;
@@ -26,22 +32,12 @@ export interface ProjectLayoutOptions {
 }
 
 export interface ProjectLayoutManifest {
-  format: "aidlc-project-distribution";
+  format: typeof PROJECT_LAYOUT_FORMAT;
   schema_version: typeof PROJECT_LAYOUT_SCHEMA;
   files: string[];
 }
 
 const DEFAULT_OUT_DIR = resolve("dist/project");
-const CORE_TREES = new Set([
-  "aidlc-common",
-  "agents",
-  "knowledge",
-  "memory",
-  "scopes",
-  "sensors",
-  "tools",
-]);
-
 function portable(path: string): string {
   return path.split(sep).join("/");
 }
@@ -51,7 +47,7 @@ export function installedBinaryCommand(
 ): string {
   // PowerShell and POSIX shells both accept this explicit relative path;
   // Windows resolves the .exe suffix through PATHEXT.
-  return "./.codex/tools/aidlc";
+  return nativeCliCommand();
 }
 
 function rewriteCommands(
@@ -97,12 +93,7 @@ function installedHook(content: string): string {
 }
 
 function mappedRuntimePath(path: string): string | null {
-  if (!path.startsWith(".codex/")) return null;
-  const tail = path.slice(".codex/".length);
-  const [tree] = tail.split("/");
-  if (tree === undefined || !CORE_TREES.has(tree)) return null;
-  if (tail.endsWith(".ts")) return null;
-  return path;
+  return isRuntimeDistributionPath(path) ? path : null;
 }
 
 /** Render the complete installed project layout, excluding the native binary. */
@@ -128,7 +119,7 @@ export function projectLayoutFiles(
     }
   }
   const manifest: ProjectLayoutManifest = {
-    format: "aidlc-project-distribution",
+    format: PROJECT_LAYOUT_FORMAT,
     schema_version: PROJECT_LAYOUT_SCHEMA,
     files: [...files.keys()].sort(),
   };

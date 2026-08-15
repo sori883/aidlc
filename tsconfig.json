@@ -10,5 +10,5 @@
     "noEmit": true,
     "types": ["bun-types"]
   },
-  "include": ["core/**/*.ts", "harness/**/*.ts", "packages/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts"]
+  "include": ["core/**/*.ts", "harness/**/*.ts", "installer/**/*.ts", "packages/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts"]
 }

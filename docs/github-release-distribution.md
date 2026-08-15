@@ -50,6 +50,24 @@ It performs no project write until every download and preflight check succeeds.
 Test-only origin overrides are `AIDLC_RELEASE_ROOT` and
 `AIDLC_RAW_PROJECT_ROOT`. Production users do not set them.
 
+## Installer internal architecture
+
+The public `install.mjs` remains one Node-compatible file. Bun bundles the
+following development modules into that file:
+
+| Module | Responsibility |
+| --- | --- |
+| `aidlc-install-transport.ts` | Download and verify the Release Manifest, native binary, and project files |
+| `aidlc-install-plan.ts` | Produce written, unchanged, removed, and conflict sets without writing files |
+| `aidlc-install-apply.ts` | Apply an accepted plan and write the Installation Manifest |
+| `aidlc-install-legacy.ts` | Retire unchanged files from the v0.6.0 `.aidlc` layout |
+| `aidlc-install-fs.ts` | Enforce project path and atomic single-file write safety |
+
+The shared `aidlc-distribution-contract.ts` owns Manifest types, schema
+versions, repository identity, installed paths, path validation, and
+Core/Harness classification. The Installer and Release Packager do not define
+independent copies of this contract.
+
 ## Runtime contract
 
 After installation, all commands use the native executable directly:
@@ -77,3 +95,8 @@ hash. Modified or unmanaged files are never removed.
 Network errors, invalid manifests, unsupported platforms, byte-length drift,
 SHA-256 mismatch, failed native smoke tests, unsafe paths, symlink ancestors,
 and user-file conflicts all fail before project mutation.
+
+`bun run version:check` treats the root `package.json` as canonical and checks
+the integrated CLI version, Codex Runtime package, current README version, and
+versioned Installer URLs. Generated Distribution Manifests and binary Build
+Reports pass the same version assertion during packaging.

@@ -33,7 +33,7 @@ Git、Bun、npm、npx、pnpm、tsx、プロジェクトの`node_modules`は不�
 バージョン固定のInstallerを公開Releaseから取得する。
 
 ```bash
-curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mjs
+curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.2/install.mjs
 node install.mjs install --harness codex --project .
 ```
 
@@ -41,7 +41,7 @@ Windows PowerShell:
 
 ```powershell
 Invoke-WebRequest `
-  "https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mjs" `
+  "https://github.com/sori883/aidlc/releases/download/v0.6.2/install.mjs" `
   -OutFile "install.mjs"
 
 node install.mjs install --harness codex --project .
@@ -104,7 +104,7 @@ node install.mjs install --harness codex --project . --dry-run
 更新先バージョンのInstallerを取得する。
 
 ```bash
-curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mjs
+curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.2/install.mjs
 node install.mjs update --harness codex --project .
 ./.codex/tools/aidlc doctor check --project-dir .
 ```
@@ -119,9 +119,14 @@ node install.mjs update --harness codex --project .
 外部Core／Harnessツリーを生成・検査する。
 
 ```bash
+bun run version:check
 bun run distribution:write
 bun run distribution:check
 ```
+
+`version:check`はroot package、統合CLI、Codex Runtime package、README、
+Installer URLのversionを照合する。Release Manifestと各Binary Build Reportも
+生成時に同じversion検査を通る。
 
 全7ターゲットとInstaller、Manifest、Checksumを生成する。
 
@@ -176,14 +181,14 @@ mainとReleaseのWorkflowを分離する。
 # main Workflowの成功をGitHub上で確認した後
 git switch main
 git pull --ff-only
-git tag v0.6.1
-git push origin v0.6.1
+git tag v0.6.2
+git push origin v0.6.2
 ```
 
 タグを試験完了前にpushした場合、Release Workflowは公開せず失敗する。main
 試験の成功後に同じWorkflowを再実行できる。mainへ未マージのコミットを指す
 タグ、version不一致、既存Releaseと同じタグも拒否する。公開済みタグは移動・
-再利用せず、更新には`v0.6.1`のような新しいversionとタグを使用する。
+再利用せず、更新には`v0.6.2`のような新しいversionとタグを使用する。
 
 GitHub Actionsの一時Artifactは使用しない。Release Assetは1ファイル2 GiB
 未満、1 Release最大1,000 Assetであり、本配布は最大約95 MiB／ファイル、

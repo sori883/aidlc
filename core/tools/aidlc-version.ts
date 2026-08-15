@@ -1,1 +1,1 @@
-export const AIDLC_VERSION = "0.6.1";
+export const AIDLC_VERSION = "0.6.2";

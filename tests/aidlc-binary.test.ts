@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { test } from "bun:test";
+import { AIDLC_VERSION } from "../core/tools/aidlc-version.ts";
 import type { BinaryBuildReport } from "../scripts/build-binaries.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
@@ -26,7 +27,7 @@ test("builds and smoke-gates a Harness-neutral project-local native binary", () 
     readFileSync(resolve(NATIVE_DIR, "build-report.json"), "utf8"),
   ) as BinaryBuildReport;
   assert.equal(report.target, "native");
-  assert.equal(report.version, "0.6.1");
+  assert.equal(report.version, AIDLC_VERSION);
   assert.equal(report.runtime_smoke, true);
   assert.equal(report.gates.length, 15);
   assert.equal(report.gates.every((gate) => gate.ok), true);

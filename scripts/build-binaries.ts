@@ -17,11 +17,13 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { nativeCliPath } from "../core/tools/aidlc-distribution-contract.ts";
 import {
   type DistributionPlatform,
   writeProjectLayout,
 } from "../core/tools/aidlc-project-layout.ts";
 import { AIDLC_VERSION } from "../core/tools/aidlc-version.ts";
+import { assertVersionedArtifacts } from "./check-version.ts";
 
 export type BinaryTargetName =
   | "native"
@@ -163,9 +165,7 @@ function smoke(executable: string): BinaryBuildReport["gates"] {
   writeProjectLayout({ outDir: projectDir, platform: process.platform as DistributionPlatform });
   const installedExecutable = join(
     projectDir,
-    ".codex",
-    "tools",
-    process.platform === "win32" ? "aidlc.exe" : "aidlc",
+    nativeCliPath(process.platform as DistributionPlatform),
   );
   mkdirSync(dirname(installedExecutable), { recursive: true });
   cpSync(executable, installedExecutable);
@@ -315,6 +315,10 @@ export function buildBinary(targetName: BinaryTargetName): BinaryBuildReport {
     runtime_smoke: runtimeSmoke,
     gates,
   };
+  assertVersionedArtifacts(AIDLC_VERSION, [{
+    label: `build-report:${target.name}`,
+    version: report.version,
+  }]);
   writeFileSync(
     join(outputDir, "build-report.json"),
     `${JSON.stringify(report, null, 2)}\n`,

@@ -1,5 +1,6 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { nativeCliCommand } from "./aidlc-distribution-contract.ts";
 
 const MODULE_CORE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -54,5 +55,5 @@ export function runtimeCorePath(...segments: string[]): string {
 
 /** Command rendered into project-local Harness instructions. */
 export function projectBinaryCommand(): string {
-  return "./.codex/tools/aidlc";
+  return nativeCliCommand();
 }

@@ -89,7 +89,7 @@ bun run binary:build:all
 公開Releaseの`install.mjs`をNode.js 22以上で一度だけ実行する。
 
 ```bash
-curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mjs
+curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.2/install.mjs
 node install.mjs install --harness codex --project .
 ```
 

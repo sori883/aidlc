@@ -21,6 +21,18 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  AIDLC_REPOSITORY,
+  DISTRIBUTION_MANIFEST_ASSET,
+  DISTRIBUTION_PROJECT_ROOT,
+  distributionArea,
+  GITHUB_DISTRIBUTION_FORMAT,
+  GITHUB_DISTRIBUTION_SCHEMA,
+  type DistributionBinaryRecord,
+  type DistributionFileRecord,
+  type DistributionPlatform,
+  type GithubDistributionManifest,
+} from "../core/tools/aidlc-distribution-contract.ts";
 import { writeProjectLayout } from "../core/tools/aidlc-project-layout.ts";
 import { AIDLC_VERSION } from "../core/tools/aidlc-version.ts";
 import {
@@ -28,43 +40,21 @@ import {
   nativeTargetName,
   type BinaryTargetName,
 } from "./build-binaries.ts";
+import { assertVersionedArtifacts } from "./check-version.ts";
 
 export interface GithubBinaryTarget {
   buildTarget: Exclude<BinaryTargetName, "native">;
   asset: string;
-  platform: "darwin" | "linux" | "win32";
+  platform: DistributionPlatform;
   arch: "x64" | "arm64";
   libc?: "glibc" | "musl";
 }
 
-export interface DistributionFileRecord {
-  path: string;
-  sha256: string;
-  bytes: number;
-  executable: boolean;
-  area: "core" | "harness";
-}
-
-export interface DistributionBinaryRecord {
-  target: string;
-  asset: string;
-  sha256: string;
-  bytes: number;
-  platform: GithubBinaryTarget["platform"];
-  arch: GithubBinaryTarget["arch"];
-  libc?: GithubBinaryTarget["libc"];
-}
-
-export interface GithubDistributionManifest {
-  format: "aidlc-github-distribution";
-  schema_version: 1;
-  version: string;
-  repository: "sori883/aidlc";
-  tag: string;
-  project_root: "dist/project";
-  files: DistributionFileRecord[];
-  binaries: DistributionBinaryRecord[];
-}
+export type {
+  DistributionBinaryRecord,
+  DistributionFileRecord,
+  GithubDistributionManifest,
+} from "../core/tools/aidlc-distribution-contract.ts";
 
 export const GITHUB_BINARY_TARGETS: readonly GithubBinaryTarget[] = [
   {
@@ -120,7 +110,6 @@ const PROJECT_DIST = join(REPO_ROOT, "dist", "project");
 const RELEASE_DIR = join(REPO_ROOT, "build", "github-release");
 const INSTALLER_SOURCE = join(REPO_ROOT, "installer", "aidlc-install.ts");
 const INSTALLER_ASSET = "install.mjs";
-const MANIFEST_ASSET = "aidlc-distribution.json";
 
 function portable(path: string): string {
   return path.split(sep).join("/");
@@ -193,15 +182,7 @@ function projectFileRecords(): DistributionFileRecord[] {
       sha256: digest(content),
       bytes: content.byteLength,
       executable: false,
-      area: (
-        path.startsWith(".codex/aidlc-common/") ||
-        path.startsWith(".codex/knowledge/") ||
-        path.startsWith(".codex/memory/") ||
-        path.startsWith(".codex/scopes/") ||
-        path.startsWith(".codex/sensors/") ||
-        path.startsWith(".codex/tools/") ||
-        (path.startsWith(".codex/agents/") && path.endsWith(".md"))
-      ) ? "core" : "harness",
+      area: distributionArea(path),
     };
   });
 }
@@ -219,6 +200,10 @@ function buildReleaseBinary(
   nativeOnly: boolean,
 ): DistributionBinaryRecord {
   const report = buildBinary(nativeOnly ? "native" : target.buildTarget);
+  assertVersionedArtifacts(AIDLC_VERSION, [{
+    label: `binary build report:${target.buildTarget}`,
+    version: report.version,
+  }]);
   const destination = join(RELEASE_DIR, target.asset);
   cpSync(report.executable, destination);
   if (target.platform !== "win32") chmodSync(destination, 0o755);
@@ -273,17 +258,21 @@ export function packageGithubRelease(
   buildInstaller();
 
   const manifest: GithubDistributionManifest = {
-    format: "aidlc-github-distribution",
-    schema_version: 1,
+    format: GITHUB_DISTRIBUTION_FORMAT,
+    schema_version: GITHUB_DISTRIBUTION_SCHEMA,
     version: AIDLC_VERSION,
-    repository: "sori883/aidlc",
+    repository: AIDLC_REPOSITORY,
     tag: `v${AIDLC_VERSION}`,
-    project_root: "dist/project",
+    project_root: DISTRIBUTION_PROJECT_ROOT,
     files: projectFileRecords(),
     binaries,
   };
+  assertVersionedArtifacts(AIDLC_VERSION, [{
+    label: DISTRIBUTION_MANIFEST_ASSET,
+    version: manifest.version,
+  }]);
   writeFileSync(
-    join(RELEASE_DIR, MANIFEST_ASSET),
+    join(RELEASE_DIR, DISTRIBUTION_MANIFEST_ASSET),
     `${JSON.stringify(manifest, null, 2)}\n`,
     "utf8",
   );
