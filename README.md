@@ -1,6 +1,6 @@
 # AI-DLC v2 for Codex
 
-AI-DLC v2のStage、Agent、Sensor、Rule、ScopeをCodexから実行するためのTypeScript実装です。現在のリリースバージョンは`0.6.1`です。
+AI-DLC v2のStage、Agent、Sensor、Rule、ScopeをCodexから実行するためのTypeScript実装です。現在のリリースバージョンは`0.6.2`です。
 
 AIが自由に次の作業を決めるのではなく、コンパイル済みのStage Graph、Scope、永続化されたStateに従ってWorkflowを進めます。人間は目的とScopeを伝え、質問に回答し、Stageの成果物を確認して承認します。
 
@@ -28,7 +28,7 @@ Gitリポジトリである必要はありません。Git、Bun、npm、npx、pn
 
 ## 対応ターゲット
 
-`0.6.1`ではInstallerが`os`、`cpu`、Linuxの`libc`に基づいて次の7種類から選択します。
+`0.6.2`ではInstallerが`os`、`cpu`、Linuxの`libc`に基づいて次の7種類から選択します。
 
 | ターゲット | 用途 |
 |---|---|
@@ -49,7 +49,7 @@ Gitリポジトリである必要はありません。Git、Bun、npm、npx、pn
 Node.js 22以上を使用し、最初にバージョン固定のInstallerを取得します。
 
 ```bash
-curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mjs
+curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.2/install.mjs
 ```
 
 対象プロジェクトのルートで明示的にインストールします。
@@ -58,7 +58,7 @@ curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mj
 node install.mjs install --harness codex --project .
 ```
 
-Installerは公開Releaseから現在のOS用バイナリ1個を、タグ`v0.6.1`の`dist/project/`からCoreデータとCodex Harnessを取得し、全SHA-256を検証します。既存の管理外ファイルと競合した場合や、通信・検証に失敗した場合は何も上書きせず終了します。
+Installerは公開Releaseから現在のOS用バイナリ1個を、タグ`v0.6.2`の`dist/project/`からCoreデータとCodex Harnessを取得し、全SHA-256を検証します。既存の管理外ファイルと競合した場合や、通信・検証に失敗した場合は何も上書きせず終了します。
 
 配置結果は次の構成です。
 
@@ -91,7 +91,7 @@ macOS、Linux、Windows PowerShellで共通の相対表記を使用できます�
 ./.codex/tools/aidlc graph compile --check
 ```
 
-バージョンには`aidlc 0.6.1`、Graph検証には`32 stages`と表示されます。この時点ではWorkspaceがまだないため、Doctorの`workspace.missing`は異常ではありません。
+バージョンには`aidlc 0.6.2`、Graph検証には`32 stages`と表示されます。この時点ではWorkspaceがまだないため、Doctorの`workspace.missing`は異常ではありません。
 
 ### 3. Codexで開始する
 
@@ -236,7 +236,7 @@ Doctorが`automatic`と判定した項目だけを修復する場合:
 更新先バージョンのInstallerを取得し、対象プロジェクトのルートで実行します。
 
 ```bash
-curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mjs
+curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.2/install.mjs
 node install.mjs update --harness codex --project .
 ./.codex/tools/aidlc doctor check --project-dir .
 ```
@@ -276,7 +276,7 @@ bun run --cwd ../my-project/.codex aidlc contract check
 bun run release:check
 ```
 
-このコマンドは型チェック、32 StageのGraph整合性、46文書のRuntime Contract、全自動テストを実行します。全9 Scope、Doctor、Codexバンドル生成、実Stage本文のCLI実行をE2Eで検証します。
+このコマンドはバージョン整合性、型チェック、32 StageのGraph整合性、46文書のRuntime Contract、全自動テストを実行します。全9 Scope、Doctor、Codexバンドル生成、実Stage本文のCLI実行をE2Eで検証します。
 
 ### バイナリをビルドする
 

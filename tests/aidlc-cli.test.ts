@@ -60,7 +60,7 @@ test("integrated CLI rejects unknown routes before delegation", () => {
   assert.match(result.stderr, /unknown command or noun 'unknown'/);
 });
 
-test("integrated CLI exposes version 0.6.1", () => {
+test("integrated CLI exposes the release version", () => {
   assert.deepEqual(resolveAction(["--version"]), { type: "version" });
   assert.deepEqual(resolveAction(["-V"]), { type: "version" });
   const result = run("core/tools/aidlc.ts", ["--version"]);

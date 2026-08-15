@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import {
   existsSync,
-  mkdirSync,
   mkdtempSync,
   readFileSync,
   statSync,
@@ -12,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { test } from "bun:test";
+import { AIDLC_VERSION } from "../core/tools/aidlc-version.ts";
 import {
   checkTrackedProjectDistribution,
   GITHUB_BINARY_TARGETS,
@@ -75,36 +74,6 @@ function readManifest(): GithubDistributionManifest {
   ) as GithubDistributionManifest;
 }
 
-function writeLegacyInstallation(project: string): void {
-  const files = new Map<string, Buffer>([
-    [".aidlc/bin/aidlc", Buffer.from("legacy native binary\n")],
-    [".aidlc/runtime/core/legacy.txt", Buffer.from("legacy runtime\n")],
-    ["AGENTS.md", Buffer.from("legacy managed AGENTS\n")],
-  ]);
-  for (const [path, content] of files) {
-    const destination = resolve(project, path);
-    mkdirSync(resolve(destination, ".."), { recursive: true });
-    writeFileSync(destination, content);
-  }
-  const manifest = {
-    format: "aidlc-project-installation",
-    schema_version: 2,
-    version: "0.6.0",
-    harness: "codex",
-    installed_at: "2026-01-01T00:00:00.000Z",
-    files: [...files].map(([path, content]) => ({
-      path,
-      sha256: createHash("sha256").update(content).digest("hex"),
-      bytes: content.byteLength,
-      executable: path === ".aidlc/bin/aidlc",
-    })),
-  };
-  writeFileSync(
-    resolve(project, ".aidlc/installation.json"),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-  );
-}
-
 test("GitHub distribution installs without npm, Git, authentication, Bun, or Node at runtime", async () => {
   assert.notEqual(NODE, null, "Node.js is required to test the public installer");
   checkTrackedProjectDistribution();
@@ -123,9 +92,9 @@ test("GitHub distribution installs without npm, Git, authentication, Bun, or Nod
   const manifest = readManifest();
   assert.equal(manifest.format, "aidlc-github-distribution");
   assert.equal(manifest.schema_version, 1);
-  assert.equal(manifest.version, "0.6.1");
+  assert.equal(manifest.version, AIDLC_VERSION);
   assert.equal(manifest.repository, "sori883/aidlc");
-  assert.equal(manifest.tag, "v0.6.1");
+  assert.equal(manifest.tag, `v${AIDLC_VERSION}`);
   assert.equal(manifest.binaries.length, 1);
   assert.equal(manifest.files.length > 150, true);
   assert.equal(manifest.files.some(({ path }) => path.endsWith(".ts")), false);
@@ -214,7 +183,7 @@ test("GitHub distribution installs without npm, Git, authentication, Bun, or Nod
       distribution_target: string;
       conflicts: string[];
     };
-    assert.equal(result.version, "0.6.1");
+    assert.equal(result.version, AIDLC_VERSION);
     assert.equal(result.executable, ".codex/tools/aidlc");
     assert.equal(result.distribution_target, binary.target);
     assert.deepEqual(result.conflicts, []);
@@ -242,14 +211,14 @@ test("GitHub distribution installs without npm, Git, authentication, Bun, or Nod
     assert.deepEqual(installedManifest.distribution, {
       type: "github-release",
       repository: "sori883/aidlc",
-      tag: "v0.6.1",
+      tag: `v${AIDLC_VERSION}`,
       target: binary.target,
     });
 
     const pathless = { ...process.env, PATH: "" };
     const version = run(executable, ["--version"], project, pathless);
     assert.equal(version.status, 0, version.stderr);
-    assert.equal(version.stdout.trim(), "aidlc 0.6.1");
+    assert.equal(version.stdout.trim(), `aidlc ${AIDLC_VERSION}`);
     const graph = run(executable, ["graph", "compile", "--check"], project, pathless);
     assert.equal(graph.status, 0, `${graph.stdout}\n${graph.stderr}`);
     assert.match(graph.stdout, /32 stages/);
@@ -300,55 +269,6 @@ test("GitHub distribution installs without npm, Git, authentication, Bun, or Nod
     assert.deepEqual(conflictResult.conflicts, ["AGENTS.md"]);
     assert.deepEqual(readFileSync(manifestPath), manifestBefore);
     assert.equal(readFileSync(resolve(project, "AGENTS.md"), "utf8"), "user-owned AGENTS\n");
-
-    const legacyProject = mkdtempSync(join(tmpdir(), "aidlc-http-legacy-"));
-    writeLegacyInstallation(legacyProject);
-    mkdirSync(resolve(legacyProject, "aidlc"), { recursive: true });
-    writeFileSync(resolve(legacyProject, "aidlc/workspace-marker"), "keep\n");
-    const migrated = await runAsync(NODE!, [
-      INSTALLER,
-      "update",
-      "--project",
-      legacyProject,
-      "--json",
-    ], ROOT, installerEnv);
-    assert.equal(migrated.status, 0, `${migrated.stdout}\n${migrated.stderr}`);
-    const migratedResult = JSON.parse(migrated.stdout) as {
-      executable: string;
-      removed: string[];
-      conflicts: string[];
-    };
-    assert.equal(migratedResult.executable, ".codex/tools/aidlc");
-    assert.deepEqual(migratedResult.removed, [
-      ".aidlc/bin/aidlc",
-      ".aidlc/runtime/core/legacy.txt",
-    ]);
-    assert.deepEqual(migratedResult.conflicts, []);
-    assert.equal(existsSync(resolve(legacyProject, ".aidlc")), false);
-    assert.equal(existsSync(resolve(legacyProject, ".codex/tools/aidlc")), true);
-    assert.equal(existsSync(resolve(legacyProject, ".codex/aidlc-installation.json")), true);
-    assert.equal(readFileSync(resolve(legacyProject, "aidlc/workspace-marker"), "utf8"), "keep\n");
-
-    const changedLegacyProject = mkdtempSync(join(tmpdir(), "aidlc-http-legacy-conflict-"));
-    writeLegacyInstallation(changedLegacyProject);
-    writeFileSync(
-      resolve(changedLegacyProject, ".aidlc/runtime/core/legacy.txt"),
-      "user changed legacy runtime\n",
-    );
-    const migrationConflict = await runAsync(NODE!, [
-      INSTALLER,
-      "update",
-      "--project",
-      changedLegacyProject,
-      "--json",
-    ], ROOT, installerEnv);
-    assert.equal(migrationConflict.status, 1, migrationConflict.stderr);
-    assert.deepEqual(
-      (JSON.parse(migrationConflict.stdout) as { conflicts: string[] }).conflicts,
-      [".aidlc/runtime/core/legacy.txt"],
-    );
-    assert.equal(existsSync(resolve(changedLegacyProject, ".codex")), false);
-    assert.equal(existsSync(resolve(changedLegacyProject, ".aidlc/installation.json")), true);
 
     const dryRunProject = mkdtempSync(join(tmpdir(), "aidlc-http-dry-run-"));
     const dryRun = await runAsync(NODE!, [

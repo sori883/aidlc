@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { test } from "bun:test";
+import { AIDLC_VERSION } from "../core/tools/aidlc-version.ts";
 import {
   BINARY_TARGETS,
   buildBinary,
@@ -29,7 +30,7 @@ test("declares the upstream-compatible nine-target release matrix", () => {
 test("cross-compiles every explicit release target and validates its artifact", () => {
   for (const target of BINARY_TARGETS.filter(({ name }) => name !== "native")) {
     const report = buildBinary(target.name);
-    assert.equal(report.version, "0.6.1");
+    assert.equal(report.version, AIDLC_VERSION);
     assert.equal(report.target, target.name);
     assert.equal(report.bun_target, target.bunTarget);
     assert.equal(report.bytes > 10 * 1024 * 1024, true);
