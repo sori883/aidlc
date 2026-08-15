@@ -1,6 +1,7 @@
 // Project-local native distribution renderer. The Codex bundle remains the
-// authored/development representation; this module splits it into Core Runtime
-// and Harness files suitable for the npm bootstrap.
+// authored/development representation; this module preserves the upstream
+// .codex Runtime layout while replacing executable TypeScript with one native
+// entry under .codex/tools/.
 
 import {
   mkdirSync,
@@ -15,7 +16,7 @@ import { codexBundleFiles } from "./aidlc-codex-bundle.ts";
 import { writeCompiledStageGraph } from "./aidlc-graph.ts";
 
 export const PROJECT_LAYOUT_SCHEMA = 1;
-export const PROJECT_LAYOUT_MANIFEST = ".aidlc/distribution-manifest.json";
+export const PROJECT_LAYOUT_MANIFEST = ".codex/distribution-manifest.json";
 
 export type DistributionPlatform = "darwin" | "linux" | "win32";
 
@@ -50,22 +51,7 @@ export function installedBinaryCommand(
 ): string {
   // PowerShell and POSIX shells both accept this explicit relative path;
   // Windows resolves the .exe suffix through PATHEXT.
-  return "./.aidlc/bin/aidlc";
-}
-
-function rewriteCoreReferences(content: string): string {
-  let rendered = content;
-  for (const tree of CORE_TREES) {
-    if (tree === "agents") continue;
-    rendered = rendered.replaceAll(
-      `.codex/${tree}/`,
-      `.aidlc/runtime/core/${tree}/`,
-    );
-  }
-  return rendered.replace(
-    /\.codex\/agents\/([^\s`"']+\.md)/g,
-    ".aidlc/runtime/core/agents/$1",
-  );
+  return "./.codex/tools/aidlc";
 }
 
 function rewriteCommands(
@@ -73,7 +59,7 @@ function rewriteCommands(
   platform: DistributionPlatform,
 ): string {
   const command = installedBinaryCommand(platform);
-  return rewriteCoreReferences(content)
+  return content
     .replace(
       /Before the first AI-DLC command[\s\S]*?```\n\n/,
       "The project-local native AI-DLC executable contains every code dependency; do not run a package installer.\n\n",
@@ -103,21 +89,20 @@ function installedHook(content: string): string {
   const hook = hooks.hooks.PostToolUse[0]?.hooks[0];
   if (hook === undefined) throw new Error("Codex PostToolUse hook is missing");
   hook.command =
-    'CODEX_PROJECT_DIR="$PWD" ./.aidlc/bin/aidlc hook sensor-fire';
+    'CODEX_PROJECT_DIR="$PWD" ./.codex/tools/aidlc hook sensor-fire';
   hook.commandWindows =
     'powershell -NoProfile -Command "$root = (Get-Location).Path; ' +
-    '$env:CODEX_PROJECT_DIR = $root; & \"$root/.aidlc/bin/aidlc.exe\" hook sensor-fire"';
+    '$env:CODEX_PROJECT_DIR = $root; & \"$root/.codex/tools/aidlc.exe\" hook sensor-fire"';
   return `${JSON.stringify(hooks, null, 2)}\n`;
 }
 
-function mappedCorePath(path: string): string | null {
+function mappedRuntimePath(path: string): string | null {
   if (!path.startsWith(".codex/")) return null;
   const tail = path.slice(".codex/".length);
   const [tree] = tail.split("/");
   if (tree === undefined || !CORE_TREES.has(tree)) return null;
-  if (tree === "agents" && tail.endsWith(".toml")) return null;
-  if (tree === "tools" && tail.endsWith(".ts")) return null;
-  return `.aidlc/runtime/core/${tail}`;
+  if (tail.endsWith(".ts")) return null;
+  return path;
 }
 
 /** Render the complete installed project layout, excluding the native binary. */
@@ -128,9 +113,9 @@ export function projectLayoutFiles(
   const bundled = codexBundleFiles();
   const files = new Map<string, string>();
   for (const [path, content] of bundled) {
-    const corePath = mappedCorePath(path);
-    if (corePath !== null) {
-      files.set(corePath, rewriteCommands(content, platform));
+    const runtimePath = mappedRuntimePath(path);
+    if (runtimePath !== null) {
+      files.set(runtimePath, rewriteCommands(content, platform));
       continue;
     }
     if (path === "AGENTS.md" || path.startsWith(".agents/")) {
@@ -140,9 +125,6 @@ export function projectLayoutFiles(
     if (path === ".codex/hooks.json") {
       files.set(path, installedHook(content));
       continue;
-    }
-    if (path.startsWith(".codex/agents/") && path.endsWith(".toml")) {
-      files.set(path, rewriteCommands(content, platform));
     }
   }
   const manifest: ProjectLayoutManifest = {
@@ -177,14 +159,14 @@ export function writeProjectLayout(
     mkdirSync(dirname(absolute), { recursive: true });
     writeFileSync(absolute, content, "utf8");
   }
-  const coreDir = join(outDir, ".aidlc", "runtime", "core");
+  const coreDir = join(outDir, ".codex");
   writeCompiledStageGraph({
     stagesDir: join(coreDir, "aidlc-common", "stages"),
     agentsDir: join(coreDir, "agents"),
     sensorsDir: join(coreDir, "sensors"),
     memoryDir: join(coreDir, "memory"),
     scopesDir: join(coreDir, "scopes"),
-    harnessDir: ".aidlc/runtime/core",
+    harnessDir: ".codex",
     graphPath: join(coreDir, "aidlc-common", "data", "stage-graph.json"),
     scopeGridPath: join(coreDir, "aidlc-common", "data", "scope-grid.json"),
   });

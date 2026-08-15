@@ -7,13 +7,13 @@ export function isCompiledExecutable(): boolean {
   return import.meta.url.includes("/$bunfs/");
 }
 
-/** Project-local installation root containing bin/ and runtime/. */
+/** Project-local Codex Runtime root containing tools/ and authored data. */
 export function projectInstallDir(): string {
   const explicit = process.env.AIDLC_INSTALL_DIR?.trim();
   if (explicit) return resolve(explicit);
   return isCompiledExecutable()
     ? resolve(dirname(process.execPath), "..")
-    : resolve(dirname(MODULE_CORE_DIR), ".aidlc");
+    : resolve(dirname(MODULE_CORE_DIR), ".codex");
 }
 
 /** Project root that owns the project-local AI-DLC installation. */
@@ -30,7 +30,7 @@ export function runtimeCoreDir(): string {
   const explicit = process.env.AIDLC_RUNTIME_CORE_DIR?.trim();
   if (explicit) return resolve(explicit);
   return isCompiledExecutable()
-    ? join(projectInstallDir(), "runtime", "core")
+    ? projectInstallDir()
     : MODULE_CORE_DIR;
 }
 
@@ -54,5 +54,5 @@ export function runtimeCorePath(...segments: string[]): string {
 
 /** Command rendered into project-local Harness instructions. */
 export function projectBinaryCommand(): string {
-  return "./.aidlc/bin/aidlc";
+  return "./.codex/tools/aidlc";
 }

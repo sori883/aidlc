@@ -26,29 +26,29 @@ test("builds and smoke-gates a Harness-neutral project-local native binary", () 
     readFileSync(resolve(NATIVE_DIR, "build-report.json"), "utf8"),
   ) as BinaryBuildReport;
   assert.equal(report.target, "native");
-  assert.equal(report.version, "0.6.0");
+  assert.equal(report.version, "0.6.1");
   assert.equal(report.runtime_smoke, true);
   assert.equal(report.gates.length, 15);
   assert.equal(report.gates.every((gate) => gate.ok), true);
 
   const project = resolve(NATIVE_DIR, "project-layout");
-  const runtime = resolve(project, ".aidlc/runtime/core");
+  const runtime = resolve(project, ".codex");
   assert.equal(existsSync(resolve(runtime, "aidlc-common/data/stage-graph.json")), true);
   assert.equal(existsSync(resolve(project, ".agents/skills/aidlc/SKILL.md")), true);
   const skill = readFileSync(resolve(project, ".agents/skills/aidlc/SKILL.md"), "utf8");
-  assert.match(skill, /`\.\/\.aidlc\/bin\/aidlc workspace init \.`/);
+  assert.match(skill, /`\.\/\.codex\/tools\/aidlc workspace init \.`/);
   assert.doesNotMatch(skill, /bun run --cwd \.codex aidlc/);
   const hooks = readFileSync(resolve(project, ".codex/hooks.json"), "utf8");
-  assert.match(hooks, /\.aidlc\/bin\/aidlc hook sensor-fire/);
+  assert.match(hooks, /\.codex\/tools\/aidlc hook sensor-fire/);
   assert.doesNotMatch(hooks, /sensor-hook/);
   assert.doesNotMatch(hooks, /git rev-parse/);
 
   const installedExecutable = resolve(
     project,
-    ".aidlc/bin",
+    ".codex/tools",
     process.platform === "win32" ? "aidlc.exe" : "aidlc",
   );
-  mkdirSync(resolve(project, ".aidlc/bin"), { recursive: true });
+  mkdirSync(resolve(project, ".codex/tools"), { recursive: true });
   cpSync(EXECUTABLE, installedExecutable);
 
   const pathless = spawnSync(installedExecutable, ["graph", "compile", "--check"], {

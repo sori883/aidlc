@@ -7,8 +7,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CODEX_PROJECT_DIR=\"$PWD\" ./.aidlc/bin/aidlc hook sensor-fire",
-            "commandWindows": "powershell -NoProfile -Command \"$root = (Get-Location).Path; $env:CODEX_PROJECT_DIR = $root; & \"$root/.aidlc/bin/aidlc.exe\" hook sensor-fire\"",
+            "command": "CODEX_PROJECT_DIR=\"$PWD\" ./.codex/tools/aidlc hook sensor-fire",
+            "commandWindows": "powershell -NoProfile -Command \"$root = (Get-Location).Path; $env:CODEX_PROJECT_DIR = $root; & \"$root/.codex/tools/aidlc.exe\" hook sensor-fire\"",
             "timeout": 30,
             "statusMessage": "Running advisory AI-DLC Sensors"
           }

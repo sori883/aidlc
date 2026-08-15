@@ -1,6 +1,6 @@
 # AI-DLC v2 for Codex
 
-AI-DLC v2のStage、Agent、Sensor、Rule、ScopeをCodexから実行するためのTypeScript実装です。現在のリリースバージョンは`0.6.0`です。
+AI-DLC v2のStage、Agent、Sensor、Rule、ScopeをCodexから実行するためのTypeScript実装です。現在のリリースバージョンは`0.6.1`です。
 
 AIが自由に次の作業を決めるのではなく、コンパイル済みのStage Graph、Scope、永続化されたStateに従ってWorkflowを進めます。人間は目的とScopeを伝え、質問に回答し、Stageの成果物を確認して承認します。
 
@@ -12,7 +12,7 @@ AIが自由に次の作業を決めるのではなく、コンパイル済みの
 
 | 用途 | 配布／実行方法 | Node.js | Bun |
 |---|---|---:|---:|
-| ユーザー向け | 初回・更新は`install.mjs`、Workflowは`.aidlc/bin/aidlc` | 配布時のみ必要 | 不要 |
+| ユーザー向け | 初回・更新は`install.mjs`、Workflowは`.codex/tools/aidlc` | 配布時のみ必要 | 不要 |
 | ソース／開発用 | `bun run ...` | 不要 | 必要 |
 
 公開GitHub Releaseの`install.mjs`は、OSに合うネイティブバイナリ、Core Runtimeデータ、Codex Harnessを別々に取得してプロジェクトへ配置します。npm、npx、認証、トークンは使用しません。導入後のWorkspace、Intent、State、Doctor、Sensorなどは、すべてBunランタイム内蔵の単一実行ファイルが処理します。
@@ -28,7 +28,7 @@ Gitリポジトリである必要はありません。Git、Bun、npm、npx、pn
 
 ## 対応ターゲット
 
-`0.6.0`ではInstallerが`os`、`cpu`、Linuxの`libc`に基づいて次の7種類から選択します。
+`0.6.1`ではInstallerが`os`、`cpu`、Linuxの`libc`に基づいて次の7種類から選択します。
 
 | ターゲット | 用途 |
 |---|---|
@@ -49,7 +49,7 @@ Gitリポジトリである必要はありません。Git、Bun、npm、npx、pn
 Node.js 22以上を使用し、最初にバージョン固定のInstallerを取得します。
 
 ```bash
-curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.0/install.mjs
+curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mjs
 ```
 
 対象プロジェクトのルートで明示的にインストールします。
@@ -58,34 +58,40 @@ curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.0/install.mj
 node install.mjs install --harness codex --project .
 ```
 
-Installerは公開Releaseから現在のOS用バイナリ1個を、タグ`v0.6.0`の`dist/project/`からCoreデータとCodex Harnessを取得し、全SHA-256を検証します。既存の管理外ファイルと競合した場合や、通信・検証に失敗した場合は何も上書きせず終了します。
+Installerは公開Releaseから現在のOS用バイナリ1個を、タグ`v0.6.1`の`dist/project/`からCoreデータとCodex Harnessを取得し、全SHA-256を検証します。既存の管理外ファイルと競合した場合や、通信・検証に失敗した場合は何も上書きせず終了します。
 
 配置結果は次の構成です。
 
 ```text
 <project>/
-├── .aidlc/
-│   ├── bin/
-│   │   └── aidlc          # Windowsの実体はaidlc.exe
-│   ├── runtime/core/
-│   └── installation.json
 ├── .agents/
 ├── .codex/
+│   ├── aidlc-common/      # Stage、Rule、Graphなど
+│   ├── agents/            # Agent定義
+│   ├── knowledge/
+│   ├── memory/
+│   ├── scopes/
+│   ├── sensors/
+│   ├── tools/
+│   │   ├── aidlc          # Windowsの実体はaidlc.exe
+│   │   └── contracts/
+│   ├── hooks.json
+│   └── aidlc-installation.json
 └── AGENTS.md
 ```
 
-`.aidlc/installation.json`にはInstallerが管理するファイルのSHA-256、Releaseタグ、バイナリターゲットが記録されます。`aidlc/`はWorkspaceデータであり、この配布管理の対象外です。
+本家と同じくRuntimeとHarnessは`.codex/`へ展開し、本家のTypeScript CLIに相当するネイティブ実行ファイルだけを`.codex/tools/aidlc`へ配置します。`.codex/aidlc-installation.json`にはInstallerが管理するファイルのSHA-256、Releaseタグ、バイナリターゲットが記録されます。`aidlc/`はWorkspaceデータであり、この配布管理の対象外です。
 
 ### 2. ネイティブバイナリを確認する
 
 macOS、Linux、Windows PowerShellで共通の相対表記を使用できます。
 
 ```bash
-./.aidlc/bin/aidlc --version
-./.aidlc/bin/aidlc graph compile --check
+./.codex/tools/aidlc --version
+./.codex/tools/aidlc graph compile --check
 ```
 
-バージョンには`aidlc 0.6.0`、Graph検証には`32 stages`と表示されます。この時点ではWorkspaceがまだないため、Doctorの`workspace.missing`は異常ではありません。
+バージョンには`aidlc 0.6.1`、Graph検証には`32 stages`と表示されます。この時点ではWorkspaceがまだないため、Doctorの`workspace.missing`は異常ではありません。
 
 ### 3. Codexで開始する
 
@@ -114,7 +120,7 @@ AI-DLCを使って、ブログをMVPスコープで開発してください。
 WorkspaceとIntentが作成された後、配布資産とWorkflow Stateを診断します。
 
 ```bash
-./.aidlc/bin/aidlc doctor check --project-dir .
+./.codex/tools/aidlc doctor check --project-dir .
 ```
 
 ## Workflowで生成されるファイル
@@ -167,7 +173,7 @@ AI-DLCを使って、現在のIntentを再開してください。
 現在位置は、プロジェクトルートから次のコマンドでも確認できます。
 
 ```bash
-./.aidlc/bin/aidlc state resume .
+./.codex/tools/aidlc state resume .
 ```
 
 Codexのセッションが変わっても、保存されたStateから再開します。
@@ -196,15 +202,15 @@ Codexのセッションが変わっても、保存されたStateから再開し�
 一覧表示:
 
 ```bash
-./.aidlc/bin/aidlc space list .
-./.aidlc/bin/aidlc intent list .
+./.codex/tools/aidlc space list .
+./.codex/tools/aidlc intent list .
 ```
 
 切り替え:
 
 ```bash
-./.aidlc/bin/aidlc space switch . <space-name>
-./.aidlc/bin/aidlc intent switch . <intent-name>
+./.codex/tools/aidlc space switch . <space-name>
+./.codex/tools/aidlc intent switch . <intent-name>
 ```
 
 切り替えはアクティブな参照先だけを変更し、IntentのState本文やStatusを変更しません。
@@ -214,13 +220,13 @@ Codexのセッションが変わっても、保存されたStateから再開し�
 Workspace、Intent、State、Plan、Audit、Unit DAG、生成SkillをDoctorで診断できます。
 
 ```bash
-./.aidlc/bin/aidlc doctor check --project-dir .
+./.codex/tools/aidlc doctor check --project-dir .
 ```
 
 Doctorが`automatic`と判定した項目だけを修復する場合:
 
 ```bash
-./.aidlc/bin/aidlc doctor repair --project-dir .
+./.codex/tools/aidlc doctor repair --project-dir .
 ```
 
 `manual`と表示された問題は自動推測されません。診断内容を確認して人間が判断してください。
@@ -232,10 +238,10 @@ Doctorが`automatic`と判定した項目だけを修復する場合:
 ```bash
 curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mjs
 node install.mjs update --harness codex --project .
-./.aidlc/bin/aidlc doctor check --project-dir .
+./.codex/tools/aidlc doctor check --project-dir .
 ```
 
-更新前のハッシュと一致する管理対象ファイルだけを置換します。利用者が編集した`AGENTS.md`、Skill、Hookなどがある場合は、競合パスを表示して全更新を中止します。プロジェクトの`aidlc/`にあるWorkspace、Intent、State、Audit、成果物は更新対象になりません。
+更新前のハッシュと一致する管理対象ファイルだけを置換します。利用者が編集した`AGENTS.md`、Skill、Hookなどがある場合は、競合パスを表示して全更新を中止します。v0.6.0からの更新では、改変されていない旧`.aidlc/bin`と`.aidlc/runtime`だけを移行後に削除します。未管理ファイルと、プロジェクトの`aidlc/`にあるWorkspace、Intent、State、Audit、成果物は削除・更新しません。
 
 詳しい導入、更新、ローカルHTTP配布テストは[GitHub Release＋ネイティブバイナリ配布](docs/release-packaging.md)を参照してください。
 

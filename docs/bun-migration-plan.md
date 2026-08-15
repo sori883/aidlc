@@ -66,29 +66,30 @@ bun run binary:build:all
 
 ```text
 <project>/
-├── .aidlc/
-│   ├── bin/aidlc[.exe]
-│   ├── runtime/core/
-│   └── installation.json
 ├── .agents/
 ├── .codex/
+│   ├── aidlc-common/, agents/, knowledge/, memory/
+│   ├── scopes/, sensors/
+│   ├── tools/aidlc[.exe]
+│   ├── hooks.json
+│   └── aidlc-installation.json
 ├── AGENTS.md
 └── aidlc/
 ```
 
-- `.aidlc/bin`: コード依存とBunランタイムを内蔵した実行ファイル
-- `.aidlc/runtime/core`: Stage、Scope、Rule、Sensor、Agent persona、契約、共有知識
-- `.agents`、`.codex`、`AGENTS.md`: Codex Harness
+- `.codex/tools/aidlc`: コード依存とBunランタイムを内蔵した実行ファイル
+- `.codex`: Stage、Scope、Rule、Sensor、Agent persona、契約、共有知識とCodex Harness
+- `.agents`、`AGENTS.md`: Codex Harnessの共通指示とSkill
 - `aidlc`: 利用者所有のWorkspace、Intent、State、Audit、成果物
 
-バイナリは自身の`.aidlc/bin`配置から`.aidlc/runtime/core`とプロジェクトルートを解決する。SkillとHookは`./.aidlc/bin/aidlc`を直接実行し、Git root探索を行わない。
+バイナリは自身の`.codex/tools`配置から`.codex` Runtimeとプロジェクトルートを解決する。SkillとHookは`./.codex/tools/aidlc`を直接実行し、Git root探索を行わない。
 
 ## Stage 5: 公開GitHub Installer
 
 公開Releaseの`install.mjs`をNode.js 22以上で一度だけ実行する。
 
 ```bash
-curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.0/install.mjs
+curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mjs
 node install.mjs install --harness codex --project .
 ```
 
@@ -96,7 +97,8 @@ Installerは公開Release ManifestからOS、CPU、Linux libcに合うCLI Asset�
 1個選ぶ。Core RuntimeデータとCodex Harnessはタグ固定の`dist/project/`から
 通常ファイルとして個別取得する。全サイズとSHA-256を事前検査し、管理外変更
 との競合が一つでもあれば何も書き込まない。前回の所有情報とRelease情報は
-`.aidlc/installation.json`へ記録する。
+`.codex/aidlc-installation.json`へ記録する。v0.6.0の旧`.aidlc`配置は、記録済み
+ハッシュと一致する管理ファイルだけを削除して新配置へ移行する。
 
 ローカルHTTPサーバーでGitHub配布を再現し、認証、npm、Gitなしの一時
 プロジェクトへ導入する。PATHを空にしてversion、Graph、Workspace、Intent、
@@ -108,9 +110,10 @@ mainへのマージ時に`.github/workflows/ci-main.yml`でRelease Gateを実行
 version一致、同じコミットのmain試験成功、既存Release不在を確認し、試験を
 重複実行せず配布物の生成と公開だけを行う。
 
-## 公開上の残条件
+## 公開状況
 
-- `v0.6.0`タグと公開GitHub Release Assetを実際に作成する。
+- `v0.6.0`の公開GitHub Release Assetは作成済み。
+- 本家互換の`.codex`配置への修正は`v0.6.1`として公開する。
 - macOS、Linux、Windowsのnative jobで各ホスト用実行テストを行う。
 - Repository SettingsでImmutable Releasesを有効化する。
 

@@ -193,7 +193,15 @@ function projectFileRecords(): DistributionFileRecord[] {
       sha256: digest(content),
       bytes: content.byteLength,
       executable: false,
-      area: path.startsWith(".aidlc/runtime/core/") ? "core" : "harness",
+      area: (
+        path.startsWith(".codex/aidlc-common/") ||
+        path.startsWith(".codex/knowledge/") ||
+        path.startsWith(".codex/memory/") ||
+        path.startsWith(".codex/scopes/") ||
+        path.startsWith(".codex/sensors/") ||
+        path.startsWith(".codex/tools/") ||
+        (path.startsWith(".codex/agents/") && path.endsWith(".md"))
+      ) ? "core" : "harness",
     };
   });
 }
