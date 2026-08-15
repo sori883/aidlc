@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { runtimeCoreDir } from "./aidlc-runtime-paths.ts";
 
 export const DEFAULT_SPACE = "default";
 export const RESERVED_RECORD_NAMES: ReadonlySet<string> = new Set([
@@ -25,7 +26,7 @@ export const RESERVED_RECORD_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_MEMORY_SOURCE_DIR = resolve(MODULE_DIR, "../memory");
+const DEFAULT_MEMORY_SOURCE_DIR = resolve(runtimeCoreDir(), "memory");
 
 export interface InitializeWorkspaceOptions {
   memorySourceDir?: string;
@@ -199,8 +200,8 @@ export function initializeWorkspace(
   };
 }
 
-function runCli(): void {
-  const [command, ...args] = process.argv.slice(2);
+export function main(argv: string[]): void {
+  const [command, ...args] = argv;
   if (command !== "init" || args.length > 1) {
     console.error("Usage: aidlc-workspace init [project-dir]");
     process.exitCode = 1;
@@ -220,7 +221,4 @@ function runCli(): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) main(process.argv.slice(2));

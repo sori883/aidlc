@@ -7,7 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { test } from "bun:test";
 import {
   checkCompiledStageGraph,
   compileStageGraph,
@@ -253,10 +253,8 @@ test("validateGrid preserves lenient and strict upstream postures", () => {
 
 test("ars and validate-grid CLIs return JSON and enforce keyword collisions", () => {
   const ars = spawnSync(
-    "pnpm",
+    process.execPath,
     [
-      "exec",
-      "tsx",
       "core/tools/aidlc-graph.ts",
       "ars",
       "--iae",
@@ -285,10 +283,8 @@ test("ars and validate-grid CLIs return JSON and enforce keyword collisions", ()
     "utf8",
   );
   const validation = spawnSync(
-    "pnpm",
+    process.execPath,
     [
-      "exec",
-      "tsx",
       "core/tools/aidlc-graph.ts",
       "validate-grid",
       "--proposal",

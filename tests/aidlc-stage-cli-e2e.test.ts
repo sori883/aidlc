@@ -9,11 +9,11 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import test from "node:test";
+import { test } from "bun:test";
 import { writeCodexBundle } from "../core/tools/aidlc-codex-bundle.ts";
 import type { Directive, RunStageDirective } from "../core/tools/aidlc-directive.ts";
 
-const PNPM = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const BUN = process.execPath;
 
 function freshProject(): string {
   return join(mkdtempSync(join(tmpdir(), "aidlc-stage-cli-e2e-")), "project");
@@ -37,11 +37,11 @@ function instructionCommand(source: string, expected: string): string {
   const normalize = (command: string): string =>
     command.replace(/\\\r?\n/g, " ").replace(/\s+/g, " ").trim();
   const commands = [
-    ...[...source.matchAll(/(?<!`)`(pnpm --dir \.codex run [\s\S]*?)`(?!`)/g)]
+    ...[...source.matchAll(/(?<!`)`(bun run --cwd \.codex aidlc [\s\S]*?)`(?!`)/g)]
       .map((match) => normalize(match[1]!)),
     ...[...source.matchAll(/```[^\r\n]*\r?\n([\s\S]*?)```/g)]
       .map((match) => normalize(match[1]!))
-      .filter((command) => command.startsWith("pnpm --dir .codex run ")),
+      .filter((command) => command.startsWith("bun run --cwd .codex aidlc ")),
   ];
   assert.ok(
     commands.includes(expected),
@@ -54,11 +54,11 @@ function instructionStartingWith(source: string, prefix: string): string {
   const normalize = (command: string): string =>
     command.replace(/\\\r?\n/g, " ").replace(/\s+/g, " ").trim();
   const commands = [
-    ...[...source.matchAll(/(?<!`)`(pnpm --dir \.codex run [\s\S]*?)`(?!`)/g)]
+    ...[...source.matchAll(/(?<!`)`(bun run --cwd \.codex aidlc [\s\S]*?)`(?!`)/g)]
       .map((match) => normalize(match[1]!)),
     ...[...source.matchAll(/```[^\r\n]*\r?\n([\s\S]*?)```/g)]
       .map((match) => normalize(match[1]!))
-      .filter((command) => command.startsWith("pnpm --dir .codex run ")),
+      .filter((command) => command.startsWith("bun run --cwd .codex aidlc ")),
   ];
   const command = commands.find((candidate) => candidate.startsWith(prefix));
   assert.ok(command, `Generated instructions do not contain prefix ${prefix}`);
@@ -69,8 +69,8 @@ function runInstruction(projectDir: string, command: string): string {
   const [executable, ...args] = [...command.matchAll(
     /"([^"]*)"|'([^']*)'|[^\s]+/g,
   )].map((match) => match[1] ?? match[2] ?? match[0]);
-  assert.equal(executable, "pnpm");
-  return run(projectDir, PNPM, args).stdout;
+  assert.equal(executable, "bun");
+  return run(projectDir, BUN, args).stdout;
 }
 
 function jsonOutput<T>(stdout: string): T {
@@ -81,19 +81,18 @@ function jsonOutput<T>(stdout: string): T {
 
 function installBundle(projectDir: string): void {
   writeCodexBundle({ outDir: projectDir });
-  run(projectDir, PNPM, [
-    "--dir",
-    ".codex",
+  run(projectDir, BUN, [
     "install",
+    "--cwd",
+    ".codex",
     "--frozen-lockfile",
-    "--offline",
   ]);
 }
 
 function nextRunStage(projectDir: string, skill: string): RunStageDirective {
   const next = instructionCommand(
     skill,
-    "pnpm --dir .codex run orchestrate next --project-dir ..",
+    "bun run --cwd .codex aidlc orchestrate next --project-dir ..",
   );
   let directive = jsonOutput<Directive>(runInstruction(projectDir, next));
   for (let part = 0; directive.kind === "load-steering" && part < 32; part += 1) {
@@ -140,12 +139,12 @@ function confirmLearnings(
 ): void {
   const memory = instructionCommand(
     skill,
-    'pnpm --dir .codex run memory init --project-dir .. --memory-path "<memory_path>"',
+    'bun run --cwd .codex aidlc memory init --project-dir .. --memory-path "<memory_path>"',
   ).replace('"<memory_path>"', `"${directive.memory_path}"`);
   runInstruction(projectDir, memory);
   const surface = instructionCommand(
     skill,
-    "pnpm --dir .codex run learnings surface --project-dir .. --slug <stage> [--unit <unit>]",
+    "bun run --cwd .codex aidlc learnings surface --project-dir .. --slug <stage> [--unit <unit>]",
   ).replace("<stage>", directive.stage).replace(" [--unit <unit>]", "");
   runInstruction(projectDir, surface);
 
@@ -160,7 +159,7 @@ function confirmLearnings(
   }, null, 2)}\n`, "utf8");
   const persist = instructionCommand(
     skill,
-    "pnpm --dir .codex run learnings persist --project-dir .. --slug <stage> --selections-json <path> [--unit <unit>]",
+    "bun run --cwd .codex aidlc learnings persist --project-dir .. --slug <stage> --selections-json <path> [--unit <unit>]",
   )
     .replace("<stage>", directive.stage)
     .replace("<path>", `"${selectionPath}"`)
@@ -175,7 +174,7 @@ function approveDirective(
 ): void {
   const report = instructionCommand(
     skill,
-    "pnpm --dir .codex run orchestrate report --project-dir .. --stage <stage> --result approved [--unit <unit>]",
+    "bun run --cwd .codex aidlc orchestrate report --project-dir .. --stage <stage> --result approved [--unit <unit>]",
   )
     .replace("<stage>", directive.stage)
     .replace(" [--unit <unit>]", "") + ' --user-input "Approve"';
@@ -184,16 +183,14 @@ function approveDirective(
 
 test(
   "executes real Codex runtime commands extracted from a generated Stage",
-  { timeout: 30_000 },
   () => {
     const projectDir = freshProject();
     writeCodexBundle({ outDir: projectDir });
-    run(projectDir, PNPM, [
-      "--dir",
-      ".codex",
+    run(projectDir, BUN, [
       "install",
+      "--cwd",
+      ".codex",
       "--frozen-lockfile",
-      "--offline",
     ]);
 
     const stateInit = readFileSync(
@@ -211,14 +208,14 @@ test(
       projectDir,
       instructionCommand(
         stateInit,
-        "pnpm --dir .codex run utility scope-table",
+        "bun run --cwd .codex aidlc utility scope-table",
       ),
     );
     const stageTable = runInstruction(
       projectDir,
       instructionCommand(
         stateInit,
-        "pnpm --dir .codex run utility stage-table",
+        "bun run --cwd .codex aidlc utility stage-table",
       ),
     );
 
@@ -227,20 +224,19 @@ test(
     assert.doesNotMatch(scopeTable, /\bbun\b/);
     assert.doesNotMatch(stageTable, /\bbun\b/);
   },
+  30_000,
 );
 
 test(
   "starts an MVP from generated Codex Skill commands and reaches run-stage",
-  { timeout: 30_000 },
   () => {
     const projectDir = freshProject();
     writeCodexBundle({ outDir: projectDir });
-    run(projectDir, PNPM, [
-      "--dir",
-      ".codex",
+    run(projectDir, BUN, [
       "install",
+      "--cwd",
+      ".codex",
       "--frozen-lockfile",
-      "--offline",
     ]);
     const skill = readFileSync(
       join(projectDir, ".agents", "skills", "aidlc", "SKILL.md"),
@@ -251,12 +247,12 @@ test(
       projectDir,
       instructionCommand(
         skill,
-        "pnpm --dir .codex run workspace init ..",
+        "bun run --cwd .codex aidlc workspace init ..",
       ),
     );
     const birthTemplate = instructionCommand(
       skill,
-      'pnpm --dir .codex run intent birth .. "<label>" --scope <scope>',
+      'bun run --cwd .codex aidlc intent birth .. "<label>" --scope <scope>',
     );
     const birth = jsonOutput<{
       auditPath: string;
@@ -273,7 +269,7 @@ test(
 
     const next = instructionCommand(
       skill,
-      "pnpm --dir .codex run orchestrate next --project-dir ..",
+      "bun run --cwd .codex aidlc orchestrate next --project-dir ..",
     );
     let directive = jsonOutput<{
       kind: string;
@@ -300,11 +296,11 @@ test(
     assert.match(audit, /\*\*Event\*\*: WORKSPACE_INITIALISED/);
     assert.match(audit, /\*\*Stage\*\*: intent-capture/);
   },
+  30_000,
 );
 
 test(
   "runs practices discovery rejection, revision, promotion, and approval through packaged CLI",
-  { timeout: 60_000 },
   () => {
     const projectDir = freshProject();
     installBundle(projectDir);
@@ -314,7 +310,7 @@ test(
     );
     runInstruction(
       projectDir,
-      instructionCommand(skill, "pnpm --dir .codex run workspace init .."),
+      instructionCommand(skill, "bun run --cwd .codex aidlc workspace init .."),
     );
     const birth = jsonOutput<{
       auditPath: string;
@@ -323,7 +319,7 @@ test(
       projectDir,
       instructionCommand(
         skill,
-        'pnpm --dir .codex run intent birth .. "<label>" --scope <scope>',
+        'bun run --cwd .codex aidlc intent birth .. "<label>" --scope <scope>',
       )
         .replace('"<label>"', '"Practices E2E"')
         .replace("<scope>", "mvp"),
@@ -363,20 +359,20 @@ test(
     const stage = readFileSync(directive.stage_file, "utf8");
     const discovered = instructionStartingWith(
       stage,
-      "pnpm --dir .codex run state practices-event --project-dir ..",
+      "bun run --cwd .codex aidlc state practices-event --project-dir ..",
     )
       .replace('"Sources Scanned: <list>"', '"Sources Scanned: package.json"');
     runInstruction(projectDir, discovered);
 
     const awaiting = instructionStartingWith(
       stage,
-      "pnpm --dir .codex run orchestrate report --project-dir .. --stage practices-discovery --result awaiting-approval",
+      "bun run --cwd .codex aidlc orchestrate report --project-dir .. --stage practices-discovery --result awaiting-approval",
     );
     runInstruction(projectDir, awaiting);
     assert.equal(
       jsonOutput<{ checkboxState: string }>(runInstruction(
         projectDir,
-        "pnpm --dir .codex run state resume ..",
+        "bun run --cwd .codex aidlc state resume ..",
       )).checkboxState,
       "awaiting-approval",
     );
@@ -391,7 +387,7 @@ test(
       checkboxState: string;
     }>(runInstruction(
       projectDir,
-      "pnpm --dir .codex run state resume ..",
+      "bun run --cwd .codex aidlc state resume ..",
     ));
     assert.equal(rejectedState.checkboxState, "revising");
     assert.match(
@@ -413,14 +409,14 @@ test(
     assert.equal(
       jsonOutput<{ checkboxState: string }>(runInstruction(
         projectDir,
-        "pnpm --dir .codex run state resume ..",
+        "bun run --cwd .codex aidlc state resume ..",
       )).checkboxState,
       "awaiting-approval",
     );
 
     const promote = instructionStartingWith(
       stage,
-      "pnpm --dir .codex run state practices-promote --project-dir ..",
+      "bun run --cwd .codex aidlc state practices-promote --project-dir ..",
     )
       .replaceAll("<record>", birth.state.recordDir)
       .replace('"<user>"', '"E2E tester"');
@@ -440,7 +436,7 @@ test(
 
     const approved = instructionStartingWith(
       stage,
-      "pnpm --dir .codex run orchestrate report --project-dir .. --stage practices-discovery --result approved",
+      "bun run --cwd .codex aidlc orchestrate report --project-dir .. --stage practices-discovery --result approved",
     );
     runInstruction(projectDir, approved);
 
@@ -477,11 +473,11 @@ test(
       /^- \[-\] 2\.2 Practices Discovery/m,
     );
   },
+  60_000,
 );
 
 test(
   "recomposes a plan, persists Unit order, and resumes through packaged CLI",
-  { timeout: 60_000 },
   () => {
     const bugfixProject = freshProject();
     installBundle(bugfixProject);
@@ -493,7 +489,7 @@ test(
       bugfixProject,
       instructionCommand(
         bugfixSkill,
-        "pnpm --dir .codex run workspace init ..",
+        "bun run --cwd .codex aidlc workspace init ..",
       ),
     );
     const bugfixBirth = jsonOutput<{
@@ -503,7 +499,7 @@ test(
       bugfixProject,
       instructionCommand(
         bugfixSkill,
-        'pnpm --dir .codex run intent birth .. "<label>" --scope <scope>',
+        'bun run --cwd .codex aidlc intent birth .. "<label>" --scope <scope>',
       )
         .replace('"<label>"', '"Recompose E2E"')
         .replace("<scope>", "bugfix"),
@@ -524,7 +520,7 @@ test(
         bugfixProject,
         instructionStartingWith(
           requirements,
-          "pnpm --dir .codex run utility recompose --project-dir .. --add user-stories",
+          "bun run --cwd .codex aidlc utility recompose --project-dir .. --add user-stories",
         ) + " --json",
       ),
     );
@@ -544,7 +540,7 @@ test(
     assert.equal(
       jsonOutput<{ currentStage: string; nextStage: string }>(runInstruction(
         bugfixProject,
-        "pnpm --dir .codex run state resume ..",
+        "bun run --cwd .codex aidlc state resume ..",
       )).nextStage,
       "user-stories",
     );
@@ -562,7 +558,7 @@ test(
     const resumedBugfix = jsonOutput<{ currentStage: string; nextStage: string }>(
       runInstruction(
         bugfixProject,
-        "pnpm --dir .codex run state resume ..",
+        "bun run --cwd .codex aidlc state resume ..",
       ),
     );
     assert.equal(resumedBugfix.currentStage, "user-stories");
@@ -583,7 +579,7 @@ test(
     );
     runInstruction(
       mvpProject,
-      instructionCommand(mvpSkill, "pnpm --dir .codex run workspace init .."),
+      instructionCommand(mvpSkill, "bun run --cwd .codex aidlc workspace init .."),
     );
     const mvpBirth = jsonOutput<{
       state: { statePath: string };
@@ -591,7 +587,7 @@ test(
       mvpProject,
       instructionCommand(
         mvpSkill,
-        'pnpm --dir .codex run intent birth .. "<label>" --scope <scope>',
+        'bun run --cwd .codex aidlc intent birth .. "<label>" --scope <scope>',
       )
         .replace('"<label>"', '"Unit Order E2E"')
         .replace("<scope>", "mvp"),
@@ -614,7 +610,7 @@ test(
       mvpProject,
       instructionStartingWith(
         deliveryPlanning,
-        "pnpm --dir .codex run state set-construction-iteration --project-dir .. unit-major",
+        "bun run --cwd .codex aidlc state set-construction-iteration --project-dir .. unit-major",
       ),
     ));
     assert.deepEqual(iteration, {
@@ -623,7 +619,7 @@ test(
     });
     const resumedMvp = jsonOutput<{ currentStage: string }>(runInstruction(
       mvpProject,
-      "pnpm --dir .codex run state resume ..",
+      "bun run --cwd .codex aidlc state resume ..",
     ));
     assert.equal(resumedMvp.currentStage, "intent-capture");
     assert.match(
@@ -631,4 +627,5 @@ test(
       /- \*\*Construction Iteration\*\*: unit-major/,
     );
   },
+  60_000,
 );

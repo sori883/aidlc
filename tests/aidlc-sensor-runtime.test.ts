@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
-import test from "node:test";
+import { test } from "bun:test";
 import { runSensorFireHook } from "../core/hooks/aidlc-sensor-fire.ts";
 import { birthIntentWithState } from "../core/tools/aidlc-intent.ts";
 import {

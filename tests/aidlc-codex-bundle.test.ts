@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import test from "node:test";
+import { test } from "bun:test";
 import { loadAgents } from "../core/tools/aidlc-agent-loader.ts";
 import type {
   Directive,
@@ -51,9 +51,10 @@ function jsonOutput<T>(stdout: string): T {
 
 function runtimeNext(outDir: string, continueToken?: string): Directive {
   const args = [
-    "--dir",
-    ".codex",
     "run",
+    "--cwd",
+    ".codex",
+    "aidlc",
     "orchestrate",
     "next",
     "--project-dir",
@@ -62,7 +63,7 @@ function runtimeNext(outDir: string, continueToken?: string): Directive {
       ? []
       : ["--continue-token", continueToken]),
   ];
-  return jsonOutput<Directive>(run(outDir, "pnpm", args).stdout);
+  return jsonOutput<Directive>(run(outDir, process.execPath, args).stdout);
 }
 
 function runtimeRunnable(outDir: string): RunStageDirective {
@@ -81,11 +82,11 @@ function runtimeRunnable(outDir: string): RunStageDirective {
   return directive;
 }
 
-test("translates Harness-neutral Markdown to Codex pnpm commands and paths", () => {
+test("translates Harness-neutral Markdown to Codex Bun commands and paths", () => {
   const scripts = codexRuntimeToolScripts(JSON.stringify({
     scripts: {
-      graph: "tsx tools/aidlc-graph.ts",
-      utility: "tsx tools/aidlc-utility.ts",
+      graph: "bun tools/aidlc-graph.ts",
+      utility: "bun tools/aidlc-utility.ts",
       ignored: "node tools/not-an-aidlc-tool.ts",
     },
   }));
@@ -104,16 +105,16 @@ test("translates Harness-neutral Markdown to Codex pnpm commands and paths", () 
     ["aidlc-utility.ts", new Set(["detect"])],
   ]));
   assert.equal(rendered, [
-    "pnpm --dir .codex run graph ars",
-    "pnpm --dir .codex run utility scope-table",
-    "pnpm --dir .codex run utility detect --project-dir .. --json",
+    "bun run --cwd .codex aidlc graph ars",
+    "bun run --cwd .codex aidlc utility scope-table",
+    "bun run --cwd .codex aidlc utility detect --project-dir .. --json",
     ".codex/knowledge/aidlc-shared/rules-reading.md",
     ".codex/aidlc-common/data/scope-grid.json",
   ].join("\n"));
   assert.doesNotMatch(rendered, /\{\{HARNESS_DIR\}\}/);
 });
 
-test("writes a complete Codex bundle with local tsx and yaml runtime", () => {
+test("writes a complete Codex bundle with local Bun and yaml runtime", () => {
   const outDir = freshBundleDir();
   const result = writeCodexBundle({ outDir });
   assert.equal(result.files.length > 100, true);
@@ -123,8 +124,7 @@ test("writes a complete Codex bundle with local tsx and yaml runtime", () => {
     CODEX_BUNDLE_MANIFEST,
     ".codex/hooks.json",
     ".codex/package.json",
-    ".codex/pnpm-lock.yaml",
-    ".codex/pnpm-workspace.yaml",
+    ".codex/bun.lock",
     ".codex/tools/aidlc-orchestrate.ts",
     ".codex/hooks/aidlc-sensor-core.ts",
     ".codex/hooks/aidlc-sensor-fire.ts",
@@ -144,11 +144,12 @@ test("writes a complete Codex bundle with local tsx and yaml runtime", () => {
     dependencies: Record<string, string>;
     scripts: Record<string, string>;
   };
-  assert.deepEqual(runtime.dependencies, { tsx: "4.23.1", yaml: "2.9.0" });
-  assert.equal(runtime.scripts.graph, "tsx tools/aidlc-graph.ts");
+  assert.deepEqual(runtime.dependencies, { yaml: "2.9.0" });
+  assert.equal(runtime.scripts.aidlc, "bun tools/aidlc.ts");
+  assert.equal(runtime.scripts.graph, "bun tools/aidlc-graph.ts");
   assert.equal(
     runtime.scripts["sensor-linter"],
-    "tsx tools/aidlc-sensor-linter.ts",
+    "bun tools/aidlc-sensor-linter.ts",
   );
   const hook = readFileSync(
     join(outDir, ".codex", "hooks", "aidlc-sensor-fire.ts"),
@@ -168,21 +169,21 @@ test("writes a complete Codex bundle with local tsx and yaml runtime", () => {
     join(outDir, ".codex", "agents", "aidlc-composer-agent.md"),
     "utf8",
   );
-  assert.match(composer, /pnpm --dir \.codex run graph ars/);
+  assert.match(composer, /bun run --cwd \.codex aidlc graph ars/);
   const composerToml = readFileSync(
     join(outDir, ".codex", "agents", "aidlc-composer-agent.toml"),
     "utf8",
   );
-  assert.match(composerToml, /pnpm --dir \.codex run graph ars/);
+  assert.match(composerToml, /bun run --cwd \.codex aidlc graph ars/);
   const protocol = readFileSync(
     join(outDir, ".codex", "aidlc-common", "protocols", "stage-protocol.md"),
     "utf8",
   );
   assert.match(
     protocol,
-    /pnpm --dir \.codex run log decision --project-dir \.\./,
+    /bun run --cwd \.codex aidlc log decision --project-dir \.\./,
   );
-  assert.match(protocol, /pnpm --dir \.codex run utility scope-table/);
+  assert.match(protocol, /bun run --cwd \.codex aidlc utility scope-table/);
   const practices = readFileSync(
     join(
       outDir,
@@ -196,17 +197,20 @@ test("writes a complete Codex bundle with local tsx and yaml runtime", () => {
   );
   assert.match(
     practices,
-    /pnpm --dir \.codex run state practices-promote --project-dir \.\./,
+    /bun run --cwd \.codex aidlc state practices-promote --project-dir \.\./,
   );
   assert.match(
     practices,
-    /pnpm --dir \.codex run orchestrate report --project-dir \.\./,
+    /bun run --cwd \.codex aidlc orchestrate report --project-dir \.\./,
   );
   const sensor = readFileSync(
     join(outDir, ".codex", "sensors", "aidlc-linter.md"),
     "utf8",
   );
-  assert.match(sensor, /^command: pnpm --dir \.codex run sensor-linter$/m);
+  assert.match(
+    sensor,
+    /^command: bun run --cwd \.codex aidlc __sensor-script linter$/m,
+  );
   const stateInit = readFileSync(
     join(
       outDir,
@@ -245,8 +249,8 @@ test("writes a complete Codex bundle with local tsx and yaml runtime", () => {
     join(outDir, ".agents", "skills", "aidlc", "SKILL.md"),
     "utf8",
   );
-  assert.match(conductor, /pnpm --dir \.codex install --frozen-lockfile/);
-  assert.match(conductor, /pnpm --dir \.codex run orchestrate/);
+  assert.match(conductor, /bun install --cwd \.codex --frozen-lockfile/);
+  assert.match(conductor, /bun run --cwd \.codex aidlc orchestrate/);
 });
 
 test("derives project-aware Codex commands from CLI contracts", () => {
@@ -278,21 +282,21 @@ test("bundle check detects drift and write refuses an unmanaged directory", () =
   assert.equal(readFileSync(join(unmanaged, "keep.txt"), "utf8"), "user data\n");
 });
 
-test("generated runtime installs and starts a real Intent", { timeout: 30_000 }, () => {
+test("generated runtime installs and starts a real Intent", () => {
   const outDir = freshBundleDir();
   writeCodexBundle({ outDir });
-  run(outDir, "pnpm", [
-    "--dir",
-    ".codex",
+  run(outDir, process.execPath, [
     "install",
-    "--frozen-lockfile",
-    "--offline",
-  ]);
-  run(outDir, "pnpm", ["--dir", ".codex", "run", "workspace", "init", ".."]) ;
-  run(outDir, "pnpm", [
-    "--dir",
+    "--cwd",
     ".codex",
+    "--frozen-lockfile",
+  ]);
+  run(outDir, process.execPath, ["run", "--cwd", ".codex", "aidlc", "workspace", "init", ".."]) ;
+  run(outDir, process.execPath, [
     "run",
+    "--cwd",
+    ".codex",
+    "aidlc",
     "intent",
     "birth",
     "..",
@@ -303,10 +307,11 @@ test("generated runtime installs and starts a real Intent", { timeout: 30_000 },
   const directive = runtimeRunnable(outDir);
   assert.equal(directive.stage, "intent-capture");
   assert.equal(existsSync(join(outDir, "aidlc", "active-space")), true);
-  const doctor = run(outDir, "pnpm", [
-    "--dir",
-    ".codex",
+  const doctor = run(outDir, process.execPath, [
     "run",
+    "--cwd",
+    ".codex",
+    "aidlc",
     "doctor",
     "check",
     "--project-dir",
@@ -323,10 +328,11 @@ test("generated runtime installs and starts a real Intent", { timeout: 30_000 },
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, "# Bundle process-resume artifact\n", "utf8");
   }
-  run(outDir, "pnpm", [
-    "--dir",
-    ".codex",
+  run(outDir, process.execPath, [
     "run",
+    "--cwd",
+    ".codex",
+    "aidlc",
     "memory",
     "init",
     "--memory-path",
@@ -345,10 +351,11 @@ test("generated runtime installs and starts a real Intent", { timeout: 30_000 },
     anything_to_add_answered: true,
     selections: [],
   }, null, 2)}\n`, "utf8");
-  run(outDir, "pnpm", [
-    "--dir",
-    ".codex",
+  run(outDir, process.execPath, [
     "run",
+    "--cwd",
+    ".codex",
+    "aidlc",
     "learnings",
     "persist",
     "--slug",
@@ -358,10 +365,11 @@ test("generated runtime installs and starts a real Intent", { timeout: 30_000 },
     "--project-dir",
     "..",
   ]);
-  const report = jsonOutput<Directive>(run(outDir, "pnpm", [
-    "--dir",
-    ".codex",
+  const report = jsonOutput<Directive>(run(outDir, process.execPath, [
     "run",
+    "--cwd",
+    ".codex",
+    "aidlc",
     "orchestrate",
     "report",
     "--project-dir",
@@ -375,10 +383,11 @@ test("generated runtime installs and starts a real Intent", { timeout: 30_000 },
   ]).stdout);
   assert.equal(report.kind, "done");
 
-  const resumed = jsonOutput<{ currentStage: string }>(run(outDir, "pnpm", [
-    "--dir",
-    ".codex",
+  const resumed = jsonOutput<{ currentStage: string }>(run(outDir, process.execPath, [
     "run",
+    "--cwd",
+    ".codex",
+    "aidlc",
     "state",
     "resume",
     "..",
@@ -386,4 +395,4 @@ test("generated runtime installs and starts a real Intent", { timeout: 30_000 },
   assert.notEqual(resumed.currentStage, directive.stage);
   const afterProcessRestart = runtimeRunnable(outDir);
   assert.equal(afterProcessRestart.stage, resumed.currentStage);
-});
+}, 30_000);

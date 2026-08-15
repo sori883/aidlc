@@ -1829,12 +1829,12 @@ function flagValue(args: string[], flag: string): string | undefined {
   return index === -1 ? undefined : args[index + 1];
 }
 
-function runCli(): void {
-  const [command, projectDirArgument, slug, ...args] = process.argv.slice(2);
+export function main(argv: string[]): void {
+  const [command, projectDirArgument, slug, ...args] = argv;
   const practicesCommand =
     command === "practices-event" || command === "practices-promote";
   const constructionIterationCommand = command === "set-construction-iteration";
-  const rawCommandArgs = process.argv.slice(3);
+  const rawCommandArgs = argv.slice(1);
   const projectDir = practicesCommand || constructionIterationCommand
     ? flagValue(rawCommandArgs, "--project-dir") ?? process.cwd()
     : projectDirArgument;
@@ -1972,7 +1972,4 @@ function runCli(): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) main(process.argv.slice(2));

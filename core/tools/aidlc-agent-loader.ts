@@ -6,6 +6,7 @@ import {
 } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { runtimeCoreDir } from "./aidlc-runtime-paths.ts";
 import { parseDocument } from "yaml";
 import {
   type LoadedStage,
@@ -26,7 +27,7 @@ export interface AgentDefinition {
   sourcePath: string;
 }
 
-const DEFAULT_AGENTS_DIR = resolve("core/agents");
+const DEFAULT_AGENTS_DIR = resolve(runtimeCoreDir(), "agents");
 const AGENT_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const FRONTMATTER_KEYS = new Set([
   "name",
@@ -181,7 +182,4 @@ function runCli(): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) runCli();

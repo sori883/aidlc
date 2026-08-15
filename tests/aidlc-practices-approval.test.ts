@@ -7,7 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import test from "node:test";
+import { test } from "bun:test";
 import type { RunStageDirective } from "../core/tools/aidlc-directive.ts";
 import { birthIntentWithState } from "../core/tools/aidlc-intent.ts";
 import { persistLearnings } from "../core/tools/aidlc-learnings.ts";

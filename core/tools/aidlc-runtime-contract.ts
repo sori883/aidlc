@@ -8,6 +8,11 @@ import {
 } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  isCompiledExecutable,
+  runtimeCoreDir,
+  runtimeHarnessDir,
+} from "./aidlc-runtime-paths.ts";
 import { codexBundleFiles } from "./aidlc-codex-bundle.ts";
 import {
   type CliContract,
@@ -52,8 +57,10 @@ export interface AuthoredCliInvocation {
 }
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_CORE_DIR = resolve(MODULE_DIR, "..");
-const DEFAULT_HARNESS_DIR = resolve(MODULE_DIR, "../../harness/codex");
+const DEFAULT_CORE_DIR = runtimeCoreDir();
+const DEFAULT_HARNESS_DIR = isCompiledExecutable()
+  ? runtimeHarnessDir()
+  : resolve(MODULE_DIR, "../../harness/codex");
 
 function portable(path: string): string {
   return path.split(sep).join("/");
@@ -464,8 +471,8 @@ function renderReport(report: RuntimeContractReport): string {
   ].join("\n");
 }
 
-function runCli(): void {
-  const [command, ...args] = process.argv.slice(2);
+export function main(argv: string[]): void {
+  const [command, ...args] = argv;
   if (command !== "check") {
     console.error("Usage: aidlc-runtime-contract check [--json]");
     process.exitCode = 1;
@@ -480,7 +487,4 @@ function runCli(): void {
   if (!report.valid) process.exitCode = 1;
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) main(process.argv.slice(2));

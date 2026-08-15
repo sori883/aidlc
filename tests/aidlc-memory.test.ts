@@ -7,7 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
-import test from "node:test";
+import { test } from "bun:test";
 import { birthIntentWithState } from "../core/tools/aidlc-intent.ts";
 import {
   appendStageMemoryEntry,

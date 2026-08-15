@@ -368,8 +368,10 @@ function flagValue(args: readonly string[], flag: string): string | undefined {
   return index === -1 ? undefined : args[index + 1];
 }
 
-export function runSensorCheckerCli(id: SensorCheckerId): void {
-  const args = process.argv.slice(2);
+export function runSensorCheckerCli(
+  id: SensorCheckerId,
+  args = process.argv.slice(2),
+): void {
   const stage = flagValue(args, "--stage");
   const filePath = flagValue(args, "--output-path") ??
     flagValue(args, "--file-path");
@@ -390,10 +392,7 @@ export function runSensorCheckerCli(id: SensorCheckerId): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) {
+if (import.meta.main) {
   console.error("Run a specific aidlc-sensor-<id>.ts entry point.");
   process.exitCode = 2;
 }

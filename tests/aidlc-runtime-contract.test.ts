@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { test } from "bun:test";
 import {
   cliUnknownFlags,
   loadCliContracts,
@@ -63,7 +63,7 @@ test("ships the contract checker as a Codex runtime command", () => {
   const packageJson = codexBundleFiles().get(".codex/package.json");
   assert.ok(packageJson);
   const parsed = JSON.parse(packageJson) as { scripts?: Record<string, string> };
-  assert.equal(parsed.scripts?.contract, "tsx tools/aidlc-runtime-contract.ts");
+  assert.equal(parsed.scripts?.contract, "bun tools/aidlc-runtime-contract.ts");
 });
 
 test("checks an installed Codex bundle without authored Harness sources", () => {

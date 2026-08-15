@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { runtimeCoreDir } from "./aidlc-runtime-paths.ts";
 import {
   activeSpace,
   DEFAULT_SPACE,
@@ -17,7 +18,7 @@ import {
 } from "./aidlc-workspace.ts";
 
 const TOOL_DIR = dirname(fileURLToPath(import.meta.url));
-const CORE_MEMORY_DIR = resolve(TOOL_DIR, "..", "memory");
+const CORE_MEMORY_DIR = resolve(runtimeCoreDir(), "memory");
 
 export interface SpaceInfo {
   name: string;
@@ -118,8 +119,8 @@ export function switchSpace(projectDir: string, rawName: string): SpaceInfo {
   return { name, active: true };
 }
 
-function runCli(): void {
-  const [command, projectDir, name, ...args] = process.argv.slice(2);
+export function main(argv: string[]): void {
+  const [command, projectDir, name, ...args] = argv;
   const validList =
     command === "list" &&
     projectDir !== undefined &&
@@ -167,7 +168,4 @@ function runCli(): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) main(process.argv.slice(2));

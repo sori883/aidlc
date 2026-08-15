@@ -17,6 +17,10 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  isCompiledExecutable,
+  runtimeCoreDir,
+} from "./aidlc-runtime-paths.ts";
+import {
   appendAuditEntry,
   initializeAuditLog,
 } from "./aidlc-audit.ts";
@@ -98,7 +102,7 @@ interface BundleManifestEntry {
 }
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_CORE_DIR = resolve(MODULE_DIR, "..");
+const DEFAULT_CORE_DIR = runtimeCoreDir();
 const PHASES = [
   "initialization",
   "ideation",
@@ -161,7 +165,7 @@ function compileOptions(coreDir: string): CompileOptions {
     sensorsDir: join(coreDir, "sensors"),
     memoryDir: join(coreDir, "memory"),
     memoryDisplayRoot: "aidlc/spaces/default/memory",
-    harnessDir: ".codex",
+    harnessDir: isCompiledExecutable() ? ".aidlc/runtime/core" : ".codex",
     graphPath: join(coreDir, "aidlc-common", "data", "stage-graph.json"),
     scopeGridPath: join(coreDir, "aidlc-common", "data", "scope-grid.json"),
     scopesDir: join(coreDir, "scopes"),
@@ -874,8 +878,8 @@ function flagValue(args: readonly string[], flag: string): string | undefined {
   return index === -1 ? undefined : args[index + 1];
 }
 
-function runCli(): void {
-  const [command, ...args] = process.argv.slice(2);
+export function main(argv: string[]): void {
+  const [command, ...args] = argv;
   const projectDir = flagValue(args, "--project-dir");
   if (!["check", "repair"].includes(command ?? "") || projectDir === undefined) {
     console.error(
@@ -902,7 +906,4 @@ function runCli(): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) main(process.argv.slice(2));

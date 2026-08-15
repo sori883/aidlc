@@ -7,6 +7,10 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  isCompiledExecutable,
+  runtimeCoreDir,
+} from "./aidlc-runtime-paths.ts";
+import {
   loadAgents,
   validateStageAgentReferences,
 } from "./aidlc-agent-loader.ts";
@@ -171,10 +175,11 @@ export interface CompileOptions extends LoadStagesOptions {
 }
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_GRAPH_PATH = resolve(MODULE_DIR, "../aidlc-common/data/stage-graph.json");
+const RUNTIME_CORE_DIR = runtimeCoreDir();
+const DEFAULT_GRAPH_PATH = resolve(RUNTIME_CORE_DIR, "aidlc-common/data/stage-graph.json");
 const DEFAULT_SCOPE_GRID_PATH = resolve(
-  MODULE_DIR,
-  "../aidlc-common/data/scope-grid.json",
+  RUNTIME_CORE_DIR,
+  "aidlc-common/data/scope-grid.json",
 );
 
 const FIELD_ORDER = [
@@ -498,7 +503,7 @@ export function keywordCollisions(granted: readonly string[]): string[] {
 const ARS_RAW_PRECISION = 9;
 
 function arsPriorsPath(): string {
-  return process.env.AIDLC_ARS_PRIORS ?? join(MODULE_DIR, "data", "ars-priors.json");
+  return process.env.AIDLC_ARS_PRIORS ?? join(RUNTIME_CORE_DIR, "tools", "data", "ars-priors.json");
 }
 
 /** Load and fully validate the deterministic ARS priors. */
@@ -1007,7 +1012,14 @@ export function compileStageGraph(options: CompileOptions = {}): CompileResult {
   validateStageDependencies(loaded);
   validateArtifactContracts(loaded);
   const stages = loaded.map((stage) =>
-    compileStage(stage, sensors, rules, options.harnessDir ?? ".codex")
+    compileStage(
+      stage,
+      sensors,
+      rules,
+      options.harnessDir ?? (
+        isCompiledExecutable() ? ".aidlc/runtime/core" : ".codex"
+      ),
+    )
   );
   const scopeGrid = transposeScopeGrid(stages);
   validateScopeGridDefinitions(scopeGrid, scopes);
@@ -1100,8 +1112,8 @@ export function checkCompiledStageGraph(options: CompileOptions = {}): {
   return { result, staleFiles };
 }
 
-function runCli(): void {
-  const [command, ...args] = process.argv.slice(2);
+export function main(argv: string[]): void {
+  const [command, ...args] = argv;
   try {
     if (!cliHasCommand(GRAPH_CLI_CONTRACT, command)) {
       throw new Error(`Unknown command: ${command ?? ""}`);
@@ -1249,7 +1261,4 @@ function runCli(): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) main(process.argv.slice(2));

@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import test from "node:test";
+import { test } from "bun:test";
 import {
   birthIntentWithState,
   readIntentRegistry,
@@ -28,8 +28,6 @@ import {
   auditShardName,
   cloneIdPath,
 } from "../core/tools/aidlc-audit.ts";
-
-const PNPM = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 function freshProject(): string {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-state-"));
@@ -138,10 +136,8 @@ test("set-construction-iteration validates and persists Runtime State without Au
   assert.equal(readFileSync(born.auditPath, "utf8"), beforeAudit);
 
   const cli = spawnSync(
-    PNPM,
+    process.execPath,
     [
-      "exec",
-      "tsx",
       "core/tools/aidlc-state.ts",
       "set-construction-iteration",
       "stage-major",
@@ -168,10 +164,8 @@ test("set-construction-iteration validates and persists Runtime State without Au
   assert.equal(readFileSync(born.auditPath, "utf8"), beforeAudit);
 
   const projectFlagFirst = spawnSync(
-    PNPM,
+    process.execPath,
     [
-      "exec",
-      "tsx",
       "core/tools/aidlc-state.ts",
       "set-construction-iteration",
       "--project-dir",
@@ -187,10 +181,8 @@ test("set-construction-iteration validates and persists Runtime State without Au
   );
 
   const invalid = spawnSync(
-    PNPM,
+    process.execPath,
     [
-      "exec",
-      "tsx",
       "core/tools/aidlc-state.ts",
       "set-construction-iteration",
       "bogus",

@@ -123,7 +123,7 @@ export function codexRuntimeToolScripts(
   const scripts = new Map<string, string>();
   for (const [name, command] of Object.entries(parsed.scripts ?? {})) {
     if (typeof command !== "string") continue;
-    const match = command.match(/^tsx tools\/(aidlc-[a-z0-9-]+\.ts)$/);
+    const match = command.match(/^bun tools\/(aidlc-[a-z0-9-]+\.ts)$/);
     if (match?.[1] !== undefined) scripts.set(match[1], name);
   }
   return scripts;
@@ -150,6 +150,13 @@ function escapedRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function integratedRoute(tool: string, script: string): string {
+  const worker = tool.match(/^aidlc-sensor-(.+)\.ts$/)?.[1];
+  return worker === undefined
+    ? script
+    : `__sensor-script ${worker}`;
+}
+
 /** Render Harness-neutral Markdown as executable Codex instructions. */
 export function transformCodexMarkdown(
   content: string,
@@ -159,18 +166,19 @@ export function transformCodexMarkdown(
   let rendered = content;
   for (const [tool, script] of toolScripts) {
     const toolPath = `{{HARNESS_DIR}}/tools/${tool}`;
+    const route = integratedRoute(tool, script);
     for (const command of projectCommands.get(tool) ?? []) {
       rendered = rendered.replace(
         new RegExp(
           `bun\\s+${escapedRegex(toolPath)}\\s+${escapedRegex(command)}\\b`,
           "g",
         ),
-        `pnpm --dir .codex run ${script} ${command} --project-dir ..`,
+        `bun run --cwd .codex aidlc ${route} ${command} --project-dir ..`,
       );
     }
     rendered = rendered.replace(
       new RegExp(`bun\\s+${escapedRegex(toolPath)}`, "g"),
-      `pnpm --dir .codex run ${script}`,
+      `bun run --cwd .codex aidlc ${route}`,
     );
   }
   return rendered
@@ -250,10 +258,18 @@ export function codexBundleFiles(
   );
   const toolScripts = codexRuntimeToolScripts(runtimePackageSource);
   const projectCommands = codexProjectCommands(coreDir);
-  const transformCore = (path: string, content: string): string =>
-    path.endsWith(".md")
-      ? transformCodexMarkdown(content, toolScripts, projectCommands)
-      : content;
+  const transformCore = (path: string, content: string): string => {
+    if (path.endsWith(".md")) {
+      return transformCodexMarkdown(content, toolScripts, projectCommands);
+    }
+    if (path === ".codex/tools/aidlc-codex-hook.ts") {
+      return content.replace(
+        '"../hooks/aidlc-sensor-fire.ts"',
+        '"../hooks/aidlc-sensor-core.ts"',
+      );
+    }
+    return content;
+  };
   files.set("AGENTS.md", requireFile(join(harnessDir, "AGENTS.md")));
   files.set(".codex/hooks.json", requireFile(join(harnessDir, "hooks.json")));
   files.set(
@@ -261,12 +277,8 @@ export function codexBundleFiles(
     runtimePackageSource,
   );
   files.set(
-    ".codex/pnpm-lock.yaml",
-    requireFile(join(harnessDir, "runtime", "pnpm-lock.yaml")),
-  );
-  files.set(
-    ".codex/pnpm-workspace.yaml",
-    requireFile(join(harnessDir, "runtime", "pnpm-workspace.yaml")),
+    ".codex/bun.lock",
+    requireFile(join(harnessDir, "runtime", "bun.lock")),
   );
   for (const tree of CORE_TREES) {
     collectTree(
@@ -418,7 +430,4 @@ function runCli(): void {
   process.exitCode = 1;
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) runCli();

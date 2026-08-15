@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { test } from "bun:test";
 import { birthIntentWithState } from "../core/tools/aidlc-intent.ts";
 import { initializeWorkspace } from "../core/tools/aidlc-workspace.ts";
 import {
@@ -66,10 +66,8 @@ test("worktree CLI creates, validates, lists, describes, and idempotently discar
   const beforePlan = readFileSync(planPath, "utf8");
   const beforeState = readFileSync(statePath, "utf8");
   const created = spawnSync(
-    "pnpm",
+    process.execPath,
     [
-      "exec",
-      "tsx",
       "core/tools/aidlc-worktree.ts",
       "create",
       "--project-dir",
@@ -88,10 +86,8 @@ test("worktree CLI creates, validates, lists, describes, and idempotently discar
   assert.equal(existsSync(path), true);
 
   const validated = spawnSync(
-    "pnpm",
+    process.execPath,
     [
-      "exec",
-      "tsx",
       "core/tools/aidlc-worktree.ts",
       "validate",
       "--project-dir",

@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import test from "node:test";
+import { test } from "bun:test";
 import { parseDocument } from "yaml";
 import {
   checkRunnerSkills,
@@ -57,8 +57,8 @@ test("runner generator derives Stage, Scope, init, and main Codex Skills", () =>
     join(skillsDir, "aidlc-mvp", "SKILL.md"),
     "utf8",
   );
-  assert.match(scopeRunner, /pnpm --dir \.codex run workspace init \.\./);
-  assert.match(scopeRunner, /pnpm --dir \.codex run state resume \.\./);
+  assert.match(scopeRunner, /bun run --cwd \.codex aidlc workspace init \.\./);
+  assert.match(scopeRunner, /bun run --cwd \.codex aidlc state resume \.\./);
   assert.equal(
     readFileSync(
       join(skillsDir, "aidlc-intent-capture", "agents", "openai.yaml"),

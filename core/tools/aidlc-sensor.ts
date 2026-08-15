@@ -18,6 +18,10 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  isCompiledExecutable,
+  runtimeCoreDir,
+} from "./aidlc-runtime-paths.ts";
 import { appendAuditEntry } from "./aidlc-audit.ts";
 import {
   type CompiledStage,
@@ -53,7 +57,7 @@ interface ProcessResult {
 }
 
 const TOOL_DIR = dirname(fileURLToPath(import.meta.url));
-const CORE_DIR = resolve(TOOL_DIR, "..");
+const CORE_DIR = runtimeCoreDir();
 const DEFAULT_TIMEOUT_SECONDS = 30;
 const MAX_CAPTURE = 1_000_000;
 
@@ -103,6 +107,9 @@ function sensorDefinition(id: string): SensorDefinition {
 }
 
 function commandTokens(sensor: SensorDefinition): string[] {
+  if (isCompiledExecutable()) {
+    return [process.execPath, "__sensor-script", sensor.id];
+  }
   const expanded = sensor.command.replaceAll("{{HARNESS_DIR}}", CORE_DIR);
   const tokens = expanded.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [];
   if (tokens.length === 0) throw new Error(`Sensor "${sensor.id}" has an empty command`);
@@ -331,8 +338,8 @@ function flagValue(args: readonly string[], flag: string): string | undefined {
   return index === -1 ? undefined : args[index + 1];
 }
 
-async function runCli(): Promise<void> {
-  const [command, id, ...args] = process.argv.slice(2);
+export async function main(argv: string[]): Promise<void> {
+  const [command, id, ...args] = argv;
   const projectDir = flagValue(args, "--project-dir") ?? process.cwd();
   if (command === "list") {
     console.log(JSON.stringify(
@@ -385,11 +392,8 @@ async function runCli(): Promise<void> {
   );
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) {
-  runCli().catch((error) => {
+if (import.meta.main) {
+  main(process.argv.slice(2)).catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
   });

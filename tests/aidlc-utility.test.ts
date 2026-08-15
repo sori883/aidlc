@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { test } from "bun:test";
 import {
   canonicalScopeTable,
   canonicalStageTable,
@@ -66,10 +66,8 @@ test("detectProject returns the upstream scan and resolved Scope registries", ()
 test("utility detect --json works without an initialized AI-DLC Workspace", () => {
   const projectDir = brownfieldFixture();
   const result = spawnSync(
-    "pnpm",
+    process.execPath,
     [
-      "exec",
-      "tsx",
       "core/tools/aidlc-utility.ts",
       "detect",
       "--project-dir",
@@ -142,8 +140,8 @@ test("scope-table and stage-table CLI commands emit their canonical regions", ()
     ["stage-table", canonicalStageTable()],
   ] as const) {
     const result = spawnSync(
-      "pnpm",
-      ["exec", "tsx", "core/tools/aidlc-utility.ts", command],
+      process.execPath,
+      ["core/tools/aidlc-utility.ts", command],
       { cwd: process.cwd(), encoding: "utf8" },
     );
     assert.equal(result.status, 0, result.stderr);
@@ -178,10 +176,8 @@ test("codekb-path is read-only and honours explicit Repo and JSON output", () =>
   const beforeState = readFileSync(born.state.statePath, "utf8");
   const beforeAudit = readFileSync(born.auditPath, "utf8");
   const plain = spawnSync(
-    "pnpm",
+    process.execPath,
     [
-      "exec",
-      "tsx",
       "core/tools/aidlc-utility.ts",
       "codekb-path",
       "--project-dir",
@@ -195,10 +191,8 @@ test("codekb-path is read-only and honours explicit Repo and JSON output", () =>
   assert.equal(plain.stdout, "aidlc/spaces/default/codekb/payment-api/\n");
 
   const json = spawnSync(
-    "pnpm",
+    process.execPath,
     [
-      "exec",
-      "tsx",
       "core/tools/aidlc-utility.ts",
       "codekb-path",
       "--project-dir",

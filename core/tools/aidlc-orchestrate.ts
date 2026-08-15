@@ -6,6 +6,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { runtimeCoreDir } from "./aidlc-runtime-paths.ts";
 import {
   type CompiledStage,
   loadCompiledStageGraph,
@@ -79,7 +80,7 @@ export interface ResolveNextOptions extends ArtifactResolutionOptions {
 }
 
 const TOOL_DIR = dirname(fileURLToPath(import.meta.url));
-const CORE_DIR = resolve(TOOL_DIR, "..");
+const CORE_DIR = runtimeCoreDir();
 const FORWARD_RESULTS = new Set<ReportResult>([
   "approved",
   "completed",
@@ -922,8 +923,8 @@ function flagValue(args: readonly string[], flag: string): string | undefined {
   return index === -1 ? undefined : args[index + 1];
 }
 
-function runCli(): void {
-  const [command, ...args] = process.argv.slice(2);
+export function main(argv: string[]): void {
+  const [command, ...args] = argv;
   const projectDir = flagValue(args, "--project-dir") ?? process.cwd();
   const usage =
     "Usage: aidlc-orchestrate next --project-dir <project-dir> [--unit <name>] " +
@@ -987,7 +988,4 @@ function runCli(): void {
   }));
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) main(process.argv.slice(2));
