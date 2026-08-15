@@ -6,6 +6,7 @@ import {
 } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { runtimeCoreDir } from "./aidlc-runtime-paths.ts";
 import { parseDocument } from "yaml";
 
 export const PHASES = [
@@ -68,9 +69,10 @@ export interface LoadStagesOptions {
 }
 
 const DEFAULT_CATALOG_PATH = resolve(
-  "core/aidlc-common/data/stage-catalog.json",
+  runtimeCoreDir(),
+  "aidlc-common/data/stage-catalog.json",
 );
-const DEFAULT_STAGES_DIR = resolve("core/aidlc-common/stages");
+const DEFAULT_STAGES_DIR = resolve(runtimeCoreDir(), "aidlc-common/stages");
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const NUMBER_PATTERN = /^\d+\.\d+$/;
 
@@ -461,7 +463,4 @@ function runCli(): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) runCli();

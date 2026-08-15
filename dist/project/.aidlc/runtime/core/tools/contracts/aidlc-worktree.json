@@ -1,0 +1,33 @@
+{
+  "tool": "aidlc-worktree.ts",
+  "commands": {
+    "create": {
+      "flags": ["--project-dir", "--slug", "--base", "--repo", "--intent", "--space"],
+      "results": []
+    },
+    "merge": {
+      "flags": ["--project-dir", "--slug", "--target", "--strategy", "--message", "--repo", "--intent", "--space"],
+      "results": []
+    },
+    "discard": {
+      "flags": ["--project-dir", "--slug", "--repo", "--intent", "--space"],
+      "results": []
+    },
+    "verify": {
+      "flags": ["--project-dir", "--event", "--slug", "--max-age-seconds", "--intent", "--space"],
+      "results": []
+    },
+    "validate": {
+      "flags": ["--project-dir", "--event", "--slug", "--max-age-seconds", "--intent", "--space"],
+      "results": []
+    },
+    "list": {
+      "flags": ["--project-dir", "--repo", "--intent", "--space"],
+      "results": []
+    },
+    "info": {
+      "flags": ["--project-dir", "--slug", "--intent", "--space"],
+      "results": []
+    }
+  }
+}

@@ -12,6 +12,12 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  isCompiledExecutable,
+  projectBinaryCommand,
+  runtimeCoreDir,
+  runtimeHarnessDir,
+} from "./aidlc-runtime-paths.ts";
+import {
   type CompiledStage,
   loadCompiledStageGraph,
 } from "./aidlc-graph.ts";
@@ -48,14 +54,16 @@ export interface RunnerCheckResult {
 }
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_SCOPES_DIR = resolve(MODULE_DIR, "../scopes");
+const DEFAULT_SCOPES_DIR = resolve(runtimeCoreDir(), "scopes");
 const DEFAULT_SKILLS_DIR = resolve(".agents/skills");
-const DEFAULT_AUTHORED_SKILL_DIR = resolve(
-  MODULE_DIR,
-  "../../harness/codex/skills/aidlc",
-);
+const DEFAULT_AUTHORED_SKILL_DIR = isCompiledExecutable()
+  ? resolve(runtimeHarnessDir(), ".agents/skills/aidlc")
+  : resolve(MODULE_DIR, "../../harness/codex/skills/aidlc");
 const OPENAI_YAML = "policy:\n  allow_implicit_invocation: false\n";
-const RUNTIME = "pnpm --dir .codex run";
+const RUNTIME = isCompiledExecutable()
+  ? projectBinaryCommand()
+  : "bun run --cwd .codex aidlc";
+const PROJECT_ARG = isCompiledExecutable() ? "." : "..";
 
 function portable(path: string): string {
   return path.replaceAll("\\", "/");
@@ -104,7 +112,7 @@ branch. Do not update the active Intent's Current Stage.
 
 1. Request the isolated directive:
 
-   \`${RUNTIME} orchestrate next --project-dir .. --stage ${stage.slug} --single\`
+   \`${RUNTIME} orchestrate next --project-dir ${PROJECT_ARG} --stage ${stage.slug} --single\`
 
 2. Preserve every \`load-steering\` part and repeat the same command with
    \`--continue-token <token>\` until \`run-stage\` is returned.
@@ -113,7 +121,7 @@ branch. Do not update the active Intent's Current Stage.
    isolated directive has \`single: true\` and \`gate: false\`.
 4. Record the isolated lifecycle:
 
-   \`${RUNTIME} orchestrate report --project-dir .. --stage ${stage.slug} --result completed --single\`
+   \`${RUNTIME} orchestrate report --project-dir ${PROJECT_ARG} --stage ${stage.slug} --result completed --single\`
 
 Stop after the \`done\` directive. Never report against the main workflow.
 `;
@@ -136,7 +144,7 @@ Run every command below from the repository root.
 
 1. Ensure the workspace shell exists:
 
-   \`${RUNTIME} workspace init ..\`
+   \`${RUNTIME} workspace init ${PROJECT_ARG}\`
 
 2. Parse \`$ARGUMENTS\` as an optional \`--scope <name>\` and a free-form
    description. Scope defaults to \`poc\`.
@@ -144,7 +152,7 @@ Run every command below from the repository root.
    description exists, use the scope name.
 4. Run:
 
-   \`${RUNTIME} intent birth .. "<label>" --scope <scope>\`
+   \`${RUNTIME} intent birth ${PROJECT_ARG} "<label>" --scope <scope>\`
 
 5. Print the result and stop. Continue later with \`$aidlc\`.
 `;
@@ -167,13 +175,13 @@ Read \`../aidlc/SKILL.md\` and follow the same engine loop with scope
 Run every command below from the repository root.
 
 1. Ensure the workspace shell exists:
-   \`${RUNTIME} workspace init ..\`.
+   \`${RUNTIME} workspace init ${PROJECT_ARG}\`.
 2. Inspect the active Intent with
-   \`${RUNTIME} intent list .. --json\`.
+   \`${RUNTIME} intent list ${PROJECT_ARG} --json\`.
 3. If no Intent exists, derive a concise label from \`$ARGUMENTS\` and birth it:
-   \`${RUNTIME} intent birth .. "<label>" --scope ${scope.name}\`.
+   \`${RUNTIME} intent birth ${PROJECT_ARG} "<label>" --scope ${scope.name}\`.
 4. If an active Intent exists, read its Scope with
-   \`${RUNTIME} state resume ..\`. If it differs from
+   \`${RUNTIME} state resume ${PROJECT_ARG}\`. If it differs from
    \`${scope.name}\`, stop and explain that Scope is fixed at Intent Birth;
    never rewrite its plan implicitly.
 5. Run the \`$aidlc\` forwarding loop until the engine returns \`done\`.
@@ -334,7 +342,4 @@ function runCli(): void {
   process.exitCode = 1;
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) runCli();

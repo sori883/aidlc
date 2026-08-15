@@ -5,6 +5,7 @@ import {
 } from "node:fs";
 import { join, posix, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { runtimeCoreDir } from "./aidlc-runtime-paths.ts";
 import { parseDocument } from "yaml";
 import {
   type LoadedStage,
@@ -31,7 +32,7 @@ export interface RuleResolution {
   scope: RuleScope;
 }
 
-const DEFAULT_MEMORY_DIR = resolve("core/memory");
+const DEFAULT_MEMORY_DIR = resolve(runtimeCoreDir(), "memory");
 const DEFAULT_DISPLAY_ROOT = "aidlc/spaces/default/memory";
 const BASE_RULE_PATTERN = /^(org|team|project)\.md$/;
 const PHASE_RULE_PATTERN = /^([a-z][a-z0-9-]*)\.md$/;
@@ -221,7 +222,4 @@ function runCli(): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) runCli();

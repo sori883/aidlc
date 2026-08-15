@@ -6,6 +6,7 @@ import {
 } from "node:fs";
 import { basename, join, posix, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { runtimeCoreDir } from "./aidlc-runtime-paths.ts";
 import { parseDocument } from "yaml";
 import {
   type LoadedStage,
@@ -37,7 +38,7 @@ export interface SensorResolution {
 }
 
 const MODULE_DIR = resolve(fileURLToPath(new URL(".", import.meta.url)));
-const DEFAULT_SENSORS_DIR = resolve(MODULE_DIR, "../sensors");
+const DEFAULT_SENSORS_DIR = resolve(runtimeCoreDir(), "sensors");
 const SENSOR_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SENSOR_FILE_PATTERN = /^aidlc-([a-z][a-z0-9-]*)\.md$/;
 
@@ -246,7 +247,4 @@ function runCli(): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) runCli();

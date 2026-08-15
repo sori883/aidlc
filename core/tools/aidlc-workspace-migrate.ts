@@ -220,8 +220,8 @@ export function migrateFlatLayout(
   });
 }
 
-function runCli(): void {
-  const [command, projectDir, flag, ...args] = process.argv.slice(2);
+export function main(argv: string[]): void {
+  const [command, projectDir, flag, ...args] = argv;
   if (
     command !== "migrate" ||
     projectDir === undefined ||
@@ -249,7 +249,4 @@ function runCli(): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) main(process.argv.slice(2));

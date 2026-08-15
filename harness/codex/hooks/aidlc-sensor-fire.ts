@@ -85,7 +85,4 @@ async function runCli(): Promise<void> {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) void runCli();
+if (import.meta.main) void runCli();

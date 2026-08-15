@@ -15,23 +15,23 @@ approval gates, question format, state tracking, and completion messages.
 Read that protocol before acting on every `run-stage` directive.
 
 Run every packaged command below from the repository root. If
-`.codex/node_modules/.bin/tsx` is absent, first run
-`pnpm --dir .codex install --frozen-lockfile`.
+`.codex/node_modules/yaml` is absent, first run
+`bun install --cwd .codex --frozen-lockfile`.
 
 ## Start or resume
 
 1. Ensure the workspace shell exists. This is idempotent:
 
-   `pnpm --dir .codex run workspace init ..`
+   `bun run --cwd .codex aidlc workspace init ..`
 
 2. Inspect the active Intent:
 
-   `pnpm --dir .codex run intent list .. --json`
+   `bun run --cwd .codex aidlc intent list .. --json`
 
 3. If none exists, ask for a Scope when it was not supplied, derive a concise
    label from the user's full description, and run:
 
-   `pnpm --dir .codex run intent birth .. "<label>" --scope <scope>`
+   `bun run --cwd .codex aidlc intent birth .. "<label>" --scope <scope>`
 
 4. Continue with the forwarding loop. Existing Intent State is authoritative;
    do not silently change its Scope.
@@ -40,7 +40,7 @@ Run every packaged command below from the repository root. If
 
 Run:
 
-`pnpm --dir .codex run orchestrate next --project-dir ..`
+`bun run --cwd .codex aidlc orchestrate next --project-dir ..`
 
 Act on exactly one returned Directive, then call `next` again when instructed.
 
@@ -55,7 +55,7 @@ subagent, reviewer, and revision turn.
 
 1. Initialize the diary at `memory_path`:
 
-   `pnpm --dir .codex run memory init --project-dir .. --memory-path "<memory_path>"`
+   `bun run --cwd .codex aidlc memory init --project-dir .. --memory-path "<memory_path>"`
 
 2. Read every path in `inline_context_paths`, then `stage_file`, existing
    `consumes`, and the assembled Rules. The inline roster already contains the
@@ -110,7 +110,7 @@ For a normal gated Stage:
 
 1. Surface candidates:
 
-   `pnpm --dir .codex run learnings surface --project-dir .. --slug <stage> [--unit <unit>]`
+   `bun run --cwd .codex aidlc learnings surface --project-dir .. --slug <stage> [--unit <unit>]`
 
 2. Follow `question-rendering.md`. Ask which candidates should persist to
    project/team Rules and always ask whether there is anything else to add.
@@ -120,12 +120,12 @@ For a normal gated Stage:
 4. Write the confirmed version-1 selections JSON under the active Intent's
    `.aidlc-learnings/` directory and run:
 
-   `pnpm --dir .codex run learnings persist --project-dir .. --slug <stage> --selections-json <path> [--unit <unit>]`
+   `bun run --cwd .codex aidlc learnings persist --project-dir .. --slug <stage> --selections-json <path> [--unit <unit>]`
 
 5. Present the Stage outputs and ask for approval. Only a real user approval
    allows:
 
-   `pnpm --dir .codex run orchestrate report --project-dir .. --stage <stage> --result approved [--unit <unit>]`
+   `bun run --cwd .codex aidlc orchestrate report --project-dir .. --stage <stage> --result approved [--unit <unit>]`
 
 For initialization, report `completed`. On `single: true`, skip the human gate
 and use the isolated report command from the invoking Stage runner. A single
@@ -140,7 +140,7 @@ Print the reason concisely and stop.
 Print the exact message, stop mutation, and explain the smallest recovery step.
 For missing, malformed, or inconsistent Workspace/Intent/State data, run:
 
-`pnpm --dir .codex run doctor check --project-dir ..`
+`bun run --cwd .codex aidlc doctor check --project-dir ..`
 
 Use `doctor repair` only when the report marks the finding `automatic`; never
 replace a manual finding with inferred progress or approval.
@@ -152,7 +152,7 @@ flags on every `load-steering` continuation. Execute the returned `run-stage`
 normally, including topology, Reviewer, diary, and outputs, but respect
 `single: true` and `gate: false`. Finish only with:
 
-`pnpm --dir .codex run orchestrate report --project-dir .. --stage <slug> --result completed --single`
+`bun run --cwd .codex aidlc orchestrate report --project-dir .. --stage <slug> --result completed --single`
 
 The synthetic audit lifecycle must not change the active Intent State.
 

@@ -4,6 +4,7 @@
 
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { runtimeCoreDir } from "./aidlc-runtime-paths.ts";
 import {
   cliHasCommand,
   cliUnknownFlags,
@@ -32,6 +33,7 @@ const UTILITY_COMMANDS = [
   "recompose",
 ] as const;
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+const RUNTIME_CORE_DIR = runtimeCoreDir();
 const SCOPE_TABLE_BEGIN =
   "<!-- BEGIN: compiled scope grid - do NOT hand-edit -->";
 const SCOPE_TABLE_END = "<!-- END: compiled scope grid -->";
@@ -98,7 +100,7 @@ export function resolveCodekbPath(
 /** Read the project and name the exact Scope registries used by this runtime. */
 export function detectProject(projectDir: string): UtilityDetectResult {
   const scan = detectWorkspace(projectDir);
-  const scopesDir = resolve(MODULE_DIR, "../scopes");
+  const scopesDir = resolve(RUNTIME_CORE_DIR, "scopes");
   return {
     projectType: scan.projectType,
     languages: scan.languages,
@@ -107,7 +109,7 @@ export function detectProject(projectDir: string): UtilityDetectResult {
     ...(scan.nestedRoot === undefined ? {} : { nestedRoot: scan.nestedRoot }),
     submodules: scan.submodules,
     scopesDir,
-    scopeGridPath: resolve(MODULE_DIR, "../aidlc-common/data/scope-grid.json"),
+    scopeGridPath: resolve(RUNTIME_CORE_DIR, "aidlc-common/data/scope-grid.json"),
     scopes: loadScopes(scopesDir).map((scope) => scope.name),
   };
 }
@@ -196,8 +198,8 @@ function flagValue(args: readonly string[], flag: string): string | undefined {
   return value;
 }
 
-function runCli(): void {
-  const [command, ...args] = process.argv.slice(2);
+export function main(argv: string[]): void {
+  const [command, ...args] = argv;
   const usage =
     "Usage: aidlc-utility detect [--project-dir <path>] [--json]\n" +
     "       aidlc-utility scope-table\n" +
@@ -260,7 +262,4 @@ function runCli(): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) main(process.argv.slice(2));

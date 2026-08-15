@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
+import { runtimeCoreDir } from "./aidlc-runtime-paths.ts";
 
 export interface CliCommandContract {
   flags: string[];
@@ -12,8 +12,7 @@ export interface CliContract {
   commands: Record<string, CliCommandContract>;
 }
 
-const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_CONTRACTS_DIR = join(MODULE_DIR, "contracts");
+const DEFAULT_CONTRACTS_DIR = join(runtimeCoreDir(), "tools", "contracts");
 const TOOL_PATTERN = /^aidlc-[a-z0-9-]+\.ts$/;
 const TOKEN_PATTERN = /^--[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const VALUE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "bun:test";
 import { parseUnitDag } from "../core/tools/aidlc-unit-graph.ts";
 
 const DAG = `# Unit dependencies

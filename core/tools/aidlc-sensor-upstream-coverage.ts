@@ -1,3 +1,7 @@
 import { runSensorCheckerCli } from "./aidlc-sensor-checkers.ts";
 
-runSensorCheckerCli("upstream-coverage");
+export function main(argv: string[]): void {
+  runSensorCheckerCli("upstream-coverage", argv);
+}
+
+if (import.meta.main) main(process.argv.slice(2));

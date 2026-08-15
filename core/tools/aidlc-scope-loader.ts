@@ -6,6 +6,7 @@ import {
 } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { runtimeCoreDir } from "./aidlc-runtime-paths.ts";
 import { parseDocument } from "yaml";
 import {
   type LoadedStage,
@@ -34,7 +35,7 @@ export interface ScopeGridLike {
 }
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_SCOPES_DIR = resolve(MODULE_DIR, "../scopes");
+const DEFAULT_SCOPES_DIR = resolve(runtimeCoreDir(), "scopes");
 const SCOPE_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const FRONTMATTER_KEYS = new Set([
   "name",
@@ -241,7 +242,4 @@ function runCli(): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) runCli();

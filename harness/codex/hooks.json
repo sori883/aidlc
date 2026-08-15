@@ -7,8 +7,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CODEX_PROJECT_DIR=\"$(git rev-parse --show-toplevel)\" pnpm --dir \"$(git rev-parse --show-toplevel)/.codex\" run sensor-hook",
-            "commandWindows": "powershell -NoProfile -Command \"$root = (git rev-parse --show-toplevel); $env:CODEX_PROJECT_DIR = $root; pnpm --dir \\\"$root/.codex\\\" run sensor-hook\"",
+            "command": "CODEX_PROJECT_DIR=\"$PWD\" bun run --cwd \"$PWD/.codex\" sensor-hook",
+            "commandWindows": "powershell -NoProfile -Command \"$root = (Get-Location).Path; $env:CODEX_PROJECT_DIR = $root; bun run --cwd \\\"$root/.codex\\\" sensor-hook\"",
             "timeout": 30,
             "statusMessage": "Running advisory AI-DLC Sensors"
           }

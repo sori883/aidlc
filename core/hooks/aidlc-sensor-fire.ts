@@ -124,10 +124,7 @@ async function runCli(): Promise<void> {
   await runSensorFireHook(projectDir, payload);
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) {
+if (import.meta.main) {
   runCli().catch(() => {
     // Hooks are advisory and always exit successfully.
   });

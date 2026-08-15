@@ -7,7 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import test from "node:test";
+import { test } from "bun:test";
 import type { RunStageDirective } from "../core/tools/aidlc-directive.ts";
 import { checkDoctor } from "../core/tools/aidlc-doctor.ts";
 import {
@@ -214,38 +214,36 @@ function finishWorkflow(
   throw new Error(`Workflow did not finish after ${maxExecutions} executions`);
 }
 
-test("every Scope completes through the graph-backed workflow", { timeout: 60_000 }, async (t) => {
-  for (const scope of SCOPES) {
-    await t.test(scope, () => {
-      const fixture = freshBrownfieldProject(scope);
-      const executions = finishWorkflow(fixture.projectDir, fixture.recordDir);
-      assert.ok(executions > 0);
+for (const scope of SCOPES) {
+  test(`Scope ${scope} completes through the graph-backed workflow`, () => {
+    const fixture = freshBrownfieldProject(scope);
+    const executions = finishWorkflow(fixture.projectDir, fixture.recordDir);
+    assert.ok(executions > 0);
 
-      const resume = resumeIntentState(fixture.projectDir);
-      assert.equal(resume.scope, scope);
-      assert.equal(resume.status, "Completed");
-      assert.equal(resume.currentStage, "none");
-      assert.equal(resume.lifecyclePhase, "READY");
-      assert.equal(resume.activeAgent, "");
-      assert.equal(resume.completed, resume.totalStages);
-      assert.equal(resolveNextDirective(fixture.projectDir).kind, "done");
+    const resume = resumeIntentState(fixture.projectDir);
+    assert.equal(resume.scope, scope);
+    assert.equal(resume.status, "Completed");
+    assert.equal(resume.currentStage, "none");
+    assert.equal(resume.lifecyclePhase, "READY");
+    assert.equal(resume.activeAgent, "");
+    assert.equal(resume.completed, resume.totalStages);
+    assert.equal(resolveNextDirective(fixture.projectDir).kind, "done");
 
-      const registry = readIntentRegistry(fixture.projectDir);
-      assert.equal(
-        registry.find((entry) => entry.dirName === fixture.dirName)?.status,
-        "complete",
-      );
-      assert.match(
-        readFileSync(fixture.auditPath, "utf8"),
-        /\*\*Event\*\*: WORKFLOW_COMPLETED/,
-      );
-      const doctor = checkDoctor(fixture.projectDir);
-      assert.equal(doctor.healthy, true, JSON.stringify(doctor, null, 2));
-    });
-  }
-});
+    const registry = readIntentRegistry(fixture.projectDir);
+    assert.equal(
+      registry.find((entry) => entry.dirName === fixture.dirName)?.status,
+      "complete",
+    );
+    assert.match(
+      readFileSync(fixture.auditPath, "utf8"),
+      /\*\*Event\*\*: WORKFLOW_COMPLETED/,
+    );
+    const doctor = checkDoctor(fixture.projectDir);
+    assert.equal(doctor.healthy, true, JSON.stringify(doctor, null, 2));
+  }, 60_000);
+}
 
-test("a per-Unit workflow resumes from the next persisted Unit", { timeout: 30_000 }, () => {
+test("a per-Unit workflow resumes from the next persisted Unit", () => {
   const fixture = freshBrownfieldProject("mvp");
   let directive = runnableDirective(fixture.projectDir);
   while (directive !== null && directive.stage !== "functional-design") {
@@ -270,4 +268,4 @@ test("a per-Unit workflow resumes from the next persisted Unit", { timeout: 30_0
   const remaining = finishWorkflow(fixture.projectDir, fixture.recordDir);
   assert.ok(remaining > 0);
   assert.equal(resumeIntentState(fixture.projectDir).status, "Completed");
-});
+}, 30_000);

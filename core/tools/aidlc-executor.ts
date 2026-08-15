@@ -23,6 +23,7 @@ import {
   type SteeringRuleContent,
 } from "./aidlc-steering.ts";
 import { ensureStageMemory } from "./aidlc-memory.ts";
+import { runtimeCoreDir } from "./aidlc-runtime-paths.ts";
 
 export type AgentPurpose =
   | "build"
@@ -111,8 +112,7 @@ export interface AgentAdapter {
   invoke(request: AgentInvocation): Promise<AgentResult>;
 }
 
-const TOOL_DIR = dirname(fileURLToPath(import.meta.url));
-const CORE_DIR = resolve(TOOL_DIR, "..");
+const CORE_DIR = runtimeCoreDir();
 
 function personaPath(role: string): string {
   return join(CORE_DIR, "agents", `${role}.md`);
@@ -659,7 +659,4 @@ function runCli(): void {
   }
 }
 
-const entryPath = process.argv[1] === undefined
-  ? undefined
-  : pathToFileURL(resolve(process.argv[1])).href;
-if (entryPath === import.meta.url) runCli();
+if (import.meta.main) runCli();

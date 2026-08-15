@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { test } from "bun:test";
 import { birthIntentWithState } from "../core/tools/aidlc-intent.ts";
 import {
   addStagesToExecutionPlan,
@@ -53,10 +53,8 @@ test("recompose adds a pending forward Stage to Plan, State, routing, and Audit"
 test("recompose CLI accepts --add and returns the recomposed plan as JSON", () => {
   const fixture = runningBugfix();
   const result = spawnSync(
-    "pnpm",
+    process.execPath,
     [
-      "exec",
-      "tsx",
       "core/tools/aidlc-utility.ts",
       "recompose",
       "--project-dir",

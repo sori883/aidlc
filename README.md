@@ -1,69 +1,99 @@
 # AI-DLC v2 for Codex
 
-AI-DLC v2のStage、Agent、Sensor、Rule、Scopeを、Codexから実行するためのTypeScript実装です。
+AI-DLC v2のStage、Agent、Sensor、Rule、ScopeをCodexから実行するためのTypeScript実装です。現在のリリースバージョンは`0.6.0`です。
 
 AIが自由に次の作業を決めるのではなく、コンパイル済みのStage Graph、Scope、永続化されたStateに従ってWorkflowを進めます。人間は目的とScopeを伝え、質問に回答し、Stageの成果物を確認して承認します。
 
-## 必要な環境
+最初に対応しているハーネスはCodexです。
 
-- Node.js
-- pnpm 11系
-- Git
+## 利用方法
+
+用途に応じて次のどちらかを選択します。
+
+| 用途 | 配布／実行方法 | Node.js | Bun |
+|---|---|---:|---:|
+| ユーザー向け | 初回・更新は`install.mjs`、Workflowは`.aidlc/bin/aidlc` | 配布時のみ必要 | 不要 |
+| ソース／開発用 | `bun run ...` | 不要 | 必要 |
+
+公開GitHub Releaseの`install.mjs`は、OSに合うネイティブバイナリ、Core Runtimeデータ、Codex Harnessを別々に取得してプロジェクトへ配置します。npm、npx、認証、トークンは使用しません。導入後のWorkspace、Intent、State、Doctor、Sensorなどは、すべてBunランタイム内蔵の単一実行ファイルが処理します。
+
+ネイティブバイナリに含むのは、本家でBunから実行するTypeScriptコード、そのコード依存、Bunランタイムです。Stage、Rule、Sensor定義などのCoreデータと、`AGENTS.md`、Skills、Hooks、Agent TOMLなどのCodex Harnessは通常ファイルとして外部配置します。
+
+## ユーザー向けの必要環境
+
+- Node.js 22以上（初回導入と更新のみ）
 - Codex Desktop、Codex CLI、またはCodex IDE Extension
 
-## 新しいプロジェクトへ導入する
+Gitリポジトリである必要はありません。Git、Bun、npm、npx、pnpm、tsxを利用者がインストールする必要もありません。配布物は公開GitHub Releaseと公開リポジトリから匿名で取得します。
 
-以下では、AI-DLCリポジトリと同じ親ディレクトリに`my-project`を作る例を使用します。別の場所へ導入する場合は、`../my-project`を任意の導入先に置き換えてください。
+## 対応ターゲット
 
-### 1. AI-DLC本体を取得する
+`0.6.0`ではInstallerが`os`、`cpu`、Linuxの`libc`に基づいて次の7種類から選択します。
 
-```bash
-git clone https://github.com/sori883/aidlc.git
-cd aidlc
-pnpm install --frozen-lockfile
-```
+| ターゲット | 用途 |
+|---|---|
+| `darwin-x64` | Intel Mac |
+| `darwin-arm64` | Apple Silicon Mac |
+| `linux-x64` | glibc系x64 Linux（古いCPUにも対応するbaselineビルド） |
+| `linux-arm64` | glibc系ARM64 Linux |
+| `linux-x64-musl` | musl系x64 Linux |
+| `linux-arm64-musl` | musl系ARM64 Linux |
+| `windows-x64` | x64 Windows |
 
-### 2. Codex用バンドルを生成する
+開発用ビルド行列には`native`とLinux x64のmodern/baselineを含む9ターゲットがあります。GitHub Releaseでは互換性を優先し、glibc x64をbaselineへ統一します。
 
-導入先は、空または存在しないフォルダーを指定します。macOSが作成する`.DS_Store`だけが存在するフォルダーも使用できます。
+## AI-DLCをプロジェクトへ導入する
 
-```bash
-pnpm bundle:write --out ../my-project
-```
+### 1. 公開GitHub Releaseから配置する
 
-このコマンドは、CodexからAI-DLCを実行するためのSkill、Agent、Stage定義、TypeScriptランタイムを導入先へ生成します。
-
-> バンドルWriterは利用者のファイルを守るため、`aidlc-bundle.json`がない非空フォルダーを上書きしません。既存プロジェクトへ初めて導入する場合は、後述の「既存プロジェクトへ導入する」を参照してください。
-
-### 3. 配布ランタイムの依存関係をインストールする
+Node.js 22以上を使用し、最初にバージョン固定のInstallerを取得します。
 
 ```bash
-pnpm --dir ../my-project/.codex install --frozen-lockfile
+curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.0/install.mjs
 ```
 
-`tsx`と`yaml`は`.codex/node_modules/`へ導入されます。グローバルインストールは不要です。
-
-### 4. 導入結果を検査する
+対象プロジェクトのルートで明示的にインストールします。
 
 ```bash
-pnpm bundle:check --out ../my-project
-pnpm --dir ../my-project/.codex run contract check
+node install.mjs install --harness codex --project .
 ```
 
-次の2つが表示されれば導入成功です。
+Installerは公開Releaseから現在のOS用バイナリ1個を、タグ`v0.6.0`の`dist/project/`からCoreデータとCodex Harnessを取得し、全SHA-256を検証します。既存の管理外ファイルと競合した場合や、通信・検証に失敗した場合は何も上書きせず終了します。
+
+配置結果は次の構成です。
 
 ```text
-Codex bundle is in sync at .../my-project.
-Runtime contract is valid (46 documents checked).
+<project>/
+├── .aidlc/
+│   ├── bin/
+│   │   └── aidlc          # Windowsの実体はaidlc.exe
+│   ├── runtime/core/
+│   └── installation.json
+├── .agents/
+├── .codex/
+└── AGENTS.md
 ```
 
-### 5. Codex Desktopで開始する
+`.aidlc/installation.json`にはInstallerが管理するファイルのSHA-256、Releaseタグ、バイナリターゲットが記録されます。`aidlc/`はWorkspaceデータであり、この配布管理の対象外です。
 
-1. Codex Desktopで生成した`my-project`をプロジェクトとして開きます。
+### 2. ネイティブバイナリを確認する
+
+macOS、Linux、Windows PowerShellで共通の相対表記を使用できます。
+
+```bash
+./.aidlc/bin/aidlc --version
+./.aidlc/bin/aidlc graph compile --check
+```
+
+バージョンには`aidlc 0.6.0`、Graph検証には`32 stages`と表示されます。この時点ではWorkspaceがまだないため、Doctorの`workspace.missing`は異常ではありません。
+
+### 3. Codexで開始する
+
+1. Codex Desktopで対象プロジェクトを開きます。
 2. 入力欄のSkillsから`AI-DLC`を選択します。
 3. 作りたいものとScopeを自然文で依頼します。
 
-例：
+例:
 
 ```text
 AI-DLCを使って、ブログをMVPスコープで開発してください。
@@ -81,28 +111,15 @@ AI-DLCを使って、ブログをMVPスコープで開発してください。
 
 人間が事前に`workspace init`や`intent birth`を実行する必要はありません。Scopeを指定しなかった場合はCodexが確認します。Hookの信頼確認が表示された場合は、内容を確認して許可してください。
 
-## 生成されるファイル
+WorkspaceとIntentが作成された後、配布資産とWorkflow Stateを診断します。
 
-バンドル生成直後は次の構成になります。
-
-```text
-my-project/
-├── AGENTS.md
-├── aidlc-bundle.json
-├── .agents/
-│   └── skills/
-│       └── aidlc/
-└── .codex/
-    ├── package.json
-    ├── tools/
-    ├── agents/
-    ├── aidlc-common/
-    ├── knowledge/
-    ├── sensors/
-    └── hooks/
+```bash
+./.aidlc/bin/aidlc doctor check --project-dir .
 ```
 
-最初のWorkflowを開始すると、さらに`aidlc/`が作成されます。
+## Workflowで生成されるファイル
+
+最初のWorkflowを開始すると、対象プロジェクトに`aidlc/`が作成されます。
 
 ```text
 aidlc/
@@ -139,39 +156,6 @@ aidlc/
 
 `aidlc-state.md`、`.aidlc-plan.json`、Audit Markdownは直接編集しないでください。StateとAuditはAI-DLCランタイムが更新します。
 
-## AI-DLCを更新する
-
-AI-DLCリポジトリのルートで本体を更新し、同じ出力先にもう一度バンドルを生成します。
-
-```bash
-git switch main
-git pull --ff-only
-pnpm install --frozen-lockfile
-
-pnpm bundle:write --out ../my-project
-pnpm --dir ../my-project/.codex install --frozen-lockfile
-pnpm bundle:check --out ../my-project
-```
-
-更新時に削除されるのは、以前の`aidlc-bundle.json`でAI-DLC生成物として管理され、最新版では不要になったファイルだけです。利用者のソースコードや`aidlc/`内のState、Audit、成果物は保持されます。
-
-## 既存プロジェクトへ導入する
-
-初回のバンドル生成は、管理対象ではない非空フォルダーを上書きしません。既存プロジェクトへ導入する場合は、空のステージングフォルダーへ生成して、次をプロジェクトルートへマージします。
-
-- `AGENTS.md`
-- `aidlc-bundle.json`
-- `.agents/`
-- `.codex/`
-
-既存の`AGENTS.md`や`.codex/`と衝突する場合は、上書き前に内容を確認してください。マージ後はプロジェクトルートで次を実行します。
-
-```bash
-pnpm --dir .codex install --frozen-lockfile
-pnpm --dir .codex run contract check
-pnpm --dir .codex run doctor check --project-dir ..
-```
-
 ## Workflowを再開する
 
 同じプロジェクトをCodexで開き、`AI-DLC` Skillを選択して依頼します。
@@ -183,7 +167,7 @@ AI-DLCを使って、現在のIntentを再開してください。
 現在位置は、プロジェクトルートから次のコマンドでも確認できます。
 
 ```bash
-pnpm --dir .codex run state resume ..
+./.aidlc/bin/aidlc state resume .
 ```
 
 Codexのセッションが変わっても、保存されたStateから再開します。
@@ -209,18 +193,18 @@ Codexのセッションが変わっても、保存されたStateから再開し�
 - **Space**: チームやプロジェクトのMemory、Knowledge、Intentを分離する単位
 - **Intent**: 1つの開発目的に対応するWorkflow記録
 
-一覧表示：
+一覧表示:
 
 ```bash
-pnpm --dir .codex run space list ..
-pnpm --dir .codex run intent list ..
+./.aidlc/bin/aidlc space list .
+./.aidlc/bin/aidlc intent list .
 ```
 
-切り替え：
+切り替え:
 
 ```bash
-pnpm --dir .codex run space switch .. <space-name>
-pnpm --dir .codex run intent switch .. <intent-name>
+./.aidlc/bin/aidlc space switch . <space-name>
+./.aidlc/bin/aidlc intent switch . <intent-name>
 ```
 
 切り替えはアクティブな参照先だけを変更し、IntentのState本文やStatusを変更しません。
@@ -230,30 +214,107 @@ pnpm --dir .codex run intent switch .. <intent-name>
 Workspace、Intent、State、Plan、Audit、Unit DAG、生成SkillをDoctorで診断できます。
 
 ```bash
-pnpm --dir .codex run doctor check --project-dir ..
+./.aidlc/bin/aidlc doctor check --project-dir .
 ```
 
-Doctorが`automatic`と判定した項目だけを修復する場合は、次を実行します。
+Doctorが`automatic`と判定した項目だけを修復する場合:
 
 ```bash
-pnpm --dir .codex run doctor repair --project-dir ..
+./.aidlc/bin/aidlc doctor repair --project-dir .
 ```
 
 `manual`と表示された問題は自動推測されません。診断内容を確認して人間が判断してください。
 
-## 開発者向け検査
+## 更新する
 
-このリポジトリ自体を変更した場合は、リリース検査を一括実行します。
+更新先バージョンのInstallerを取得し、対象プロジェクトのルートで実行します。
 
 ```bash
-pnpm release:check
+curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mjs
+node install.mjs update --harness codex --project .
+./.aidlc/bin/aidlc doctor check --project-dir .
 ```
 
-このコマンドは次を順番に実行します。
+更新前のハッシュと一致する管理対象ファイルだけを置換します。利用者が編集した`AGENTS.md`、Skill、Hookなどがある場合は、競合パスを表示して全更新を中止します。プロジェクトの`aidlc/`にあるWorkspace、Intent、State、Audit、成果物は更新対象になりません。
 
-- TypeScriptの型チェック
-- 32 Stageのコンパイル済みGraph整合性チェック
-- Stage／Agent本文とCLI実装のRuntime Contractチェック
-- 全自動テスト
+詳しい導入、更新、ローカルHTTP配布テストは[GitHub Release＋ネイティブバイナリ配布](docs/release-packaging.md)を参照してください。
 
-現在は、全9 Scope、Doctor、Codexバンドル生成、実Stage本文のCLI実行をE2Eで検証しています。最初に対応しているハーネスはCodexです。
+## 開発者向けセットアップ
+
+ここからの手順はAI-DLC自体を開発する人向けです。Bun 1.3系とGitが必要です。
+
+```bash
+git clone https://github.com/sori883/aidlc.git
+cd aidlc
+bun install --frozen-lockfile
+```
+
+### ソースからCodexバンドルを生成する
+
+空または存在しない導入先を指定します。
+
+```bash
+bun run bundle:write --out ../my-project
+bun install --cwd ../my-project/.codex --frozen-lockfile
+bun run bundle:check --out ../my-project
+bun run --cwd ../my-project/.codex aidlc contract check
+```
+
+ソース生成バンドルは開発用TypeScriptランタイムを含むため、生成先でもBunによる依存インストールが必要です。ユーザー向けバイナリ配布物にはこの手順はありません。
+
+バンドルWriterは`aidlc-bundle.json`がない非空フォルダーを上書きしません。既存プロジェクトへ導入する場合は空のステージングフォルダーへ生成し、`AGENTS.md`、`aidlc-bundle.json`、`.agents/`、`.codex/`を内容確認のうえマージしてください。
+
+### 開発検査
+
+```bash
+bun run release:check
+```
+
+このコマンドは型チェック、32 StageのGraph整合性、46文書のRuntime Contract、全自動テストを実行します。全9 Scope、Doctor、Codexバンドル生成、実Stage本文のCLI実行をE2Eで検証します。
+
+### バイナリをビルドする
+
+現在の開発ホスト向け:
+
+```bash
+bun run binary:build
+```
+
+9ターゲットすべて:
+
+```bash
+bun run binary:build:all
+```
+
+成果物は`build/binaries/<target>/`へ生成されます。実行ファイルはHarness-neutralです。`project-layout/`はSmoke Test用の分離済みCore Runtime／Codex Harnessであり、バイナリには埋め込まれません。
+
+### GitHub Release配布物を作る
+
+追跡するCore Runtime／Codex Harness配布ツリーを更新します。
+
+```bash
+bun run distribution:write
+bun run distribution:check
+```
+
+公開用の全ターゲット、Installer、Manifest、SHA256SUMSを生成します。
+
+```bash
+bun run package:github
+```
+
+外部のCoreデータとCodex Harnessは`dist/project/`、Release Assetは`build/github-release/`へ生成されます。npmパッケージや利用者向けアーカイブは作成しません。
+
+現在の開発ホストだけで公開HTTP相当の配布E2Eを実行します。
+
+```bash
+bun test tests/aidlc-github-distribution.test.ts
+```
+
+`main`へ変更がマージされると`.github/workflows/ci-main.yml`がRelease Gateを
+実行します。そのコミットの試験成功後に、`package.json`と同じバージョンの
+`v*`タグを設定してpushすると、`.github/workflows/release-github.yml`が
+配布物だけを生成してGitHub Releaseを公開します。mainへ未マージのタグ、
+試験未完了／失敗のコミット、既存Releaseと同じタグは公開されません。
+
+リリース行列とCIの詳細は[Bun移行計画](docs/bun-migration-plan.md)、配布物の運用手順は[GitHub Release＋ネイティブバイナリ配布](docs/release-packaging.md)を参照してください。

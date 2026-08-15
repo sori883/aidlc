@@ -1,3 +1,7 @@
 import { runSensorCheckerCli } from "./aidlc-sensor-checkers.ts";
 
-runSensorCheckerCli("claim-sources");
+export function main(argv: string[]): void {
+  runSensorCheckerCli("claim-sources", argv);
+}
+
+if (import.meta.main) main(process.argv.slice(2));
