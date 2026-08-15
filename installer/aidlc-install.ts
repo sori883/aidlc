@@ -13,6 +13,7 @@ import {
   mkdtempSync,
   readFileSync,
   renameSync,
+  rmdirSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -97,6 +98,7 @@ interface InstallResult {
   distribution_target: string;
   written: string[];
   unchanged: string[];
+  removed: string[];
   conflicts: string[];
   dry_run: boolean;
 }
@@ -111,7 +113,14 @@ const RAW_PROJECT_ROOT = (
   process.env.AIDLC_RAW_PROJECT_ROOT ??
   `https://raw.githubusercontent.com/${REPOSITORY}/${RELEASE_TAG}/dist/project`
 ).replace(/\/$/, "");
-const INSTALLATION_MANIFEST = ".aidlc/installation.json";
+interface PreviousInstallation {
+  manifest: InstallationManifest;
+  path: string;
+  legacyLayout: boolean;
+}
+
+const INSTALLATION_MANIFEST = ".codex/aidlc-installation.json";
+const LEGACY_INSTALLATION_MANIFEST = ".aidlc/installation.json";
 const DISTRIBUTION_MANIFEST_ASSET = "aidlc-distribution.json";
 const DOWNLOAD_TIMEOUT_MS = 120_000;
 const DOWNLOAD_CONCURRENCY = 12;
@@ -369,7 +378,7 @@ async function sourceFiles(): Promise<{
     binary,
     files: [
       {
-        path: portable(join(".aidlc", "bin", executableName)),
+        path: portable(join(".codex", "tools", executableName)),
         content: binaryContent,
         executable: true,
       },
@@ -402,16 +411,45 @@ function hasUnsafeAncestor(projectDir: string, path: string): boolean {
   return false;
 }
 
-function readManifest(projectDir: string): InstallationManifest | null {
-  const path = safeDestination(projectDir, INSTALLATION_MANIFEST);
-  if (!existsSync(path)) return null;
+function readManifest(projectDir: string): PreviousInstallation | null {
+  const manifestPath = [INSTALLATION_MANIFEST, LEGACY_INSTALLATION_MANIFEST]
+    .find((candidate) => existsSync(safeDestination(projectDir, candidate)));
+  if (manifestPath === undefined) return null;
+  if (hasUnsafeAncestor(projectDir, manifestPath)) {
+    throw new Error(`Unsafe installation manifest: ${manifestPath}`);
+  }
+  const path = safeDestination(projectDir, manifestPath);
+  if (!lstatSync(path).isFile()) throw new Error(`Invalid installation manifest: ${path}`);
   const value = JSON.parse(readFileSync(path, "utf8")) as InstallationManifest;
   if (
     value.format !== "aidlc-project-installation" ||
     (value.schema_version !== 1 && value.schema_version !== 2) ||
     !Array.isArray(value.files)
   ) throw new Error(`Invalid installation manifest: ${path}`);
-  return value;
+  return {
+    manifest: value,
+    path: manifestPath,
+    legacyLayout: manifestPath === LEGACY_INSTALLATION_MANIFEST,
+  };
+}
+
+function pruneEmptyManagedDirectories(projectDir: string, paths: readonly string[]): void {
+  const directories = new Set<string>();
+  for (const path of paths) {
+    let current = dirname(safeDestination(projectDir, path));
+    while (current !== projectDir) {
+      directories.add(current);
+      current = dirname(current);
+    }
+  }
+  for (const directory of [...directories].sort((left, right) => right.length - left.length)) {
+    try {
+      rmdirSync(directory);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT" && code !== "ENOTEMPTY" && code !== "EEXIST") throw error;
+    }
+  }
 }
 
 function atomicWrite(path: string, content: Buffer, executable: boolean): void {
@@ -446,16 +484,23 @@ async function install(options: CliOptions): Promise<InstallResult> {
       throw new Error(`Project is not a safe directory: ${options.projectDir}`);
     }
   }
-  const previous = readManifest(options.projectDir);
-  if (options.command === "update" && previous === null) {
+  const previousInstallation = readManifest(options.projectDir);
+  if (options.command === "update" && previousInstallation === null) {
     throw new Error("AI-DLC is not installed; run the install command first");
   }
 
   const distribution = await sourceFiles();
   const sources = distribution.files;
+  const previous = previousInstallation?.manifest ?? null;
   const previousFiles = new Map((previous?.files ?? []).map((file) => [file.path, file]));
+  const sourcePaths = new Set(sources.map((source) => source.path));
+  const retired = previousInstallation?.legacyLayout === true
+    ? (previous?.files ?? []).filter((file) =>
+      file.path.startsWith(".aidlc/") && !sourcePaths.has(file.path))
+    : [];
   const written: string[] = [];
   const unchanged: string[] = [];
+  const removed: string[] = [];
   const conflicts: string[] = [];
 
   for (const source of sources) {
@@ -483,15 +528,30 @@ async function install(options: CliOptions): Promise<InstallResult> {
     else conflicts.push(source.path);
   }
 
+  for (const managed of retired) {
+    const destination = safeDestination(options.projectDir, managed.path);
+    if (hasUnsafeAncestor(options.projectDir, managed.path)) {
+      conflicts.push(managed.path);
+      continue;
+    }
+    if (!existsSync(destination)) continue;
+    if (!lstatSync(destination).isFile() || digest(readFileSync(destination)) !== managed.sha256) {
+      conflicts.push(managed.path);
+      continue;
+    }
+    removed.push(managed.path);
+  }
+
   const executableName = process.platform === "win32" ? "aidlc.exe" : "aidlc";
   const result: InstallResult = {
     command: options.command,
     version: AIDLC_VERSION,
     project: options.projectDir,
-    executable: portable(join(".aidlc", "bin", executableName)),
+    executable: portable(join(".codex", "tools", executableName)),
     distribution_target: distribution.binary.target,
     written: written.sort(),
     unchanged: unchanged.sort(),
+    removed: removed.sort(),
     conflicts: conflicts.sort(),
     dry_run: options.dryRun,
   };
@@ -512,9 +572,11 @@ async function install(options: CliOptions): Promise<InstallResult> {
     bytes: source.content.byteLength,
     executable: source.executable,
   }));
-  for (const managed of previous?.files ?? []) {
-    if (!nextFiles.some((candidate) => candidate.path === managed.path)) {
-      nextFiles.push(managed);
+  if (previousInstallation?.legacyLayout !== true) {
+    for (const managed of previous?.files ?? []) {
+      if (!nextFiles.some((candidate) => candidate.path === managed.path)) {
+        nextFiles.push(managed);
+      }
     }
   }
   nextFiles.sort((left, right) => left.path.localeCompare(right.path));
@@ -537,6 +599,14 @@ async function install(options: CliOptions): Promise<InstallResult> {
     Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`),
     false,
   );
+  if (previousInstallation?.legacyLayout === true) {
+    for (const path of removed) rmSync(safeDestination(options.projectDir, path), { force: true });
+    rmSync(safeDestination(options.projectDir, previousInstallation.path), { force: true });
+    pruneEmptyManagedDirectories(options.projectDir, [
+      ...removed,
+      previousInstallation.path,
+    ]);
+  }
   return result;
 }
 
@@ -556,7 +626,8 @@ function renderResult(result: InstallResult, json: boolean): void {
   process.stdout.write(
     `${action} AI-DLC ${result.version} in ${result.project}\n` +
     `Native CLI: ./${result.executable}\n` +
-    `${result.written.length} file(s) written; ${result.unchanged.length} unchanged.\n`,
+    `${result.written.length} file(s) written; ${result.unchanged.length} unchanged; ` +
+    `${result.removed.length} obsolete file(s) removed.\n`,
   );
 }
 

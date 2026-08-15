@@ -9,9 +9,9 @@ archiveは使用しない。
 ```text
 install.mjs
 ├── aidlc-distribution.json
-├── aidlc-<platform>        → .aidlc/bin/aidlc[.exe]
+├── aidlc-<platform>        → .codex/tools/aidlc[.exe]
 └── dist/project/*
-    ├── Core Runtime data   → .aidlc/runtime/core/
+    ├── Core Runtime data   → .codex/
     └── Codex Harness       → AGENTS.md, .agents/, .codex/
 ```
 
@@ -33,7 +33,7 @@ Git、Bun、npm、npx、pnpm、tsx、プロジェクトの`node_modules`は不�
 バージョン固定のInstallerを公開Releaseから取得する。
 
 ```bash
-curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.0/install.mjs
+curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mjs
 node install.mjs install --harness codex --project .
 ```
 
@@ -41,7 +41,7 @@ Windows PowerShell:
 
 ```powershell
 Invoke-WebRequest `
-  "https://github.com/sori883/aidlc/releases/download/v0.6.0/install.mjs" `
+  "https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mjs" `
   -OutFile "install.mjs"
 
 node install.mjs install --harness codex --project .
@@ -51,12 +51,13 @@ node install.mjs install --harness codex --project .
 
 ```text
 <project>/
-├── .aidlc/
-│   ├── bin/aidlc[.exe]
-│   ├── runtime/core/
-│   └── installation.json
 ├── .agents/
 ├── .codex/
+│   ├── aidlc-common/, agents/, knowledge/, memory/
+│   ├── scopes/, sensors/
+│   ├── tools/aidlc[.exe]
+│   ├── hooks.json
+│   └── aidlc-installation.json
 └── AGENTS.md
 ```
 
@@ -67,15 +68,15 @@ OS、CPU、Linux libcに合うバイナリ1個だけを取得し、PATHを空に
 ## 実行確認
 
 ```bash
-./.aidlc/bin/aidlc --version
-./.aidlc/bin/aidlc graph compile --check
-./.aidlc/bin/aidlc workspace init .
-./.aidlc/bin/aidlc intent birth . "First Intent" --scope poc
-./.aidlc/bin/aidlc doctor check --project-dir .
+./.codex/tools/aidlc --version
+./.codex/tools/aidlc graph compile --check
+./.codex/tools/aidlc workspace init .
+./.codex/tools/aidlc intent birth . "First Intent" --scope poc
+./.codex/tools/aidlc doctor check --project-dir .
 ```
 
-Windowsの実体は`.aidlc/bin/aidlc.exe`である。PowerShellは生成済みSkillの
-共通相対表記`./.aidlc/bin/aidlc`から`.exe`を解決し、Hookは明示的に
+Windowsの実体は`.codex/tools/aidlc.exe`である。PowerShellは生成済みSkillの
+共通相対表記`./.codex/tools/aidlc`から`.exe`を解決し、Hookは明示的に
 `aidlc.exe`を呼び出す。
 
 ## dry-runと競合保護
@@ -94,7 +95,7 @@ node install.mjs install --harness codex --project . --dry-run
 - 初回導入前から存在し、配布内容と異なるファイル
 - 前回導入後に利用者が変更した管理対象ファイル
 
-競合が一つでもあれば、バイナリ、Core、Harness、`installation.json`を
+競合が一つでもあれば、バイナリ、Core、Harness、`aidlc-installation.json`を
 一切変更しない。`aidlc/`配下のWorkspace、Intent、State、Audit、成果物は
 常に利用者所有であり、Installerは読み書きしない。
 
@@ -105,12 +106,13 @@ node install.mjs install --harness codex --project . --dry-run
 ```bash
 curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.1/install.mjs
 node install.mjs update --harness codex --project .
-./.aidlc/bin/aidlc doctor check --project-dir .
+./.codex/tools/aidlc doctor check --project-dir .
 ```
 
-前回記録したSHA-256と現在のファイルが一致する場合だけ置換する。現状は
-自動削除と自動マージを行わず、新しい配布から消えた旧管理ファイルは
-人間が確認できるよう追跡を維持する。
+前回記録したSHA-256と現在のファイルが一致する場合だけ置換する。通常更新は
+自動削除と自動マージを行わず、新しい配布から消えた旧管理ファイルの追跡を
+維持する。v0.6.0の旧`.aidlc`配置から更新する場合に限り、ハッシュが一致する
+旧バイナリと旧Runtimeを削除する。変更済みファイルや未管理ファイルは削除しない。
 
 ## 開発者向け生成
 
@@ -174,8 +176,8 @@ mainとReleaseのWorkflowを分離する。
 # main Workflowの成功をGitHub上で確認した後
 git switch main
 git pull --ff-only
-git tag v0.6.0
-git push origin v0.6.0
+git tag v0.6.1
+git push origin v0.6.1
 ```
 
 タグを試験完了前にpushした場合、Release Workflowは公開せず失敗する。main

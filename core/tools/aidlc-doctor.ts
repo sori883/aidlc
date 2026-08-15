@@ -17,7 +17,6 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  isCompiledExecutable,
   runtimeCoreDir,
 } from "./aidlc-runtime-paths.ts";
 import {
@@ -165,7 +164,7 @@ function compileOptions(coreDir: string): CompileOptions {
     sensorsDir: join(coreDir, "sensors"),
     memoryDir: join(coreDir, "memory"),
     memoryDisplayRoot: "aidlc/spaces/default/memory",
-    harnessDir: isCompiledExecutable() ? ".aidlc/runtime/core" : ".codex",
+    harnessDir: ".codex",
     graphPath: join(coreDir, "aidlc-common", "data", "stage-graph.json"),
     scopeGridPath: join(coreDir, "aidlc-common", "data", "scope-grid.json"),
     scopesDir: join(coreDir, "scopes"),

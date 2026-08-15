@@ -10,7 +10,7 @@ owns routing, paths, State, and Audit. You own inference, Agent collaboration,
 human questions, and the quality of the Stage outputs. Never infer a route or
 edit `aidlc-state.md` directly.
 
-All stages follow `.aidlc/runtime/core/aidlc-common/protocols/stage-protocol.md` for
+All stages follow `.codex/aidlc-common/protocols/stage-protocol.md` for
 approval gates, question format, state tracking, and completion messages.
 Read that protocol before acting on every `run-stage` directive.
 
@@ -20,16 +20,16 @@ Run every packaged command below from the project root through the project-local
 
 1. Ensure the workspace shell exists. This is idempotent:
 
-   `./.aidlc/bin/aidlc workspace init .`
+   `./.codex/tools/aidlc workspace init .`
 
 2. Inspect the active Intent:
 
-   `./.aidlc/bin/aidlc intent list . --json`
+   `./.codex/tools/aidlc intent list . --json`
 
 3. If none exists, ask for a Scope when it was not supplied, derive a concise
    label from the user's full description, and run:
 
-   `./.aidlc/bin/aidlc intent birth . "<label>" --scope <scope>`
+   `./.codex/tools/aidlc intent birth . "<label>" --scope <scope>`
 
 4. Continue with the forwarding loop. Existing Intent State is authoritative;
    do not silently change its Scope.
@@ -38,7 +38,7 @@ Run every packaged command below from the project root through the project-local
 
 Run:
 
-`./.aidlc/bin/aidlc orchestrate next --project-dir .`
+`./.codex/tools/aidlc orchestrate next --project-dir .`
 
 Act on exactly one returned Directive, then call `next` again when instructed.
 
@@ -53,7 +53,7 @@ subagent, reviewer, and revision turn.
 
 1. Initialize the diary at `memory_path`:
 
-   `./.aidlc/bin/aidlc memory init --project-dir . --memory-path "<memory_path>"`
+   `./.codex/tools/aidlc memory init --project-dir . --memory-path "<memory_path>"`
 
 2. Read every path in `inline_context_paths`, then `stage_file`, existing
    `consumes`, and the assembled Rules. The inline roster already contains the
@@ -83,11 +83,11 @@ subagent, reviewer, and revision turn.
 
 For every dispatched role, use the matching Codex custom Agent type from
 `.codex/agents/<role>.toml` and instruct it to read
-`.aidlc/runtime/core/agents/<role>.md`, then
+`.codex/agents/<role>.md`, then
 Markdown files under these existing directories in order:
 
-1. `.aidlc/runtime/core/knowledge/aidlc-shared/`
-2. `.aidlc/runtime/core/knowledge/<role>/`
+1. `.codex/knowledge/aidlc-shared/`
+2. `.codex/knowledge/<role>/`
 3. `aidlc/spaces/<active-space>/knowledge/aidlc-shared/`
 4. `aidlc/spaces/<active-space>/knowledge/<role>/`
 
@@ -108,7 +108,7 @@ For a normal gated Stage:
 
 1. Surface candidates:
 
-   `./.aidlc/bin/aidlc learnings surface --project-dir . --slug <stage> [--unit <unit>]`
+   `./.codex/tools/aidlc learnings surface --project-dir . --slug <stage> [--unit <unit>]`
 
 2. Follow `question-rendering.md`. Ask which candidates should persist to
    project/team Rules and always ask whether there is anything else to add.
@@ -118,12 +118,12 @@ For a normal gated Stage:
 4. Write the confirmed version-1 selections JSON under the active Intent's
    `.aidlc-learnings/` directory and run:
 
-   `./.aidlc/bin/aidlc learnings persist --project-dir . --slug <stage> --selections-json <path> [--unit <unit>]`
+   `./.codex/tools/aidlc learnings persist --project-dir . --slug <stage> --selections-json <path> [--unit <unit>]`
 
 5. Present the Stage outputs and ask for approval. Only a real user approval
    allows:
 
-   `./.aidlc/bin/aidlc orchestrate report --project-dir . --stage <stage> --result approved [--unit <unit>]`
+   `./.codex/tools/aidlc orchestrate report --project-dir . --stage <stage> --result approved [--unit <unit>]`
 
 For initialization, report `completed`. On `single: true`, skip the human gate
 and use the isolated report command from the invoking Stage runner. A single
@@ -138,7 +138,7 @@ Print the reason concisely and stop.
 Print the exact message, stop mutation, and explain the smallest recovery step.
 For missing, malformed, or inconsistent Workspace/Intent/State data, run:
 
-`./.aidlc/bin/aidlc doctor check --project-dir .`
+`./.codex/tools/aidlc doctor check --project-dir .`
 
 Use `doctor repair` only when the report marks the finding `automatic`; never
 replace a manual finding with inferred progress or approval.
@@ -150,7 +150,7 @@ flags on every `load-steering` continuation. Execute the returned `run-stage`
 normally, including topology, Reviewer, diary, and outputs, but respect
 `single: true` and `gate: false`. Finish only with:
 
-`./.aidlc/bin/aidlc orchestrate report --project-dir . --stage <slug> --result completed --single`
+`./.codex/tools/aidlc orchestrate report --project-dir . --stage <slug> --result completed --single`
 
 The synthetic audit lifecycle must not change the active Intent State.
 

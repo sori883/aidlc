@@ -14,12 +14,13 @@ The supported project layout is:
 
 ```text
 <project>/
-├── .aidlc/
-│   ├── bin/aidlc[.exe]
-│   ├── runtime/core/
-│   └── installation.json
 ├── .agents/
 ├── .codex/
+│   ├── aidlc-common/, agents/, knowledge/, memory/
+│   ├── scopes/, sensors/
+│   ├── tools/aidlc[.exe]
+│   ├── hooks.json
+│   └── aidlc-installation.json
 ├── AGENTS.md
 └── aidlc/
 ```
@@ -54,9 +55,9 @@ Test-only origin overrides are `AIDLC_RELEASE_ROOT` and
 After installation, all commands use the native executable directly:
 
 ```text
-./.aidlc/bin/aidlc workspace init .
-./.aidlc/bin/aidlc intent birth . "First Intent" --scope poc
-./.aidlc/bin/aidlc orchestrate next --project-dir .
+./.codex/tools/aidlc workspace init .
+./.codex/tools/aidlc intent birth . "First Intent" --scope poc
+./.codex/tools/aidlc orchestrate next --project-dir .
 ```
 
 Generated Hooks and Skills do not invoke Bun, Node.js, npm, npx, or Git root
@@ -67,6 +68,11 @@ discovery. No executable `.ts` file is present in `dist/project/`.
 `update` replaces only files still identical to the hashes recorded by the
 previous installation. A changed managed file is a conflict and stops the
 entire update. Workspace data under `aidlc/` is never managed or removed.
+
+When updating a v0.6.0 project, the Installer recognizes the legacy
+`.aidlc/installation.json`. After the new `.codex` installation succeeds, it
+removes only legacy `.aidlc` files whose content still matches the recorded
+hash. Modified or unmanaged files are never removed.
 
 Network errors, invalid manifests, unsupported platforms, byte-length drift,
 SHA-256 mismatch, failed native smoke tests, unsafe paths, symlink ancestors,

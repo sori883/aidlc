@@ -12,5 +12,5 @@ Never edit `aidlc-state.md` or Audit markdown directly, and never record a human
 approval that did not occur.
 
 When the runtime reports missing, malformed, or inconsistent AI-DLC state, run
-`./.aidlc/bin/aidlc doctor check --project-dir .` before proposing manual
+`./.codex/tools/aidlc doctor check --project-dir .` before proposing manual
 edits. Use `doctor repair` only for findings marked `automatic`.

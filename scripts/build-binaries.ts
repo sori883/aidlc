@@ -163,8 +163,8 @@ function smoke(executable: string): BinaryBuildReport["gates"] {
   writeProjectLayout({ outDir: projectDir, platform: process.platform as DistributionPlatform });
   const installedExecutable = join(
     projectDir,
-    ".aidlc",
-    "bin",
+    ".codex",
+    "tools",
     process.platform === "win32" ? "aidlc.exe" : "aidlc",
   );
   mkdirSync(dirname(installedExecutable), { recursive: true });
@@ -291,7 +291,7 @@ export function buildBinary(targetName: BinaryTargetName): BinaryBuildReport {
     outDir: join(outputDir, "project-layout"),
     platform: distributionPlatform(target.name),
   });
-  const runtime = join(layout.outDir, ".aidlc", "runtime", "core");
+  const runtime = join(layout.outDir, ".codex");
   const requiredAsset = join(runtime, "aidlc-common", "data", "stage-graph.json");
   if (!existsSync(requiredAsset)) throw new Error(`Runtime asset is missing: ${requiredAsset}`);
 

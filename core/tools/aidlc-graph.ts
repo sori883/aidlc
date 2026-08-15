@@ -7,7 +7,6 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  isCompiledExecutable,
   runtimeCoreDir,
 } from "./aidlc-runtime-paths.ts";
 import {
@@ -1016,9 +1015,7 @@ export function compileStageGraph(options: CompileOptions = {}): CompileResult {
       stage,
       sensors,
       rules,
-      options.harnessDir ?? (
-        isCompiledExecutable() ? ".aidlc/runtime/core" : ".codex"
-      ),
+      options.harnessDir ?? ".codex",
     )
   );
   const scopeGrid = transposeScopeGrid(stages);

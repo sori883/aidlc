@@ -13,7 +13,7 @@ branch. Do not update the active Intent's Current Stage.
 
 1. Request the isolated directive:
 
-   `./.aidlc/bin/aidlc orchestrate next --project-dir . --stage intent-capture --single`
+   `./.codex/tools/aidlc orchestrate next --project-dir . --stage intent-capture --single`
 
 2. Preserve every `load-steering` part and repeat the same command with
    `--continue-token <token>` until `run-stage` is returned.
@@ -22,6 +22,6 @@ branch. Do not update the active Intent's Current Stage.
    isolated directive has `single: true` and `gate: false`.
 4. Record the isolated lifecycle:
 
-   `./.aidlc/bin/aidlc orchestrate report --project-dir . --stage intent-capture --result completed --single`
+   `./.codex/tools/aidlc orchestrate report --project-dir . --stage intent-capture --result completed --single`
 
 Stop after the `done` directive. Never report against the main workflow.

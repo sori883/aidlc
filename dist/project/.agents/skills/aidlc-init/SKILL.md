@@ -14,7 +14,7 @@ Run every command below from the repository root.
 
 1. Ensure the workspace shell exists:
 
-   `./.aidlc/bin/aidlc workspace init .`
+   `./.codex/tools/aidlc workspace init .`
 
 2. Parse `$ARGUMENTS` as an optional `--scope <name>` and a free-form
    description. Scope defaults to `poc`.
@@ -22,6 +22,6 @@ Run every command below from the repository root.
    description exists, use the scope name.
 4. Run:
 
-   `./.aidlc/bin/aidlc intent birth . "<label>" --scope <scope>`
+   `./.codex/tools/aidlc intent birth . "<label>" --scope <scope>`
 
 5. Print the result and stop. Continue later with `$aidlc`.
