@@ -76,6 +76,22 @@ const DEFAULT_STAGES_DIR = resolve(runtimeCoreDir(), "aidlc-common/stages");
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const NUMBER_PATTERN = /^\d+\.\d+$/;
 
+interface StageArtifactFilenameRule {
+  slug: string;
+  artifact: string;
+  legacyFilenames: readonly string[];
+}
+
+// Filename contracts are enabled one Stage at a time so introducing the lint
+// does not silently turn unrelated upstream wording drift into release blockers.
+const STAGE_ARTIFACT_FILENAME_RULES: readonly StageArtifactFilenameRule[] = [
+  {
+    slug: "build-and-test",
+    artifact: "build-test-results",
+    legacyFilenames: ["test-results.md"],
+  },
+];
+
 const TOP_LEVEL_KEYS = new Set([
   "slug",
   "phase",
@@ -147,6 +163,73 @@ function extractFrontmatter(source: string, filePath: string): string {
   const match = source.match(/^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
   if (!match?.[1]) fail(filePath, "missing YAML frontmatter");
   return match[1];
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function referencesFilename(source: string, filename: string): boolean {
+  const escaped = escapeRegExp(filename);
+  return new RegExp(
+    `(^|[^a-z0-9-])${escaped}(?=$|[^a-z0-9-])`,
+    "m",
+  ).test(source);
+}
+
+function stageBody(source: string): string {
+  const match = source.match(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/);
+  return match === null ? source : source.slice(match[0].length);
+}
+
+function validateStageArtifactFilenames(
+  source: string,
+  filePath: string,
+  stage: StageFrontmatter,
+): void {
+  const rules = STAGE_ARTIFACT_FILENAME_RULES.filter(
+    (rule) => rule.slug === stage.slug,
+  );
+  for (const rule of rules) {
+    const declaredArtifacts = new Set([
+      ...stage.produces,
+      ...(stage.optional_produces ?? []),
+    ]);
+    if (!declaredArtifacts.has(rule.artifact)) {
+      fail(
+        `${filePath}.produces`,
+        `must declare artifact "${rule.artifact}" for its filename contract`,
+      );
+    }
+
+    const expectedFilename = `${rule.artifact}.md`;
+    if (!referencesFilename(stage.outputs, expectedFilename)) {
+      fail(
+        `${filePath}.outputs`,
+        `must reference "${expectedFilename}" derived from artifact "${rule.artifact}"`,
+      );
+    }
+
+    const body = stageBody(source);
+    if (!referencesFilename(body, expectedFilename)) {
+      fail(
+        `${filePath} body`,
+        `must reference "${expectedFilename}" derived from artifact "${rule.artifact}"`,
+      );
+    }
+
+    for (const legacyFilename of rule.legacyFilenames) {
+      if (
+        referencesFilename(stage.outputs, legacyFilename) ||
+        referencesFilename(body, legacyFilename)
+      ) {
+        fail(
+          filePath,
+          `must not reference legacy artifact filename "${legacyFilename}"; use "${expectedFilename}"`,
+        );
+      }
+    }
+  }
 }
 
 function parseYamlFrontmatter(source: string, filePath: string): Record<string, unknown> {
@@ -298,6 +381,8 @@ export function parseStageFrontmatter(
       `${filePath}.produces_kinds`,
     );
   }
+
+  validateStageArtifactFilenames(source, filePath, stage);
 
   return stage;
 }
