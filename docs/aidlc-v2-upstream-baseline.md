@@ -42,7 +42,8 @@ Refereeは同じで、Harness shellだけを差し替える」という方針が
 - abortは新しいEventを増やさず、`BOLT_FAILED`のreasonで区別する
 
 現行再実装の記述や動作がこれと異なる部分は再実装側のdriftとして扱う。
-対象6件には、実装前に追加判断が必要な未解決差分はない。
+当初対象の6件には、実装前に追加判断が必要な未解決差分はない。AIDLC-006は
+2026-08-19の追加承認により、判定書の修正確認条件を準拠基準として対象へ加えた。
 
 ## 3. 対象別の観測可能な互換契約
 
@@ -53,9 +54,11 @@ Refereeは同じで、Harness shellだけを差し替える」という方針が
 | AIDLC-003 | `conditional_on`で適用入力だけを検査し、Review sectionだけをclaim対象外にする。古いpassを現在の証跡として使わない | 入力選択、Review除外、receipt/hash |
 | AIDLC-004 | 品質宣言と生成CIの不一致を検出する。生成されたMVPのCI自体は変更しない | Quality Gate Manifestと検査器 |
 | AIDLC-005 | 構造上validでも、Bolt証跡欠落、Sensor異常、CI不一致などをexecution unhealthyとして検出する | Doctor full audit |
+| AIDLC-006 | Build and Testの成果物名を`build-test-results.md`へ統一し、Stage本文とfrontmatterの不一致をlintで拒否する | Build and Test Stage、Stage artifact filename lint、Graph/配布物 |
 | AIDLC-007 | lock取得後のAudit順序、移設可能なpath、skip表示を再現可能にする。過去Workflowを書き換えない | Audit sequence、root repair、`[S]`表示 |
 
-AIDLC-006は対象外であり、Stage定義、Build/Test成果物名、Stage lintは変更しない。
+AIDLC-006のlintはBuild and Testに限定する。全Stageへの一括適用や、判定書で別IDに
+分類される既存の成果物名不整合は対象へ含めない。
 
 ## 4. Golden Trace
 
@@ -152,9 +155,9 @@ GitHub Copilotへ透過的に流用しようとせず、同じCore Traceへ別Ad
 ## 6. Stage 0完了判定
 
 - 準拠元commit、subtree、主要ファイルhashを固定した
-- 対象6件のState、Audit、Directive、終端分類を定義した
+- 当初対象6件のState、Audit、Directive、終端分類を定義した
 - Bolt 3.1〜3.5と集約Stage 3.6〜3.7を本家で確認した
-- 対象6件の未解決仕様差は0件である
-- AIDLC-006を対象外として明記した
+- 当初対象6件の未解決仕様差は0件である
+- 追加承認されたAIDLC-006の成果物名契約と限定的lint境界を明記した
 
 以上により、承認済み計画のStage 1へ進行できる。

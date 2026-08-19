@@ -3,7 +3,7 @@
 ## 1. 文書情報
 
 - 作成日: 2026-08-18
-- 状態: 実装・検証完了（Stage 0〜9完了）
+- 状態: 実装・検証完了（Stage 0〜9、AIDLC-006追加是正完了）
 - 対象リポジトリ: `/Users/const/sori883/aidlc`
 - 検査対象Workflow: `/Users/const/sori883/ai-dlc-cycle/05.ai-dlc-test`
 - Intent: `260808-mvp`
@@ -16,7 +16,8 @@ Codex以外のHarnessへ将来対応できる境界を維持するための実�
 
 ## 2. 結論
 
-今回の目標は、再実装由来の対象6件に関係するAI-DLC v2の
+今回の目標は、再実装由来の対象6件と、追加承認された本家由来のAIDLC-006に
+関係するAI-DLC v2の
 **観測可能な契約互換性**を回復することである。複合分類のAIDLC-004と
 AIDLC-007は、再実装側の責務だけを是正する。
 
@@ -53,9 +54,11 @@ commit `6a8a8129446bd8df59edcc47d519ebccfcae793d` と、その中の
 
 ### 3.2 本家由来バグの扱い
 
-本家由来だけのバグは今回修正しない。本家定義の不整合が再実装バグの修正を
+本家由来だけのバグは原則として修正しない。本家定義の不整合が再実装バグの修正を
 妨げる場合は、独自に是正せず差分を記録して人間へ確認する。AIDLC-006の
-Build/Test成果物名不一致は対象外であり、Stage定義、成果物名、lintを変更しない。
+Build/Test成果物名不一致は当初対象外だったが、2026-08-19にユーザーの明示承認を
+得て追加対象とした。この例外はAIDLC-006だけに適用し、他の本家由来不整合へ
+自動的に範囲を広げない。
 
 ### 3.3 Stage 0で確定した仕様
 
@@ -78,16 +81,16 @@ Construction 3.1〜3.5の一周と定義している。3.6 Build and Testと
 | AIDLC-003 | P1 | Sensorの条件付き入力、Review除外、証跡鮮度 |
 | AIDLC-004 | P1 | Quality Gate宣言と生成CIの不一致を検出できない再実装側の検証不足 |
 | AIDLC-005 | P1 | Doctorの実行意味検査 |
+| AIDLC-006 | P1 | Build/Test成果物名の統一と限定的Stage lint |
 | AIDLC-007 | P2 | 再実装側のAudit順序、Workspace移設耐性、skip表示 |
 
 対象はAIDLC-001、AIDLC-002、AIDLC-003、AIDLC-004の再実装部分、
-AIDLC-005、AIDLC-007の再実装部分に限定する。
+AIDLC-005、追加承認されたAIDLC-006、AIDLC-007の再実装部分に限定する。
 
 ### 4.2 対象外
 
 - Claude Code、GitHub Copilot用Harnessの実装そのもの
 - AI-DLC全機能についての完全な本家差分解消
-- AIDLC-006のBuild/Test成果物名不一致とStage lint
 - AIDLC-004のMVP成果物固有の不正なCIファイルの直接修正
 - AIDLC-007で環境移設により生じた過去のWorkflow記録の直接修正
 - Operation Phaseの実行や実環境へのdeployment
@@ -578,14 +581,18 @@ Bolt進捗とSensor receiptを導入するためState schema versionを更新す
 6. 次Stageへ進む
 
 計画全体は2026-08-18に明示的な承認を得た。Stage 0で基準を固定してからStage 1〜9を
-順に実施し、対象外のAIDLC-006と過去MVP成果物を変更せず完了した。
+順に実施し、当初対象外のAIDLC-006と過去MVP成果物を変更せず完了した。その後、
+2026-08-19にAIDLC-006だけを追加修正する計画について別途承認を得た。
 
 ## 12. 最終完了条件
 
 次をすべて満たした時点で是正完了とする。
 
-- AIDLC-001、002、003、004の再実装部分、005、007の再実装部分について、
+- AIDLC-001、002、003、004の再実装部分、005、007の再実装部分、および
+  追加承認された006について、
   修正確認条件を自動testで証明した
+- AIDLC-006についてStage定義、Graph、生成指示、実成果物path、下流consumeを
+  `build-test-results.md`へ統一した
 - 本家準拠版と対象契約の差分が0件、または承認済み差分として記録された
 - BoltのState、Audit、gate、resumeがGolden Traceと一致した
 - Sensorの全Fire IDが一つの終端結果を持ち、stale passを識別できた
@@ -614,7 +621,7 @@ Adapter仕様を推測しない。
 ## 14. ローカルRelease受入で検出した追加是正
 
 2026-08-19の`06.ai-dlc-test2`初回受入では、再実装した配布・診断境界に次の2件を
-検出した。AIDLC-006は対象に含めない。
+検出した。この節の追加是正にはAIDLC-006を含めない。
 
 1. native配布ではTypeScript runtime toolを単一実行ファイルへ置換するが、Runtime
    Contractがsource fileの存在を要求していた
@@ -647,4 +654,21 @@ Adapter仕様を推測しない。
 呼び出しをtool contractへ対応付け、command、flag、`--result`を検査する。未知nounも
 黙って無視しない。State fieldの置換は関数置換とし、Project Rootを文字どおり保持する。
 
-この追加もAIDLC-006、Harness固有のDomain判断、過去Workflow改変を対象に含めない。
+このLunaレビュー対応自体にはAIDLC-006、Harness固有のDomain判断、過去Workflow改変を
+含めない。AIDLC-006は次節の独立した追加承認に基づいて修正する。
+
+## 16. AIDLC-006の追加是正
+
+2026-08-19の追加承認により、本家由来のAIDLC-006だけを例外的に対象へ加えた。
+
+- Build and Testのfrontmatter `produces`を正本とし、成果物名を
+  `build-test-results.md`へ統一する
+- Stage本文と`outputs`が正本から導かれる名前を参照することをStage loaderで検査する
+- lintの適用対象はBuild and Testに限定し、他Stageの既存不整合を同時修正しない
+- 意図的に旧名`test-results.md`へ戻したfixtureが失敗することを検証する
+- Build and Testの実出力pathとCI Pipelineのconsume pathが一致することを検証する
+- GraphとCodex配布物を再生成し、ローカルRelease受入まで確認する
+
+この変更はHarness-neutralなStage loaderとStage定義に置き、Codex固有Adapterへ
+成果物名判断を追加しない。将来のClaude Code、GitHub Copilot Adapterも同じCore契約を
+利用する。

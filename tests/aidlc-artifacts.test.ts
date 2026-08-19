@@ -139,6 +139,31 @@ test("standard and per-unit outputs resolve inside the active Intent", () => {
   );
 });
 
+test("Build and Test output resolves to the path consumed by CI Pipeline", () => {
+  const { projectDir, graph } = freshProject();
+  const buildAndTest = stage(graph, "build-and-test");
+  const ciPipeline = stage(graph, "ci-pipeline");
+  const [resultsPath] = artifactOutputPaths(
+    projectDir,
+    buildAndTest,
+    "build-test-results",
+  );
+  assert.ok(resultsPath);
+  assert.match(resultsPath, /\/build-and-test\/build-test-results\.md$/);
+  materialize(projectDir, [resultsPath]);
+
+  const context = runtimeContext(projectDir);
+  const ciArtifacts = resolveStageArtifacts(
+    projectDir,
+    ciPipeline,
+    graph,
+    context.plan,
+    context.state,
+    context.projectType,
+  );
+  assert.ok(ciArtifacts.consumes.includes(resultsPath));
+});
+
 test("reverse-engineering artifacts resolve to each Space codekb repo", () => {
   const { projectDir, graph } = freshProject({
     brownfield: true,

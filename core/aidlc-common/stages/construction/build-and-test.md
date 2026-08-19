@@ -36,7 +36,7 @@ scopes:
   - security-patch
   - workshop
 inputs: ALL code generation outputs across all units
-outputs: build-instructions.md, unit-test-instructions.md, integration-test-instructions.md, performance-test-instructions.md, security-test-instructions.md, build-and-test-summary.md, test-results.md (under this stage's record dir, engine-resolved)
+outputs: build-instructions.md, unit-test-instructions.md, integration-test-instructions.md, performance-test-instructions.md, security-test-instructions.md, build-and-test-summary.md, build-test-results.md (under this stage's record dir, engine-resolved)
 ---
 
 # Build and Test
@@ -106,7 +106,7 @@ Attempt to execute the build and test commands documented in the instruction fil
 1. **Build**: Run the build commands from `build-instructions.md` via Bash. Capture output.
 2. **Unit tests**: Run the unit test command from `unit-test-instructions.md` via Bash. Capture pass/fail counts.
 3. **Integration tests** (if applicable): Run integration test commands. Capture results.
-4. **Report results**: Create or update `<record>/construction/build-and-test/test-results.md` with:
+4. **Report results**: Create or update the engine-resolved `build-test-results` output at `<record>/construction/build-and-test/build-test-results.md` with:
    - Build status (success/failure + output)
    - Test results (total, passed, failed, skipped)
    - Failure details (test name, assertion, stack trace)
@@ -117,7 +117,7 @@ Attempt to execute the build and test commands documented in the instruction fil
 - Identify the failing code
 - Apply the fix
 - Re-run the failing step
-- If unable to fix after 2 attempts, log the failure in test-results.md and present the issue to the user at the approval gate
+- If unable to fix after 2 attempts, log the failure in `build-test-results.md` and present the issue to the user at the approval gate
 
 **On success**: Update the Build and Test Summary with actual results (not just instructions).
 

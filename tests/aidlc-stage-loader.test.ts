@@ -6,6 +6,7 @@ import { test } from "bun:test";
 import {
   loadStageCatalog,
   loadStages,
+  parseStageFrontmatter,
 } from "../core/tools/aidlc-stage-loader.ts";
 
 const MINIMAL_STAGE = `---
@@ -28,6 +29,35 @@ outputs: none
 
 # Sample Stage
 `;
+
+function buildAndTestStage(
+  outputsFilename: string,
+  bodyFilename: string,
+): string {
+  return `---
+slug: build-and-test
+phase: construction
+execution: ALWAYS
+condition: Always runs
+lead_agent: aidlc-quality-agent
+support_agents: []
+mode: inline
+produces:
+  - build-test-results
+consumes: []
+requires_stage: []
+sensors: []
+scopes:
+  - feature
+inputs: generated code
+outputs: ${outputsFilename}
+---
+
+# Build and Test
+
+Create \`<record>/construction/build-and-test/${bodyFilename}\`.
+`;
+}
 
 function fixture(): { root: string; catalogPath: string; stagesDir: string } {
   const root = mkdtempSync(join(tmpdir(), "aidlc-stage-loader-"));
@@ -64,6 +94,40 @@ test("loads nested stage frontmatter values", () => {
     "ui",
   ]);
   assert.equal(stage.consumes.at(-1)?.conditional_on, "brownfield");
+});
+
+test("accepts the canonical Build and Test artifact filename", () => {
+  assert.doesNotThrow(() =>
+    parseStageFrontmatter(
+      buildAndTestStage("build-test-results.md", "build-test-results.md"),
+      "/fixture/construction/build-and-test.md",
+      "construction",
+    )
+  );
+});
+
+test("rejects a Build and Test outputs filename that differs from produces", () => {
+  assert.throws(
+    () =>
+      parseStageFrontmatter(
+        buildAndTestStage("test-results.md", "test-results.md"),
+        "/fixture/construction/build-and-test.md",
+        "construction",
+      ),
+    /outputs: must reference "build-test-results\.md" derived from artifact "build-test-results"/,
+  );
+});
+
+test("rejects a Build and Test body filename that differs from produces", () => {
+  assert.throws(
+    () =>
+      parseStageFrontmatter(
+        buildAndTestStage("build-test-results.md", "test-results.md"),
+        "/fixture/construction/build-and-test.md",
+        "construction",
+      ),
+    /body: must reference "build-test-results\.md" derived from artifact "build-test-results"/,
+  );
 });
 
 test("matches the structural fields in the compiled stage graph", () => {
@@ -109,6 +173,20 @@ test("matches the structural fields in the compiled stage graph", () => {
       );
     }
   }
+
+  const buildAndTest = graphBySlug.get("build-and-test");
+  const ciPipeline = graphBySlug.get("ci-pipeline");
+  assert.ok(buildAndTest);
+  assert.ok(ciPipeline);
+  assert.ok(
+    (buildAndTest.produces as string[]).includes("build-test-results"),
+  );
+  assert.match(buildAndTest.outputs as string, /build-test-results\.md/);
+  assert.ok(
+    (ciPipeline.consumes as Array<{ artifact: string }>).some(
+      (consume) => consume.artifact === "build-test-results",
+    ),
+  );
 });
 
 test("rejects duplicate catalog numbers", () => {

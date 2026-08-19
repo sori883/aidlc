@@ -2083,7 +2083,7 @@
       "workshop"
     ],
     "inputs": "ALL code generation outputs across all units",
-    "outputs": "build-instructions.md, unit-test-instructions.md, integration-test-instructions.md, performance-test-instructions.md, security-test-instructions.md, build-and-test-summary.md, test-results.md (under this stage's record dir, engine-resolved)",
+    "outputs": "build-instructions.md, unit-test-instructions.md, integration-test-instructions.md, performance-test-instructions.md, security-test-instructions.md, build-and-test-summary.md, build-test-results.md (under this stage's record dir, engine-resolved)",
     "rules_in_context": [
       {
         "path": "aidlc/spaces/default/memory/org.md",
