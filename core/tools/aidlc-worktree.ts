@@ -4,13 +4,16 @@
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
-  readFileSync,
-  readdirSync,
   realpathSync,
 } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { appendAuditEntry, type AuditEvent } from "./aidlc-audit.ts";
+import {
+  appendAuditEntry,
+  portableEvidencePath,
+  readOrderedAuditEntries,
+  type AuditEvent,
+} from "./aidlc-audit.ts";
 import { activeIntent, readIntentRegistry } from "./aidlc-intent.ts";
 import { activeSpace, workspaceRoot } from "./aidlc-workspace.ts";
 import {
@@ -205,7 +208,7 @@ export function createWorktree(options: CreateWorktreeOptions): Record<string, u
   }
   const timestamp = emitWorktreeAudit(options, "WORKTREE_CREATED", {
     "Bolt slug": slug,
-    "Worktree path": path,
+    "Worktree path": portableEvidencePath(options.projectDir, path),
     "Branch name": branch,
     "Base branch": options.base,
   });
@@ -264,7 +267,7 @@ export function mergeWorktree(options: MergeWorktreeOptions): Record<string, unk
   }
   const timestamp = emitWorktreeAudit(options, "WORKTREE_MERGED", {
     "Bolt slug": slug,
-    "Worktree path": path,
+    "Worktree path": portableEvidencePath(options.projectDir, path),
     "Target branch": options.target,
     Strategy: options.strategy,
   });
@@ -347,7 +350,7 @@ export function discardWorktree(options: WorktreeOptions): Record<string, unknow
   }
   const timestamp = emitWorktreeAudit(options, "WORKTREE_DISCARDED", {
     "Bolt slug": slug,
-    "Worktree path": path,
+    "Worktree path": portableEvidencePath(options.projectDir, path),
     Reason: "agent-discard",
   });
   if (directoryExists) {
@@ -367,19 +370,6 @@ export function discardWorktree(options: WorktreeOptions): Record<string, unknow
   };
 }
 
-function auditText(options: WorktreeOptions): string {
-  const directory = join(selectedIntentRecordDir(options), "audit");
-  try {
-    return readdirSync(directory)
-      .filter((name) => name.endsWith(".md"))
-      .sort()
-      .map((name) => readFileSync(join(directory, name), "utf8"))
-      .join("\n");
-  } catch {
-    return "";
-  }
-}
-
 function auditField(block: string, field: string): string | null {
   const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`^\\*\\*${escaped}\\*\\*:\\s*(.*?)\\s*$`, "m")
@@ -390,15 +380,13 @@ function latestEvent(
   options: WorktreeOptions,
   event: WorktreeEvent,
 ): AuditMatch | null {
-  const matches = auditText(options)
-    .split(/^---\s*$/m)
-    .filter((block) =>
-      auditField(block, "Event") === event &&
-      auditField(block, "Bolt slug") === options.slug
+  const matches = readOrderedAuditEntries(selectedIntentRecordDir(options))
+    .filter((entry) =>
+      entry.event === event && entry.fields["Bolt slug"] === options.slug
     )
-    .map((block) => ({ timestamp: auditField(block, "Timestamp") ?? "", block }))
+    .map((entry) => ({ timestamp: entry.timestamp, block: entry.block }))
     .filter((match) => !Number.isNaN(Date.parse(match.timestamp)))
-    .sort((left, right) => left.timestamp.localeCompare(right.timestamp));
+    ;
   return matches.at(-1) ?? null;
 }
 
@@ -446,7 +434,7 @@ export function worktreeInfo(options: WorktreeOptions): Record<string, unknown> 
   }
   return {
     slug: options.slug,
-    path,
+    path: isAbsolute(path) ? path : resolve(options.projectDir, path),
     branch_name: branch,
     audit_timestamp: match.timestamp,
     merge_held: false,

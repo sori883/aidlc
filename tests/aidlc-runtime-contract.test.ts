@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "bun:test";
@@ -16,6 +22,8 @@ import {
   codexBundleFiles,
   writeCodexBundle,
 } from "../core/tools/aidlc-codex-bundle.ts";
+import type { HarnessDescriptor } from "../core/tools/aidlc-harness-contract.ts";
+import { writeProjectLayout } from "../core/tools/aidlc-project-layout.ts";
 
 function subjects(code: RuntimeContractIssueCode): string[] {
   return inspectRuntimeContract().issues
@@ -59,6 +67,18 @@ test("extracts every flag and result from a Harness CLI invocation", () => {
   }]);
 });
 
+test("extracts native integrated CLI routes through the Harness executable", () => {
+  const source = "`./.fake/tools/aidlc graph compile --check --new-flag`\n";
+  assert.deepEqual(authoredCliInvocations(source, ".fake/tools/aidlc"), [{
+    tool: "aidlc-graph.ts",
+    command: "compile",
+    flags: ["--check", "--new-flag"],
+    results: [],
+    line: 1,
+    nativeNoun: "graph",
+  }]);
+});
+
 test("ships the contract checker as a Codex runtime command", () => {
   const packageJson = codexBundleFiles().get(".codex/package.json");
   assert.ok(packageJson);
@@ -76,6 +96,59 @@ test("checks an installed Codex bundle without authored Harness sources", () => 
   assert.equal(report.documents, 46);
   assert.equal(report.valid, true);
   assert.deepEqual(report.issues, []);
+});
+
+test("checks a native project layout without TypeScript runtime sources", () => {
+  const root = mkdtempSync(join(tmpdir(), "aidlc-native-contract-"));
+  writeProjectLayout({ outDir: root });
+  const options = {
+    coreDir: join(root, ".codex"),
+    harnessDir: join(root, "absent-authored-harness"),
+    implementation: "native" as const,
+  };
+
+  const report = inspectRuntimeContract(options);
+  assert.equal(report.documents, 46);
+  assert.equal(report.valid, true, JSON.stringify(report.issues, null, 2));
+  assert.deepEqual(report.issues, []);
+
+  const instruction = join(
+    root,
+    ".codex",
+    "aidlc-common",
+    "stages",
+    "initialization",
+    "state-init.md",
+  );
+  writeFileSync(
+    instruction,
+    `${readFileSync(instruction, "utf8")}\n` +
+      "`./.codex/tools/aidlc graph definitely-not-a-command`\n" +
+      "`./.codex/tools/aidlc graph compile --bogus-flag`\n" +
+      "`./.codex/tools/aidlc orchestrate report --result not-a-result`\n",
+    "utf8",
+  );
+  const invalidInvocation = inspectRuntimeContract(options);
+  assert.equal(invalidInvocation.valid, false);
+  assert.ok(invalidInvocation.issues.some((issue) =>
+    issue.code === "missing-command" &&
+    issue.subject === "aidlc-graph.ts definitely-not-a-command"
+  ));
+  assert.ok(invalidInvocation.issues.some((issue) =>
+    issue.code === "missing-flag" &&
+    issue.subject === "aidlc-graph.ts compile --bogus-flag"
+  ));
+  assert.ok(invalidInvocation.issues.some((issue) =>
+    issue.code === "missing-result" &&
+    issue.subject === "aidlc-orchestrate.ts report --result not-a-result"
+  ));
+
+  rmSync(join(root, ".codex", "tools", "contracts", "aidlc-log.json"));
+  const missingContract = inspectRuntimeContract(options);
+  assert.equal(missingContract.valid, false);
+  assert.ok(missingContract.issues.some((issue) =>
+    issue.code === "missing-tool" && issue.subject === "aidlc-log.ts"
+  ));
 });
 
 test("detects unresolved placeholders and missing files in an installed bundle", () => {
@@ -105,6 +178,41 @@ test("detects unresolved placeholders and missing files in an installed bundle",
     issue.code === "missing-resource" &&
     issue.subject === ".codex/knowledge/aidlc-shared/not-present.md"
   ));
+});
+
+test("checks generated instructions through a non-Codex Harness descriptor", () => {
+  const descriptor: HarnessDescriptor = {
+    id: "fake",
+    displayName: "Fake",
+    capabilities: {
+      structuredQuestions: false,
+      agentDelegation: false,
+      parallelAgentDelegation: false,
+      postWriteHook: false,
+      reviewerScopeEnforcement: false,
+      stopWaitNotification: false,
+    },
+    layout: {
+      runtimeRoot: ".fake",
+      executablePath: ".fake/tools/aidlc",
+      projectInstructions: ["FAKE.md"],
+      skillRoot: ".fake/skills",
+      agentRoot: ".fake/agents",
+      hookConfigPath: ".fake/hooks.json",
+      installationManifestPath: ".fake/aidlc-installation.json",
+      projectLayoutManifestPath: ".fake/distribution-manifest.json",
+    },
+  };
+  const generatedFiles = new Map([
+    ["FAKE.md", "See .fake/knowledge/missing.md.\n"],
+  ]);
+  const report = inspectRuntimeContract({ descriptor, generatedFiles });
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((issue) =>
+    issue.code === "missing-resource" &&
+    issue.subject === ".fake/knowledge/missing.md"
+  ));
+  assert.ok(report.issues.every((issue) => !issue.detail.includes("Codex bundle")));
 });
 
 test("finds runtime tools referenced by authored instructions but not implemented", () => {

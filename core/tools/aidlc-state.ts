@@ -23,7 +23,11 @@ import {
   type WorkspaceScan,
 } from "./aidlc-workspace-detect.ts";
 import { withWorkspaceLock } from "./aidlc-workspace-lock.ts";
-import { appendAuditEntries, appendAuditEntry } from "./aidlc-audit.ts";
+import {
+  appendAuditEntries,
+  appendAuditEntry,
+  readOrderedAuditEntries,
+} from "./aidlc-audit.ts";
 import type { UnitDag } from "./aidlc-unit-graph.ts";
 import {
   cliHasCommand,
@@ -33,7 +37,7 @@ import {
 
 const STATE_CLI_CONTRACT = loadCliContract("aidlc-state.ts");
 
-export const STATE_VERSION = 7;
+export const STATE_VERSION = 8;
 
 export type StateCheckbox =
   | "pending"
@@ -77,6 +81,10 @@ export interface ResumePoint {
   nextAction: string;
   checkboxState: StateCheckbox | "unknown";
   currentUnit: string | null;
+  currentBolt: string | null;
+  boltStatus: string;
+  boltNextAction: string;
+  constructionAutonomyMode: string;
 }
 
 export interface StateTransition {
@@ -569,7 +577,13 @@ function renderState(
 - **In Progress**: ${currentStage}
 
 ## Runtime State
+- **Construction Iteration**: stage-major
 - **Revision Count**: 0
+- **Current Bolt**: none
+- **Bolt Status**: uninitialized
+- **Bolt Attempt**: none
+- **Bolt Failure**: none
+- **Bolt Next Action**: Initialize Bolt execution after Delivery Planning approval
 
 ## Phase Progress
 <!-- Status values: Pending, Active, Verified, Skipped -->
@@ -580,6 +594,13 @@ ${phaseProgress}
 <!-- Checkbox states: [ ] pending, [-] in-progress, [?] awaiting approval, [R] revising, [x] completed, [S] skipped -->
 
 ${progressSections}
+
+## Bolt Progress
+<!-- Bolt markers: [ ] pending, [-] active, [x] completed, [S] skipped, [!] failed/aborted -->
+
+<!-- AIDLC_BOLT_STATE_START -->
+Bolt execution: [uninitialized]
+<!-- AIDLC_BOLT_STATE_END -->
 
 ## Current Status
 - **Lifecycle Phase**: ${lifecyclePhase}
@@ -1210,42 +1231,13 @@ interface ParsedAuditEvent {
   position: number;
 }
 
-function auditField(block: string, field: string): string | null {
-  const prefix = `**${field}**:`;
-  return block.split("\n")
-    .find((line) => line.startsWith(prefix))
-    ?.slice(prefix.length).trim() ?? null;
-}
-
 function activeAuditEvents(recordDir: string): ParsedAuditEvent[] {
-  const auditDir = join(recordDir, "audit");
-  let position = 0;
-  const events: ParsedAuditEvent[] = [];
-  let names: string[] = [];
-  try {
-    names = readdirSync(auditDir).filter((name) => name.endsWith(".md")).sort();
-  } catch {
-    return [];
-  }
-  for (const name of names) {
-    const source = readFileSync(join(auditDir, name), "utf8").replace(/\r\n/g, "\n");
-    for (const block of source.split(/\n---\n/)) {
-      const event = auditField(block, "Event");
-      const timestamp = auditField(block, "Timestamp");
-      if (event !== null && timestamp !== null) {
-        events.push({
-          event,
-          stage: auditField(block, "Stage"),
-          timestamp,
-          position,
-        });
-      }
-      position += 1;
-    }
-  }
-  return events.sort((left, right) =>
-    left.timestamp.localeCompare(right.timestamp) || left.position - right.position
-  );
+  return readOrderedAuditEntries(recordDir).map((entry, position) => ({
+    event: entry.event,
+    stage: entry.fields.Stage ?? null,
+    timestamp: entry.timestamp,
+    position,
+  }));
 }
 
 /** Require a successful promotion after the current practices Stage attempt/revision. */
@@ -1445,8 +1437,7 @@ export function promotePractices(
       writeFileAtomic(projectPath, projectContent);
       writeFileAtomic(teamPath, teamContent);
 
-      const affirmedAt = isoTimestamp();
-      appendAuditEntry(
+      const affirmed = appendAuditEntry(
         projectRoot,
         recordDir,
         "PRACTICES_AFFIRMED",
@@ -1457,8 +1448,8 @@ export function promotePractices(
           "Mandated Rules Appended": String(mandated.appended),
           "Forbidden Rules Appended": String(forbidden.appended),
         },
-        affirmedAt,
       );
+      const affirmedAt = affirmed.timestamp;
       const statePath = join(recordDir, "aidlc-state.md");
       let state = readFileSync(statePath, "utf8");
       state = setStateField(state, "Practices Affirmed Timestamp", affirmedAt);
@@ -1513,6 +1504,13 @@ export function resumeIntentState(projectDir: string): ResumePoint {
       currentStage === "none" ? "unknown" : checkboxState(content, currentStage),
     currentUnit:
       currentStage === "none" ? null : currentUnitForStage(content, currentStage),
+    currentBolt: (stateField(content, "Current Bolt") ?? "none") === "none"
+      ? null
+      : stateField(content, "Current Bolt"),
+    boltStatus: stateField(content, "Bolt Status") ?? "uninitialized",
+    boltNextAction: stateField(content, "Bolt Next Action") ?? "unknown",
+    constructionAutonomyMode:
+      stateField(content, "Construction Autonomy Mode") ?? "unset",
   };
 }
 

@@ -3,7 +3,7 @@
 // steering-token state before it releases run-stage. `report` remains the only
 // workflow mutation route and delegates transitions to aidlc-state.ts.
 
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { runtimeCoreDir } from "./aidlc-runtime-paths.ts";
@@ -46,6 +46,16 @@ import { loadActiveUnitDag, type UnitDag } from "./aidlc-unit-graph.ts";
 import { resolveSteeringDirective } from "./aidlc-steering.ts";
 import { assertLearningGateCompleted } from "./aidlc-learnings.ts";
 import { appendAuditEntries } from "./aidlc-audit.ts";
+import {
+  BOLT_STAGE_SLUGS,
+  type BoltStageSlug,
+  completeBolt,
+  completeBoltStageUnit,
+  currentBoltStage,
+  loadBoltExecution,
+  skipBoltStage,
+} from "./aidlc-bolt.ts";
+import { checkQualityGates } from "./aidlc-quality-gate.ts";
 import {
   cliAcceptsResult,
   cliHasCommand,
@@ -92,9 +102,157 @@ const GATE_RESULTS = new Set<ReportResult>([
   "rejected",
   "revised",
 ]);
+const BOLT_STAGE_SET = new Set<string>(BOLT_STAGE_SLUGS);
 
 function errorDirective(message: string): ErrorDirective {
   return { kind: "error", message };
+}
+
+function hasBoltState(content: string): boolean {
+  return /<!-- AIDLC_BOLT_STATE_START -->[\s\S]*?```json\s*\n/.test(content);
+}
+
+function hasBoltPlan(projectDir: string): boolean {
+  const path = join(
+    activeIntentRecordDir(projectDir),
+    "inception",
+    "delivery-planning",
+    "bolt-plan.md",
+  );
+  return existsSync(path) && /```ya?ml[\s\S]*?\bbolt_plan\s*:/i.test(
+    readFileSync(path, "utf8"),
+  );
+}
+
+function resolveBoltDirective(
+  projectDir: string,
+  graph: readonly CompiledStage[],
+  plan: readonly ResolvedPlanStage[],
+  stateContent: string,
+  options: ResolveNextOptions,
+): Directive | null {
+  if (!hasBoltState(stateContent)) {
+    return hasBoltPlan(projectDir)
+      ? {
+          kind: "print",
+          message: "BOLT_ACTION initialize; after initialization run next again.",
+        }
+      : null;
+  }
+  const loaded = loadBoltExecution(projectDir);
+  if (loaded.next.status === "ready") {
+    return {
+      kind: "print",
+      message: `BOLT_ACTION start ${loaded.next.readyBoltIds.join(",")}; then run next again.`,
+    };
+  }
+  if (loaded.next.status === "ready-to-complete") {
+    const id = loaded.next.activeBoltIds[0] ?? "unknown";
+    const run = loaded.state.bolts.find((bolt) => bolt.id === id);
+    const definition = loaded.plan.bolts.find((bolt) => bolt.id === id);
+    if (run?.worktreeStatus === "active" || run?.worktreeStatus === "preserved") {
+      return {
+        kind: "print",
+        message:
+          `BOLT_ACTION integrate ${id} ${definition?.slug ?? "unknown"}; ` +
+          "verify the Worktree merge, record its commit ref, then run next again.",
+      };
+    }
+    return {
+      kind: "print",
+      message: `BOLT_ACTION complete ${id}; then run next again.`,
+    };
+  }
+  if (loaded.next.status === "awaiting-gate") {
+    const id = loaded.next.activeBoltIds[0] ?? "unknown";
+    return {
+      kind: "present-gate",
+      stage: `bolt:${id}`,
+      phase: "construction",
+      memory_path: workspacePath(
+        projectDir,
+        join(loaded.recordDir, "construction", "bolts", id, "memory.md"),
+      ),
+    };
+  }
+  if (loaded.next.status === "awaiting-autonomy") {
+    return {
+      kind: "ask",
+      question:
+        "Choose Construction autonomy after the B1 gate: " +
+        "autonomous (continue later Bolts without a Bolt gate) or " +
+        "gated (require a gate for every later Bolt).",
+    };
+  }
+  if (loaded.next.status === "failed-awaiting-choice") {
+    const id = loaded.next.activeBoltIds.find((candidate) =>
+      loaded.state.bolts.find((bolt) => bolt.id === candidate)?.status === "failed"
+    ) ?? "unknown";
+    return {
+      kind: "ask",
+      question:
+        `Bolt ${id} failed. Choose retry, skip, or abort; ` +
+        "skip and abort require an explicit reason.",
+    };
+  }
+  if (loaded.next.status === "aborted") {
+    return {
+      kind: "parked",
+      reason: loaded.next.nextAction,
+      stage: "construction",
+    };
+  }
+  if (loaded.next.status === "blocked") {
+    return errorDirective(loaded.next.nextAction);
+  }
+  if (loaded.next.status === "all-complete") {
+    return {
+      kind: "print",
+      message: "All Bolts are complete; continue with aggregate Build and Test.",
+    };
+  }
+
+  const cursor = currentBoltStage(projectDir);
+  if (cursor === null) {
+    const id = loaded.next.activeBoltIds[0] ?? "unknown";
+    return {
+      kind: "print",
+      message: `BOLT_ACTION complete ${id}; all per-Bolt Stages are settled.`,
+    };
+  }
+  if (options.unit !== undefined && options.unit !== cursor.unit) {
+    return errorDirective(
+      `Cannot run Unit "${options.unit}" out of Bolt order; next Unit is ` +
+        `"${cursor.unit}" in ${cursor.boltId}/${cursor.stage}.`,
+    );
+  }
+  const stage = graph.find((candidate) => candidate.slug === cursor.stage);
+  if (stage === undefined) {
+    return errorDirective(`Bolt Stage "${cursor.stage}" is not in the compiled graph.`);
+  }
+  const definition = loadActiveUnitDag(projectDir)?.units.find(
+    (candidate) => candidate.name === cursor.unit,
+  );
+  const directive = buildRunStageDirective(
+    projectDir,
+    stage,
+    graph,
+    plan,
+    stateContent,
+    {
+      ...options,
+      unit: cursor.unit,
+      ...(definition?.kind === undefined ? {} : { unitKind: definition.kind }),
+    },
+  );
+  directive.gate = false;
+  const run = loaded.state.bolts.find((bolt) => bolt.id === cursor.boltId)!;
+  const currentIndex = run.stages.findIndex((progress) => progress.slug === cursor.stage);
+  directive.next_stage = run.stages
+    .slice(currentIndex)
+    .find((progress) => progress.status === "pending" && progress.slug !== cursor.stage)
+    ?.slug ?? null;
+  return directive;
 }
 
 function emit(directive: Directive): void {
@@ -507,7 +665,10 @@ export function resolveNextDirective(
         `Workflow status is "${resume.status}"; expected Running or Completed.`,
       );
     }
-    if (![
+    const earlyStateContent = readFileSync(stateFilePath(projectRoot), "utf8");
+    const atBoltBoundary = BOLT_STAGE_SET.has(resume.currentStage) &&
+      hasBoltState(earlyStateContent);
+    if (!atBoltBoundary && ![
       "pending",
       "in-progress",
       "awaiting-approval",
@@ -525,9 +686,28 @@ export function resolveNextDirective(
         `Current Stage "${resume.currentStage}" is not in the compiled graph.`,
       );
     }
-    const stateContent = readFileSync(stateFilePath(projectRoot), "utf8");
+    const stateContent = earlyStateContent;
     const dag = loadActiveUnitDag(projectRoot);
     const plan = readPlan(projectRoot);
+    if (BOLT_STAGE_SET.has(stage.slug)) {
+      const boltDirective = resolveBoltDirective(
+        projectRoot,
+        graph,
+        plan,
+        stateContent,
+        options,
+      );
+      if (boltDirective !== null) {
+        if (boltDirective.kind === "run-stage") {
+          return resolveSteeringDirective(projectRoot, boltDirective, {
+            ...(options.continueToken === undefined
+              ? {}
+              : { continueToken: options.continueToken }),
+          });
+        }
+        return boltDirective;
+      }
+    }
     if (dag !== null) {
       const unitMajor = resolveUnitMajorDirective(
         projectRoot,
@@ -644,6 +824,84 @@ export function reportSingleStageResult(
   }
 }
 
+function reportBoltStageResult(
+  projectRoot: string,
+  node: CompiledStage,
+  options: ReportOptions,
+): DoneDirective | ErrorDirective {
+  const loaded = loadBoltExecution(projectRoot);
+  const cursor = currentBoltStage(projectRoot);
+  const id = cursor?.boltId ?? loaded.next.activeBoltIds[0];
+  if (id === undefined) {
+    return errorDirective("No active Bolt can accept a Stage report.");
+  }
+  if (options.result === "skipped") {
+    const reason = options.reason?.trim();
+    if (!reason) {
+      return errorDirective("Bolt Stage skip requires a nonblank --reason <text>.");
+    }
+    const transition = skipBoltStage(
+      projectRoot,
+      id,
+      node.slug as BoltStageSlug,
+      reason,
+    );
+    if (transition.allStagesCompleted) completeBolt(projectRoot, id);
+    return {
+      kind: "done",
+      reason: `Skipped ${id}/${node.slug}; run next to continue the Bolt.`,
+    };
+  }
+  if (!["completed", "complete", "done"].includes(options.result)) {
+    return errorDirective(
+      `Per-Bolt Stage "${node.slug}" has no Stage-level approval gate. ` +
+        "Report completed after its outputs are ready; approval occurs at the Bolt gate.",
+    );
+  }
+  const unit = options.unit?.trim();
+  if (!unit) {
+    return errorDirective(
+      `report for per-Bolt Stage "${node.slug}" requires --unit <name>.`,
+    );
+  }
+  if (cursor === null || cursor.stage !== node.slug || cursor.unit !== unit) {
+    return errorDirective(
+      `Cannot report ${node.slug}/${unit} out of Bolt order; next is ` +
+        (cursor === null ? "none" : `${cursor.boltId}/${cursor.stage}/${cursor.unit}`),
+    );
+  }
+  const dag = loadActiveUnitDag(projectRoot);
+  const definition = dag?.units.find((candidate) => candidate.name === unit);
+  if (definition === undefined) {
+    return errorDirective(`Unit "${unit}" is not in the active Unit DAG.`);
+  }
+  const evidence = verifyStageArtifactEvidence(projectRoot, node, {
+    unit,
+    ...(definition.kind === undefined ? {} : { unitKind: definition.kind }),
+  });
+  if (!evidence.valid) {
+    return errorDirective(
+      `Cannot complete ${id}/${node.slug}/${unit}: missing required artifact evidence:\n` +
+        evidence.missing.map((path) => `- ${path}`).join("\n"),
+    );
+  }
+  const transition = completeBoltStageUnit(
+    projectRoot,
+    id,
+    node.slug as BoltStageSlug,
+    unit,
+  );
+  const bolt = transition.allStagesCompleted
+    ? completeBolt(projectRoot, id)
+    : null;
+  return {
+    kind: "done",
+    reason: bolt === null
+      ? `Committed ${id}/${node.slug}/${unit}; run next to continue the Bolt.`
+      : `Committed the final Stage cell for ${id}; Bolt status is ${bolt.status}. Run next.`,
+  };
+}
+
 /** Commit an acted stage result through aidlc-state.ts and stop this report beat. */
 export function reportStageResult(
   projectDir: string,
@@ -665,6 +923,24 @@ export function reportStageResult(
       return errorDirective(`Reported stage "${stage}" is not in the compiled graph.`);
     }
     const stateContent = readFileSync(stateFilePath(projectRoot), "utf8");
+    if (BOLT_STAGE_SET.has(stage) && hasBoltState(stateContent)) {
+      return reportBoltStageResult(projectRoot, node, options);
+    }
+    if (
+      stage === "ci-pipeline" &&
+      options.result !== "skipped" && options.result !== "rejected"
+    ) {
+      const quality = checkQualityGates(projectRoot);
+      if (!quality.valid) {
+        return errorDirective(
+          "Cannot open or complete the CI Pipeline gate: Quality Gate Manifest validation failed:\n" +
+            quality.findings
+              .filter((finding) => finding.severity === "error")
+              .map((finding) => `- ${finding.code}: ${finding.message}`)
+              .join("\n"),
+        );
+      }
+    }
     const dag = loadActiveUnitDag(projectRoot);
     const unitMajorBlock = dag === null
       ? []

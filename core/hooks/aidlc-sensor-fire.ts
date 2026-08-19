@@ -1,5 +1,5 @@
-// Harness-neutral PostToolUse Sensor hook. Harness packaging supplies the hook
-// registration and payload adapter; this core accepts the common Write/Edit
+// Harness-neutral post-write Sensor hook. Harness packaging supplies event
+// registration and a payload adapter; this core accepts the common Write/Edit
 // payload shape and never blocks the parent file operation.
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -119,8 +119,7 @@ async function runCli(): Promise<void> {
   } catch {
     return;
   }
-  const projectDir = process.env.CODEX_PROJECT_DIR ??
-    process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
+  const projectDir = process.env.AIDLC_PROJECT_DIR ?? process.cwd();
   await runSensorFireHook(projectDir, payload);
 }
 

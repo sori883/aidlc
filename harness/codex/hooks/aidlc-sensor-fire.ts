@@ -75,7 +75,7 @@ async function readStdin(): Promise<string> {
   return source;
 }
 
-async function runCli(): Promise<void> {
+export async function main(_argv: string[]): Promise<void> {
   try {
     const source = await readStdin();
     const payload = JSON.parse(source || "{}") as CodexPostToolUsePayload;
@@ -85,4 +85,4 @@ async function runCli(): Promise<void> {
   }
 }
 
-if (import.meta.main) void runCli();
+if (import.meta.main) void main(process.argv.slice(2));

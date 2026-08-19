@@ -5,6 +5,7 @@ import type {
   InstallationManifest,
   ManagedFile,
 } from "../core/tools/aidlc-distribution-contract.ts";
+import type { HarnessDescriptor } from "../core/tools/aidlc-harness-contract.ts";
 
 export type InstallCommand = "install" | "update";
 
@@ -12,6 +13,7 @@ export interface CliOptions {
   command: InstallCommand;
   projectDir: string;
   harness: Harness;
+  harnessDescriptor: HarnessDescriptor;
   dryRun: boolean;
   json: boolean;
 }

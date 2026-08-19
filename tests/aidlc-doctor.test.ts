@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  mkdirSync,
   cpSync,
   existsSync,
   mkdtempSync,
@@ -10,7 +11,10 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "bun:test";
-import { auditFilePath } from "../core/tools/aidlc-audit.ts";
+import {
+  appendAuditEntry,
+  auditFilePath,
+} from "../core/tools/aidlc-audit.ts";
 import {
   checkDoctor,
   repairDoctor,
@@ -19,6 +23,7 @@ import {
   birthIntentWithState,
 } from "../core/tools/aidlc-intent.ts";
 import { writeRunnerSkills } from "../core/tools/aidlc-runner-gen.ts";
+import { fireSensor } from "../core/tools/aidlc-sensor.ts";
 import { resumeIntentState } from "../core/tools/aidlc-state.ts";
 import { initializeWorkspace } from "../core/tools/aidlc-workspace.ts";
 
@@ -50,8 +55,112 @@ test("Doctor reports a valid active workflow as healthy and resumable", () => {
   const { projectDir } = freshHealthyProject();
   const report = checkDoctor(projectDir);
   assert.equal(report.healthy, true, JSON.stringify(report.findings, null, 2));
+  assert.equal(report.structuralHealth.healthy, true);
+  assert.equal(report.executionHealth.audited, false);
   assert.deepEqual(report.findings, []);
   assert.match(report.recoveryActions[0] ?? "", /intent-capture/);
+});
+
+test("Doctor full audit separates structural and execution findings", () => {
+  const { projectDir, recordDir } = freshHealthyProject();
+  const statePath = join(recordDir, "aidlc-state.md");
+  let state = readFileSync(statePath, "utf8");
+  state = replaceStateField(state, "Project Root", "/moved/from/old-project");
+  state = replaceStateField(state, "Status", "Completed");
+  writeFileSync(statePath, state, "utf8");
+
+  const boltPlan = join(recordDir, "inception", "delivery-planning", "bolt-plan.md");
+  mkdirSync(join(recordDir, "inception", "delivery-planning"), { recursive: true });
+  writeFileSync(boltPlan, "# Historical Bolt Plan\n", "utf8");
+
+  for (let index = 0; index < 10; index += 1) {
+    const fireId = `legacy-${index}`;
+    appendAuditEntry(projectDir, recordDir, "SENSOR_FIRED", {
+      Sensor: "required-sections",
+      Stage: "intent-capture",
+      "Fire ID": fireId,
+    });
+    appendAuditEntry(
+      projectDir,
+      recordDir,
+      index < 2 ? "SENSOR_BUDGET_OVERRIDE" : "SENSOR_PASSED",
+      {
+        Sensor: "required-sections",
+        Stage: "intent-capture",
+        "Fire ID": fireId,
+      },
+    );
+  }
+
+  const qualityDir = join(recordDir, "construction", "ci-pipeline");
+  mkdirSync(qualityDir, { recursive: true });
+  writeFileSync(join(qualityDir, "quality-gate-manifest.json"), "not json\n", "utf8");
+
+  const report = checkDoctor(projectDir, { fullAudit: true });
+  assert.equal(report.executionHealth.audited, true);
+  assert.equal(report.executionHealth.healthy, false);
+  const ids = new Set(report.executionHealth.findings.map((entry) => entry.id));
+  for (const id of [
+    "execution.bolt-events-missing",
+    "execution.autonomy-unset",
+    "execution.sensor-override-ratio",
+    "execution.sensor-receipts-missing",
+    "execution.quality-gate-invalid",
+    "execution.project-root-mismatch",
+  ]) assert.ok(ids.has(id), id);
+  assert.equal(
+    report.executionHealth.findings.find(
+      (entry) => entry.id === "execution.bolt-events-missing",
+    )?.repair,
+    "manual",
+  );
+});
+
+test("Doctor full audit detects missing Fire IDs and non-unique terminal events", () => {
+  const { projectDir, recordDir } = freshHealthyProject();
+  appendAuditEntry(projectDir, recordDir, "SENSOR_FIRED", {
+    Sensor: "required-sections",
+    Stage: "intent-capture",
+  });
+  appendAuditEntry(projectDir, recordDir, "SENSOR_FIRED", {
+    Sensor: "required-sections",
+    Stage: "intent-capture",
+    "Fire ID": "no-terminal",
+  });
+  appendAuditEntry(projectDir, recordDir, "SENSOR_FIRED", {
+    Sensor: "required-sections",
+    Stage: "intent-capture",
+    "Fire ID": "duplicate-terminal",
+  });
+  for (const event of ["SENSOR_PASSED", "SENSOR_FAILED"] as const) {
+    appendAuditEntry(projectDir, recordDir, event, {
+      Sensor: "required-sections",
+      Stage: "intent-capture",
+      "Fire ID": "duplicate-terminal",
+    });
+  }
+  const ids = new Set(
+    checkDoctor(projectDir, { fullAudit: true }).executionHealth.findings
+      .map((entry) => entry.id),
+  );
+  assert.ok(ids.has("execution.sensor-fire-id-missing"));
+  assert.ok(ids.has("execution.sensor-terminal-missing"));
+  assert.ok(ids.has("execution.sensor-terminal-duplicate"));
+});
+
+test("Doctor full audit detects stale Sensor receipts", async () => {
+  const { projectDir, recordDir } = freshHealthyProject();
+  const output = join(recordDir, "ideation", "intent-capture", "intent-statement.md");
+  mkdirSync(join(recordDir, "ideation", "intent-capture"), { recursive: true });
+  writeFileSync(output, "# Intent\n\n## A\n\nA.\n\n## B\n\nB.\n", "utf8");
+  await fireSensor(projectDir, "required-sections", "intent-capture", output);
+  writeFileSync(output, "# Changed after Sensor pass\n", "utf8");
+  const report = checkDoctor(projectDir, { fullAudit: true });
+  assert.ok(
+    report.executionHealth.findings.some(
+      (entry) => entry.id === "execution.sensor-receipt-stale",
+    ),
+  );
 });
 
 test("Doctor initializes a missing Workspace without touching project files", () => {
@@ -69,6 +178,26 @@ test("Doctor initializes a missing Workspace without touching project files", ()
     readFileSync(join(projectDir, "aidlc", "active-space"), "utf8"),
     "default\n",
   );
+});
+
+test("Doctor ignores host metadata added to the distributed Memory seeds", () => {
+  const { projectDir } = freshHealthyProject();
+  const copiedCore = join(mkdtempSync(join(tmpdir(), "aidlc-doctor-core-")), "core");
+  cpSync("core", copiedCore, { recursive: true });
+  writeFileSync(join(copiedCore, "memory", ".DS_Store"), "host metadata", "utf8");
+
+  const checked = checkDoctor(projectDir, { coreDir: copiedCore });
+  assert.equal(checked.healthy, true, JSON.stringify(checked.findings, null, 2));
+  assert.equal(
+    existsSync(
+      join(projectDir, "aidlc", "spaces", "default", "memory", ".DS_Store"),
+    ),
+    false,
+  );
+
+  const repaired = repairDoctor(projectDir, { coreDir: copiedCore });
+  assert.equal(repaired.healthy, true, JSON.stringify(repaired.findings, null, 2));
+  assert.deepEqual(repaired.repairs, []);
 });
 
 test("Doctor regenerates a drifted compiled graph from valid definitions", () => {
@@ -185,4 +314,57 @@ test("Doctor does not choose between multiple Intent records", () => {
   );
   assert.equal(finding?.repair, "manual");
   assert.equal(existsSync(pointer), false);
+});
+
+test("Doctor deterministically repairs only the moved Project Root field", () => {
+  const original = freshHealthyProject();
+  const moved = mkdtempSync(join(tmpdir(), "aidlc-doctor-moved-"));
+  cpSync(original.projectDir, moved, { recursive: true });
+  const statePath = join(
+    moved,
+    "aidlc",
+    "spaces",
+    "default",
+    "intents",
+    original.recordDir.split("/").at(-1) ?? "",
+    "aidlc-state.md",
+  );
+  const before = readFileSync(statePath, "utf8");
+  assert.match(before, new RegExp(`- \\*\\*Project Root\\*\\*: ${original.projectDir}`));
+
+  const checked = checkDoctor(moved, { fullAudit: true });
+  assert.equal(
+    checked.executionHealth.findings.find(
+      (entry) => entry.id === "execution.project-root-mismatch",
+    )?.repair,
+    "automatic",
+  );
+  const repaired = repairDoctor(moved, { fullAudit: true });
+  assert.ok(repaired.repairs.includes("execution.project-root-mismatch"));
+  assert.equal(repaired.executionHealth.healthy, true, JSON.stringify(repaired, null, 2));
+  const after = readFileSync(statePath, "utf8");
+  assert.equal(after, before.replace(original.projectDir, moved));
+});
+
+test("Doctor preserves replacement tokens in a moved Project Root", () => {
+  const original = freshHealthyProject();
+  const moved = mkdtempSync(join(tmpdir(), "aidlc-doctor-$&-$`-$'-"));
+  cpSync(original.projectDir, moved, { recursive: true });
+  const statePath = join(
+    moved,
+    "aidlc",
+    "spaces",
+    "default",
+    "intents",
+    original.recordDir.split("/").at(-1) ?? "",
+    "aidlc-state.md",
+  );
+  const before = readFileSync(statePath, "utf8");
+
+  const repaired = repairDoctor(moved, { fullAudit: true });
+  assert.ok(repaired.repairs.includes("execution.project-root-mismatch"));
+  assert.equal(repaired.executionHealth.healthy, true, JSON.stringify(repaired, null, 2));
+  const after = readFileSync(statePath, "utf8");
+  assert.equal(after, before.replace(original.projectDir, () => moved));
+  assert.ok(after.includes(`- **Project Root**: ${moved}\n`));
 });

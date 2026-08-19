@@ -19,6 +19,7 @@ export type Action =
 
 export const ROUTES: readonly Route[] = [
   { noun: "artifact", tool: "aidlc-artifacts.ts", commands: ["check", "show"], summary: "validate and resolve Stage artifacts" },
+  { noun: "bolt", tool: "aidlc-bolt.ts", commands: ["init", "show", "next", "start", "complete", "record-integration", "fail", "retry", "skip", "abort", "approve-gate", "reject-gate", "set-autonomy"], summary: "validate and transition Construction Bolts" },
   { noun: "contract", tool: "aidlc-runtime-contract.ts", commands: ["check"], summary: "validate the installed runtime contract" },
   { noun: "doctor", tool: "aidlc-doctor.ts", commands: ["check", "repair"], summary: "diagnose and repair AI-DLC state" },
   { noun: "graph", tool: "aidlc-graph.ts", commands: ["compile", "resolve", "ars", "validate-grid"], summary: "compile and query the Stage Graph" },
@@ -27,6 +28,7 @@ export const ROUTES: readonly Route[] = [
   { noun: "log", tool: "aidlc-log.ts", commands: ["decision", "answer"], summary: "append decision and answer events" },
   { noun: "memory", tool: "aidlc-memory.ts", commands: ["init"], summary: "initialize Stage Memory" },
   { noun: "orchestrate", tool: "aidlc-orchestrate.ts", commands: ["next", "report"], summary: "resolve and report Workflow actions" },
+  { noun: "quality-gate", tool: "aidlc-quality-gate.ts", commands: ["check"], summary: "validate Quality Gate manifests against provider CI" },
   { noun: "sensor", tool: "aidlc-sensor.ts", commands: ["list", "describe", "fire"], summary: "inspect and fire Sensors" },
   { noun: "space", tool: "aidlc-space.ts", commands: ["create", "list", "switch"], summary: "create and select Spaces" },
   { noun: "state", tool: "aidlc-state.ts", commands: ["init", "show", "advance", "skip", "resume", "check", "practices-event", "practices-promote", "set-construction-iteration"], summary: "inspect and mutate Workflow State" },
@@ -80,7 +82,7 @@ export function resolveAction(argv: string[]): Action {
 
   if (argv[0] === "hook") {
     return argv[1] === "sensor-fire"
-      ? { type: "delegate", tool: "aidlc-codex-hook.ts", args: argv.slice(2) }
+      ? { type: "delegate", tool: "aidlc-hook.ts", args: argv.slice(2) }
       : error(`aidlc: unknown hook '${argv[1] ?? ""}'`);
   }
 
@@ -144,7 +146,8 @@ type DelegateModule = {
 async function loadDelegate(tool: string): Promise<DelegateModule | null> {
   switch (tool) {
     case "aidlc-artifacts.ts": return import("./aidlc-artifacts.ts");
-    case "aidlc-codex-hook.ts": return import("./aidlc-codex-hook.ts");
+    case "aidlc-bolt.ts": return import("./aidlc-bolt.ts");
+    case "aidlc-hook.ts": return import("./aidlc-hook.ts");
     case "aidlc-runtime-contract.ts": return import("./aidlc-runtime-contract.ts");
     case "aidlc-doctor.ts": return import("./aidlc-doctor.ts");
     case "aidlc-graph.ts": return import("./aidlc-graph.ts");
@@ -153,6 +156,7 @@ async function loadDelegate(tool: string): Promise<DelegateModule | null> {
     case "aidlc-log.ts": return import("./aidlc-log.ts");
     case "aidlc-memory.ts": return import("./aidlc-memory.ts");
     case "aidlc-orchestrate.ts": return import("./aidlc-orchestrate.ts");
+    case "aidlc-quality-gate.ts": return import("./aidlc-quality-gate.ts");
     case "aidlc-sensor.ts": return import("./aidlc-sensor.ts");
     case "aidlc-sensor-claim-sources.ts": return import("./aidlc-sensor-claim-sources.ts");
     case "aidlc-sensor-linter.ts": return import("./aidlc-sensor-linter.ts");

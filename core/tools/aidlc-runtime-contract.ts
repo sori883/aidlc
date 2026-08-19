@@ -14,6 +14,9 @@ import {
   runtimeHarnessDir,
 } from "./aidlc-runtime-paths.ts";
 import { codexBundleFiles } from "./aidlc-codex-bundle.ts";
+import { ROUTES } from "./aidlc.ts";
+import type { HarnessDescriptor } from "./aidlc-harness-contract.ts";
+import { CODEX_HARNESS } from "../../harness/codex/aidlc-harness.ts";
 import {
   type CliContract,
   loadCliContracts,
@@ -46,7 +49,12 @@ export interface RuntimeContractReport {
 export interface RuntimeContractOptions {
   coreDir?: string;
   harnessDir?: string;
+  descriptor?: HarnessDescriptor;
+  generatedFiles?: ReadonlyMap<string, string>;
+  implementation?: RuntimeContractImplementation;
 }
+
+export type RuntimeContractImplementation = "source" | "native";
 
 export interface AuthoredCliInvocation {
   tool: string;
@@ -54,6 +62,7 @@ export interface AuthoredCliInvocation {
   flags: string[];
   results: string[];
   line: number;
+  nativeNoun?: string;
 }
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
@@ -119,8 +128,11 @@ function codeFragments(content: string): Array<{ text: string; index: number }> 
   return fragments;
 }
 
-/** Extract concrete Harness CLI calls from fenced and inline Markdown code. */
-export function authoredCliInvocations(content: string): AuthoredCliInvocation[] {
+/** Extract concrete source and integrated native CLI calls from Markdown code. */
+export function authoredCliInvocations(
+  content: string,
+  executablePath?: string,
+): AuthoredCliInvocation[] {
   const body = bodyWithoutFrontmatter(content);
   const bodyOffset = content.length - body.length;
   const invocations: AuthoredCliInvocation[] = [];
@@ -146,6 +158,25 @@ export function authoredCliInvocations(content: string): AuthoredCliInvocation[]
         results,
         line: lineAt(content, bodyOffset + fragment.index),
       });
+    }
+    if (executablePath !== undefined) {
+      const escaped = executablePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = new RegExp(
+        `(?:\\./)?${escaped}\\s+([a-z][a-z0-9-]*)\\s+([a-z][a-z0-9-]*)`,
+        "g",
+      );
+      for (const match of normalized.matchAll(pattern)) {
+        const noun = match[1]!;
+        const route = ROUTES.find((candidate) => candidate.noun === noun);
+        invocations.push({
+          tool: route?.tool ?? `aidlc-${noun}.ts`,
+          command: match[2]!,
+          flags,
+          results,
+          line: lineAt(content, bodyOffset + fragment.index),
+          nativeNoun: noun,
+        });
+      }
     }
   }
   for (const match of body.matchAll(/\b(aidlc-log\.ts)\s+(decision|answer)\b/g)) {
@@ -183,7 +214,13 @@ function expectedResourcePath(reference: string): string {
 function inspectGeneratedInstructions(
   generatedFiles: ReadonlyMap<string, string>,
   issues: RuntimeContractIssue[],
+  runtimeRoot: string,
 ): void {
+  const escapedRoot = runtimeRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const resourcePattern = new RegExp(
+    `(?:^|[\\s\`(\"'=])(${escapedRoot}/[A-Za-z0-9_./-]+\\.(?:json|md|toml|ts|yaml))(?=$|[\\s\`'\"),.:;])`,
+    "gm",
+  );
   const instructionFiles = [...generatedFiles].filter(([path]) =>
     path.endsWith(".md") || path.endsWith(".toml")
   );
@@ -194,12 +231,10 @@ function inspectGeneratedInstructions(
         source: portable(path),
         line: lineAt(content, match.index ?? 0),
         subject: "{{HARNESS_DIR}}",
-        detail: "Generated Codex bundle still contains an unresolved Harness path",
+        detail: `Generated ${runtimeRoot} bundle still contains an unresolved Harness path`,
       });
     }
-    for (const match of content.matchAll(
-      /(?:^|[\s`("'=])(\.codex\/[A-Za-z0-9_./-]+\.(?:json|md|toml|ts|yaml))(?=$|[\s`'"),.:;])/gm,
-    )) {
+    for (const match of content.matchAll(resourcePattern)) {
       const reference = match[1]!;
       if (generatedFiles.has(reference)) continue;
       pushIssue(issues, {
@@ -207,7 +242,7 @@ function inspectGeneratedInstructions(
         source: portable(path),
         line: lineAt(content, (match.index ?? 0) + match[0].indexOf(reference)),
         subject: reference,
-        detail: `Referenced Codex bundle resource does not exist: ${reference}`,
+        detail: `Referenced ${runtimeRoot} bundle resource does not exist: ${reference}`,
       });
     }
   }
@@ -241,26 +276,53 @@ function inspectDocument(
   capabilities: ReadonlyMap<string, CliContract>,
   namedResources: Readonly<Record<string, string>>,
   issues: RuntimeContractIssue[],
+  implementation: RuntimeContractImplementation,
+  executablePath: string,
 ): void {
   const body = bodyWithoutFrontmatter(content);
   const toolPattern = /\baidlc-[a-z0-9-]+\.ts\b/g;
   for (const match of body.matchAll(toolPattern)) {
     const tool = match[0];
-    const toolPath = join(coreDir, "tools", tool);
-    if (!existsSync(toolPath)) {
+    const implemented = implementation === "native"
+      ? capabilities.has(tool)
+      : existsSync(join(coreDir, "tools", tool));
+    if (!implemented) {
       pushIssue(issues, {
         code: "missing-tool",
         source,
         line: lineAt(content, (match.index ?? 0) + content.length - body.length),
         subject: tool,
-        detail: `Referenced runtime tool does not exist: core/tools/${tool}`,
+        detail: implementation === "native"
+          ? `Referenced runtime tool has no packaged CLI contract: core/tools/contracts/${tool.replace(/\.ts$/, ".json")}`
+          : `Referenced runtime tool does not exist: core/tools/${tool}`,
       });
     }
   }
 
-  for (const invocation of authoredCliInvocations(content)) {
+  for (const invocation of authoredCliInvocations(
+    content,
+    implementation === "native" ? executablePath : undefined,
+  )) {
     const { tool, command } = invocation;
-    if (!existsSync(join(coreDir, "tools", tool))) continue;
+    const route = invocation.nativeNoun === undefined
+      ? undefined
+      : ROUTES.find((candidate) => candidate.noun === invocation.nativeNoun);
+    if (invocation.nativeNoun !== undefined && route === undefined) {
+      pushIssue(issues, {
+        code: "missing-command",
+        source,
+        line: invocation.line,
+        subject: `aidlc ${invocation.nativeNoun}`,
+        detail: `Integrated native CLI has no route for noun "${invocation.nativeNoun}"`,
+      });
+      continue;
+    }
+    const implemented = invocation.nativeNoun !== undefined
+      ? true
+      : implementation === "native"
+      ? capabilities.has(tool)
+      : existsSync(join(coreDir, "tools", tool));
+    if (!implemented) continue;
     const capability = capabilities.get(tool);
     if (capability === undefined) {
       pushIssue(issues, {
@@ -421,6 +483,9 @@ export function inspectRuntimeContract(
 ): RuntimeContractReport {
   const coreDir = resolve(options.coreDir ?? DEFAULT_CORE_DIR);
   const harnessDir = resolve(options.harnessDir ?? DEFAULT_HARNESS_DIR);
+  const descriptor = options.descriptor ?? CODEX_HARNESS;
+  const implementation = options.implementation ??
+    (isCompiledExecutable() ? "native" : "source");
   const repositoryRoot = dirname(coreDir);
   const capabilities = loadCliContracts(join(coreDir, "tools", "contracts"));
   const namedResources = loadNamedResources(coreDir);
@@ -437,19 +502,25 @@ export function inspectRuntimeContract(
       capabilities,
       namedResources,
       issues,
+      implementation,
+      descriptor.layout.executablePath,
     );
   }
-  inspectCapabilityDrift(coreDir, capabilities, issues);
+  if (implementation === "source") {
+    inspectCapabilityDrift(coreDir, capabilities, issues);
+  }
 
-  const generatedFiles = existsSync(join(harnessDir, "runtime", "package.json"))
-    ? codexBundleFiles({ coreDir, harnessDir })
-    : new Map(
-      generatedBundleFiles(coreDir).map((path) => [
-        portable(relative(repositoryRoot, path)),
-        readFileSync(path, "utf8"),
-      ]),
-    );
-  inspectGeneratedInstructions(generatedFiles, issues);
+  const generatedFiles = options.generatedFiles ?? (
+    existsSync(join(harnessDir, "runtime", "package.json"))
+      ? codexBundleFiles({ coreDir, harnessDir })
+      : new Map(
+        generatedBundleFiles(coreDir).map((path) => [
+          portable(relative(repositoryRoot, path)),
+          readFileSync(path, "utf8"),
+        ]),
+      )
+  );
+  inspectGeneratedInstructions(generatedFiles, issues, descriptor.layout.runtimeRoot);
 
   issues.sort((left, right) =>
     left.source.localeCompare(right.source) || left.line - right.line ||

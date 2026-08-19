@@ -1,4 +1,6 @@
 import { isAbsolute, sep } from "node:path";
+import type { HarnessDescriptor } from "./aidlc-harness-contract.ts";
+import { CODEX_HARNESS } from "../../harness/codex/aidlc-harness.ts";
 
 export const AIDLC_REPOSITORY = "sori883/aidlc" as const;
 export const GITHUB_DISTRIBUTION_FORMAT = "aidlc-github-distribution" as const;
@@ -9,12 +11,13 @@ export const PROJECT_LAYOUT_FORMAT = "aidlc-project-distribution" as const;
 export const PROJECT_LAYOUT_SCHEMA = 1 as const;
 export const DISTRIBUTION_PROJECT_ROOT = "dist/project" as const;
 export const DISTRIBUTION_MANIFEST_ASSET = "aidlc-distribution.json" as const;
-export const PROJECT_LAYOUT_MANIFEST = ".codex/distribution-manifest.json" as const;
-export const INSTALLATION_MANIFEST = ".codex/aidlc-installation.json" as const;
+export const PROJECT_LAYOUT_MANIFEST = CODEX_HARNESS.layout.projectLayoutManifestPath;
+export const INSTALLATION_MANIFEST = CODEX_HARNESS.layout.installationManifestPath;
 export const LEGACY_INSTALLATION_MANIFEST = ".aidlc/installation.json" as const;
-export const NATIVE_CLI_PATH = ".codex/tools/aidlc" as const;
+export const NATIVE_CLI_PATH = CODEX_HARNESS.layout.executablePath;
 
-export type Harness = "codex";
+/** Persisted Harness id. Selection is checked against the Adapter registry. */
+export type Harness = string;
 export type DistributionArea = "core" | "harness";
 export type DistributionPlatform = "darwin" | "linux" | "win32";
 export type DistributionArch = "x64" | "arm64";
@@ -83,26 +86,38 @@ const DISTRIBUTED_RUNTIME_TREES = new Set([...CORE_RUNTIME_TREES, "agents"]);
 const DISTRIBUTION_PLATFORMS = new Set(["darwin", "linux", "win32"]);
 const DISTRIBUTION_ARCHITECTURES = new Set(["x64", "arm64"]);
 
-export function nativeCliPath(platform: string): string {
-  return platform === "win32" ? `${NATIVE_CLI_PATH}.exe` : NATIVE_CLI_PATH;
+export function nativeCliPath(
+  platform: string,
+  descriptor?: HarnessDescriptor,
+): string {
+  const path = (descriptor ?? CODEX_HARNESS).layout.executablePath;
+  return platform === "win32" && !path.endsWith(".exe") ? `${path}.exe` : path;
 }
 
-export function nativeCliCommand(): string {
-  return `./${NATIVE_CLI_PATH}`;
+export function nativeCliCommand(descriptor?: HarnessDescriptor): string {
+  return `./${(descriptor ?? CODEX_HARNESS).layout.executablePath}`;
 }
 
-export function distributionArea(path: string): DistributionArea {
-  if (!path.startsWith(".codex/")) return "harness";
-  const tail = path.slice(".codex/".length);
+export function distributionArea(
+  path: string,
+  descriptor: HarnessDescriptor = CODEX_HARNESS,
+): DistributionArea {
+  const prefix = `${descriptor.layout.runtimeRoot}/`;
+  if (!path.startsWith(prefix)) return "harness";
+  const tail = path.slice(prefix.length);
   const [tree] = tail.split("/");
   if (tree !== undefined && CORE_RUNTIME_TREES.has(tree)) return "core";
   if (tree === "agents" && path.endsWith(".md")) return "core";
   return "harness";
 }
 
-export function isRuntimeDistributionPath(path: string): boolean {
-  if (!path.startsWith(".codex/") || path.endsWith(".ts")) return false;
-  const [tree] = path.slice(".codex/".length).split("/");
+export function isRuntimeDistributionPath(
+  path: string,
+  descriptor: HarnessDescriptor = CODEX_HARNESS,
+): boolean {
+  const prefix = `${descriptor.layout.runtimeRoot}/`;
+  if (!path.startsWith(prefix) || path.endsWith(".ts")) return false;
+  const [tree] = path.slice(prefix.length).split("/");
   return tree !== undefined && DISTRIBUTED_RUNTIME_TREES.has(tree);
 }
 
@@ -204,7 +219,8 @@ export function validateInstallationManifest(value: unknown): InstallationManife
     (manifest.schema_version !== 1 && manifest.schema_version !== PROJECT_INSTALLATION_SCHEMA) ||
     typeof manifest.version !== "string" ||
     manifest.version.length === 0 ||
-    manifest.harness !== "codex" ||
+    typeof manifest.harness !== "string" ||
+    !/^[a-z][a-z0-9-]*$/.test(manifest.harness) ||
     typeof manifest.installed_at !== "string" ||
     !Array.isArray(manifest.files)
   ) throw new Error("Installation manifest identity is invalid");

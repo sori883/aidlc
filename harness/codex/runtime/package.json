@@ -7,6 +7,8 @@
   "scripts": {
     "aidlc": "bun tools/aidlc.ts",
     "artifact": "bun tools/aidlc-artifacts.ts",
+    "bolt": "bun tools/aidlc-bolt.ts",
+    "quality-gate": "bun tools/aidlc-quality-gate.ts",
     "contract": "bun tools/aidlc-runtime-contract.ts",
     "doctor": "bun tools/aidlc-doctor.ts",
     "graph": "bun tools/aidlc-graph.ts",

@@ -80,7 +80,7 @@ active space's `memory/org.md` defaults.
 This stage plans the Bolt sequence — the order in which Units of Work are executed through Construction. 2.7 produces the dependency DAG (topology); 2.8 chooses a path through it. Economic value cannot be derived from the DAG — that's a human value judgment.
 
 **Definitions for this stage:**
-- **Bolt** — per `stage-protocol.md` Glossary: "a deployable unit of work within Construction — one pass through stages 3.1–3.7." A Bolt wraps one or more Units of Work and runs once through the Construction stages.
+- **Bolt** — per `stage-protocol.md` Glossary: one execution of Construction stages 3.1–3.5 for a Unit or a small group of dependency-linked Units. Stages 3.6 Build and Test and 3.7 CI Pipeline run once after every Bolt completes.
 - **Confidence hypothesis** — the observable behaviour that shipping the Bolt validates or falsifies (e.g., "latency stays under 200ms under 1k-rps load," "users complete signup without support tickets," "the event pipeline survives a 10x burst").
 - **WSJF** (Reinertsen / SAFe) — Weighted Shortest Job First. Sequence score = (user-business value + time criticality + risk-reduction value) ÷ job size. Higher score ships first.
 - **Walking skeleton** (Cockburn) — the first Bolt is a minimal end-to-end slice touching every architectural layer that proves the architecture works; features come in later Bolts.
@@ -116,7 +116,42 @@ Validate the chosen Bolt sequence respects 2.7's dependency DAG (with aidlc-arch
 
 Create four artifacts in `<record>/inception/delivery-planning/`:
 
-- `bolt-plan.md` — the ordered sequence of Bolts. Each Bolt entry: included Unit(s) of Work, walking-skeleton marker if applicable, Definition of Done for that Bolt, confidence hypothesis ("what will shipping this Bolt prove?"), expected demo.
+- `bolt-plan.md` — the ordered sequence of Bolts. Each Bolt entry: included Unit(s) of Work, walking-skeleton marker if applicable, Definition of Done for that Bolt, confidence hypothesis ("what will shipping this Bolt prove?"), expected demo. It MUST contain exactly one fenced YAML machine contract using this schema:
+
+  ```yaml
+  bolt_plan:
+    version: 1
+    worktree:
+      enabled: true
+      base_ref: main
+      target_branch: main
+      strategy: squash
+    bolts:
+      - id: B1
+        slug: walking-skeleton
+        units: [unit-slug]
+        depends_on: []
+        walking_skeleton: true
+        batch: 1
+      - id: B2
+        slug: next-thin-slice
+        units: [unit-slug]
+        depends_on: [B1]
+        walking_skeleton: false
+        batch: 2
+  ```
+
+  `worktree` is the approved, machine-readable `## Way of Working`. Set
+  `enabled: false` only when the user or affirmed project practice explicitly
+  requires in-place Construction. `base_ref` and `target_branch` must be
+  non-empty Git refs, and `strategy` is exactly `squash`, `merge`, or `rebase`.
+  Do not infer branch names from a failed Git command.
+
+  `B1` is always the first dependency-free walking skeleton. IDs and slugs are
+  unique. Every Unit from the Unit DAG appears in at least one Bolt. Repeating a
+  Unit in later Bolts is allowed for deliberate thin slices. Bolt dependencies
+  must preserve Unit dependencies, and `batch` must equal the topological Bolt
+  batch derived from `depends_on`.
 - `team-allocation.md` — Bolt-to-mob assignment. References teams from 1.5 when 1.5 ran (enterprise, feature). When 1.5 is SKIP (mvp, workshop), states that all Bolts are executed by aidlc-developer-agent (AI). When team count > 1, this is the Program Board analog.
 - `risk-and-sequencing-rationale.md` — the why behind the Bolt ordering: WSJF-style scoring, risk-first argument, walking-skeleton-first argument, or value-first argument. References the heuristic used (Cohn, Reinertsen CD3, or SAFe WSJF).
 - `external-dependency-map.md` — gated items (external APIs, data availability windows, approval lead times, external-team hand-offs) mapped to the Bolts that consume them. Lightweight or empty when fully AI-contained.

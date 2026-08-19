@@ -13,6 +13,8 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { codexBundleFiles } from "./aidlc-codex-bundle.ts";
+import type { HarnessDescriptor } from "./aidlc-harness-contract.ts";
+import { CODEX_HARNESS } from "../../harness/codex/aidlc-harness.ts";
 import {
   isRuntimeDistributionPath,
   nativeCliCommand,
@@ -29,6 +31,8 @@ export type { DistributionPlatform } from "./aidlc-distribution-contract.ts";
 export interface ProjectLayoutOptions {
   outDir?: string;
   platform?: DistributionPlatform;
+  descriptor?: HarnessDescriptor;
+  bundleFiles?: ReadonlyMap<string, string>;
 }
 
 export interface ProjectLayoutManifest {
@@ -44,17 +48,19 @@ function portable(path: string): string {
 
 export function installedBinaryCommand(
   _platform: DistributionPlatform = process.platform as DistributionPlatform,
+  descriptor: HarnessDescriptor = CODEX_HARNESS,
 ): string {
   // PowerShell and POSIX shells both accept this explicit relative path;
   // Windows resolves the .exe suffix through PATHEXT.
-  return nativeCliCommand();
+  return nativeCliCommand(descriptor);
 }
 
 function rewriteCommands(
   content: string,
   platform: DistributionPlatform,
+  descriptor: HarnessDescriptor,
 ): string {
-  const command = installedBinaryCommand(platform);
+  const command = installedBinaryCommand(platform, descriptor);
   return content
     .replace(
       /Before the first AI-DLC command[\s\S]*?```\n\n/,
@@ -65,7 +71,7 @@ function rewriteCommands(
       "Run every packaged command below from the project root through the project-local native executable.\n",
     )
     .replaceAll(
-    "bun run --cwd .codex aidlc",
+    `bun run --cwd ${descriptor.layout.runtimeRoot} aidlc`,
     command,
     )
     .replaceAll("--project-dir ..", "--project-dir .")
@@ -92,8 +98,11 @@ function installedHook(content: string): string {
   return `${JSON.stringify(hooks, null, 2)}\n`;
 }
 
-function mappedRuntimePath(path: string): string | null {
-  return isRuntimeDistributionPath(path) ? path : null;
+function mappedRuntimePath(
+  path: string,
+  descriptor: HarnessDescriptor,
+): string | null {
+  return isRuntimeDistributionPath(path, descriptor) ? path : null;
 }
 
 /** Render the complete installed project layout, excluding the native binary. */
@@ -101,19 +110,23 @@ export function projectLayoutFiles(
   options: ProjectLayoutOptions = {},
 ): Map<string, string> {
   const platform = options.platform ?? process.platform as DistributionPlatform;
-  const bundled = codexBundleFiles();
+  const descriptor = options.descriptor ?? CODEX_HARNESS;
+  const bundled = options.bundleFiles ?? codexBundleFiles();
   const files = new Map<string, string>();
   for (const [path, content] of bundled) {
-    const runtimePath = mappedRuntimePath(path);
+    const runtimePath = mappedRuntimePath(path, descriptor);
     if (runtimePath !== null) {
-      files.set(runtimePath, rewriteCommands(content, platform));
+      files.set(runtimePath, rewriteCommands(content, platform, descriptor));
       continue;
     }
-    if (path === "AGENTS.md" || path.startsWith(".agents/")) {
-      files.set(path, rewriteCommands(content, platform));
+    if (
+      descriptor.layout.projectInstructions.includes(path) ||
+      path.startsWith(`${descriptor.layout.skillRoot}/`)
+    ) {
+      files.set(path, rewriteCommands(content, platform, descriptor));
       continue;
     }
-    if (path === ".codex/hooks.json") {
+    if (path === descriptor.layout.hookConfigPath) {
       files.set(path, installedHook(content));
       continue;
     }
@@ -123,7 +136,10 @@ export function projectLayoutFiles(
     schema_version: PROJECT_LAYOUT_SCHEMA,
     files: [...files.keys()].sort(),
   };
-  files.set(PROJECT_LAYOUT_MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
+  files.set(
+    descriptor.layout.projectLayoutManifestPath,
+    `${JSON.stringify(manifest, null, 2)}\n`,
+  );
   return files;
 }
 
@@ -143,6 +159,7 @@ export function writeProjectLayout(
   options: ProjectLayoutOptions = {},
 ): { outDir: string; files: string[] } {
   const outDir = resolve(options.outDir ?? DEFAULT_OUT_DIR);
+  const descriptor = options.descriptor ?? CODEX_HARNESS;
   rmSync(outDir, { recursive: true, force: true });
   const files = projectLayoutFiles(options);
   for (const [path, content] of files) {
@@ -150,14 +167,14 @@ export function writeProjectLayout(
     mkdirSync(dirname(absolute), { recursive: true });
     writeFileSync(absolute, content, "utf8");
   }
-  const coreDir = join(outDir, ".codex");
+  const coreDir = join(outDir, descriptor.layout.runtimeRoot);
   writeCompiledStageGraph({
     stagesDir: join(coreDir, "aidlc-common", "stages"),
     agentsDir: join(coreDir, "agents"),
     sensorsDir: join(coreDir, "sensors"),
     memoryDir: join(coreDir, "memory"),
     scopesDir: join(coreDir, "scopes"),
-    harnessDir: ".codex",
+    harnessDir: descriptor.layout.runtimeRoot,
     graphPath: join(coreDir, "aidlc-common", "data", "stage-graph.json"),
     scopeGridPath: join(coreDir, "aidlc-common", "data", "scope-grid.json"),
   });

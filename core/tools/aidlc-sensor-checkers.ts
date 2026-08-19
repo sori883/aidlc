@@ -15,6 +15,7 @@ import { loadCompiledStageGraph } from "./aidlc-graph.ts";
 import { parseUnitDag } from "./aidlc-unit-graph.ts";
 import { activeSpace, workspaceRoot } from "./aidlc-workspace.ts";
 import { stateFilePath } from "./aidlc-state.ts";
+import { applicableStageConsumes } from "./aidlc-artifacts.ts";
 
 export type SensorCheckerId =
   | "claim-sources"
@@ -134,6 +135,8 @@ function upstreamCoverage(input: SensorCheckerInput): SensorCheckerResult {
   if (stage === undefined) throw new Error(`Unknown stage: ${input.stage}`);
   const deliverables = markdownFiles(dirname(input.filePath));
   const combined = deliverables.map(readText).join("\n");
+  const state = readFileSync(stateFilePath(input.projectDir), "utf8");
+  const projectType = stateField(state, "Project Type") ?? "unknown";
   const producers = new Map<string, string>();
   for (const candidate of graph) {
     for (const artifact of [
@@ -143,7 +146,8 @@ function upstreamCoverage(input: SensorCheckerInput): SensorCheckerResult {
       producers.set(artifact, candidate.slug);
     }
   }
-  const unreferenced = (stage.consumes ?? [])
+  const applicable = applicableStageConsumes(projectType, stage);
+  const unreferenced = applicable
     .map((consume) => consume.artifact)
     .filter((artifact) => {
       const producer = producers.get(artifact);
@@ -155,15 +159,75 @@ function upstreamCoverage(input: SensorCheckerInput): SensorCheckerResult {
   return {
     pass: unreferenced.length === 0,
     unreferenced_artifacts: unreferenced,
+    applicable_artifacts: applicable.map((consume) => consume.artifact),
+    project_type: projectType.toLowerCase(),
     deliverables,
   };
 }
 
-function stripIgnoredMarkdown(source: string): string {
-  return source
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/^## Review\s*$[\s\S]*?(?=^##\s|\s*$)/gm, "");
+function stripHtmlComments(
+  line: string,
+  insideComment: boolean,
+): { text: string; insideComment: boolean } {
+  let cursor = 0;
+  let text = "";
+  let comment = insideComment;
+  while (cursor < line.length) {
+    if (comment) {
+      const end = line.indexOf("-->", cursor);
+      if (end === -1) return { text, insideComment: true };
+      cursor = end + 3;
+      comment = false;
+      continue;
+    }
+    const start = line.indexOf("<!--", cursor);
+    if (start === -1) {
+      text += line.slice(cursor);
+      break;
+    }
+    text += line.slice(cursor, start);
+    cursor = start + 4;
+    comment = true;
+  }
+  return { text, insideComment: comment };
+}
+
+/** Remove non-claim regions while preserving the original line numbering. */
+export function stripIgnoredMarkdown(source: string): string {
+  const rows = source.split(/\r?\n/);
+  let comment = false;
+  let fence: { marker: "`" | "~"; length: number } | null = null;
+  let review = false;
+  return rows.map((line) => {
+    const withoutComments = stripHtmlComments(line, comment);
+    comment = withoutComments.insideComment;
+    const text = withoutComments.text;
+    if (fence !== null) {
+      const close = new RegExp(
+        `^ {0,3}${fence.marker === "`" ? "`" : "~"}{${fence.length},}\\s*$`,
+      );
+      if (close.test(text)) fence = null;
+      return "";
+    }
+    const opening = /^ {0,3}(`{3,}|~{3,})/.exec(text);
+    if (opening !== null) {
+      const sequence = opening[1]!;
+      fence = {
+        marker: sequence[0] as "`" | "~",
+        length: sequence.length,
+      };
+      return "";
+    }
+    if (review) {
+      if (!/^##\s+/.test(text)) return "";
+      review = false;
+    }
+    if (/^##\s+Review\s*$/i.test(text)) {
+      review = true;
+      return "";
+    }
+    return text;
+  }).join("\n");
 }
 
 function substantiveLines(source: string): Array<{ line: number; text: string }> {
@@ -385,7 +449,10 @@ export function runSensorCheckerCli(
   try {
     const result = runSensorChecker(id, { projectDir, stage, filePath });
     console.log(JSON.stringify(result));
-    process.exitCode = result.pass ? 0 : 1;
+    // A valid structured checker result is a successful protocol exchange.
+    // The dispatcher classifies result.pass; exit status is reserved for an
+    // invocation or protocol failure.
+    process.exitCode = 0;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 2;

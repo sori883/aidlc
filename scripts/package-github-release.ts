@@ -34,6 +34,7 @@ import {
   type GithubDistributionManifest,
 } from "../core/tools/aidlc-distribution-contract.ts";
 import { writeProjectLayout } from "../core/tools/aidlc-project-layout.ts";
+import { CODEX_HARNESS } from "../harness/codex/aidlc-harness.ts";
 import { AIDLC_VERSION } from "../core/tools/aidlc-version.ts";
 import {
   buildBinary,
@@ -155,7 +156,11 @@ function assertSameDistribution(expectedRoot: string, actualRoot: string): void 
 }
 
 export function writeTrackedProjectDistribution(): string[] {
-  return writeProjectLayout({ outDir: PROJECT_DIST, platform: "linux" }).files;
+  return writeProjectLayout({
+    outDir: PROJECT_DIST,
+    platform: "linux",
+    descriptor: CODEX_HARNESS,
+  }).files;
 }
 
 export function checkTrackedProjectDistribution(): void {
@@ -164,7 +169,11 @@ export function checkTrackedProjectDistribution(): void {
   }
   const temporary = mkdtempSync(join(tmpdir(), "aidlc-project-distribution-"));
   try {
-    writeProjectLayout({ outDir: temporary, platform: "linux" });
+    writeProjectLayout({
+      outDir: temporary,
+      platform: "linux",
+      descriptor: CODEX_HARNESS,
+    });
     assertSameDistribution(PROJECT_DIST, temporary);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
@@ -182,7 +191,7 @@ function projectFileRecords(): DistributionFileRecord[] {
       sha256: digest(content),
       bytes: content.byteLength,
       executable: false,
-      area: distributionArea(path),
+      area: distributionArea(path, CODEX_HARNESS),
     };
   });
 }

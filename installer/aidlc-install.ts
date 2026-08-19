@@ -5,6 +5,7 @@
 
 import { resolve } from "node:path";
 import { nativeCliPath } from "../core/tools/aidlc-distribution-contract.ts";
+import { resolveSupportedHarness } from "../harness/registry.ts";
 import { AIDLC_VERSION } from "../core/tools/aidlc-version.ts";
 import { applyInstallation } from "./aidlc-install-apply.ts";
 import {
@@ -54,11 +55,12 @@ function parseArgs(argv: string[]): CliOptions | null {
     }
   }
   const harness = flagValue(argv, "--harness") ?? "codex";
-  if (harness !== "codex") throw new Error(`Unsupported Harness: ${harness}`);
+  const harnessDescriptor = resolveSupportedHarness(harness);
   return {
     command,
     projectDir: resolve(flagValue(argv, "--project") ?? "."),
     harness,
+    harnessDescriptor,
     dryRun: argv.includes("--dry-run"),
     json: argv.includes("--json"),
   };
@@ -81,7 +83,7 @@ async function install(options: CliOptions): Promise<InstallResult> {
     command: options.command,
     version: AIDLC_VERSION,
     project: options.projectDir,
-    executable: nativeCliPath(process.platform),
+    executable: nativeCliPath(process.platform, options.harnessDescriptor),
     distribution_target: distribution.binary.target,
     written: plan.written,
     unchanged: plan.unchanged,
@@ -93,6 +95,7 @@ async function install(options: CliOptions): Promise<InstallResult> {
     applyInstallation({
       projectDir: options.projectDir,
       harness: options.harness,
+      harnessDescriptor: options.harnessDescriptor,
       distribution,
       previous,
       plan,
