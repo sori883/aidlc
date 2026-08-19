@@ -62,7 +62,33 @@ function freshBrownfieldProject(scope: string): {
   mkdirSync(join(projectDir, "src"));
   writeFileSync(
     join(projectDir, "package.json"),
-    `${JSON.stringify({ name: `release-${scope}`, private: true })}\n`,
+    `${JSON.stringify({
+      name: `release-${scope}`,
+      private: true,
+      scripts: { "test:quality": "echo ok" },
+    })}\n`,
+    "utf8",
+  );
+  mkdirSync(join(projectDir, ".github", "workflows"), { recursive: true });
+  writeFileSync(
+    join(projectDir, ".github", "workflows", "quality.yml"),
+    `name: Quality
+on: [push, pull_request]
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test:quality
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - run: echo ready
+`,
     "utf8",
   );
   writeFileSync(
@@ -117,6 +143,30 @@ function materializeOutputs(
       path,
       path.endsWith("unit-of-work-dependency.md")
         ? UNIT_DAG
+        : path.endsWith("quality-gate-manifest.json")
+        ? `${JSON.stringify({
+          version: 1,
+          provider: { id: "github-actions" },
+          package: { path: "package.json", manager: "bun" },
+          workflows: [
+            { name: "Quality", path: ".github/workflows/quality.yml" },
+          ],
+          gates: [{
+            id: "test",
+            kind: "node-test",
+            required: true,
+            script: "test:quality",
+            workflow: "Quality",
+            job: "test",
+            runtime: "bun",
+          }],
+          aggregate: {
+            workflow: "Quality",
+            job: "quality",
+            required_check: "Quality / Quality",
+          },
+          required_checks: ["Quality / Quality"],
+        }, null, 2)}\n`
         : `# ${directive.stage}${directive.unit === undefined ? "" : ` / ${directive.unit}`}\n`,
       "utf8",
     );

@@ -1,6 +1,6 @@
 // Harness-neutral M7 Agent execution control. This module turns one M6
 // run-stage Directive into deterministic Agent invocations. The adapter owns
-// the actual inference transport (Codex spawn_agent in the primary harness);
+// the actual inference transport (the active Harness Adapter's agent API);
 // the executor owns ordering, result validation, Reviewer retries, and the
 // success-only handoff to orchestrate:report.
 
@@ -107,7 +107,7 @@ export interface StageExecutionResult {
   report?: DoneDirective | ErrorDirective;
 }
 
-/** M11/M12 implement this with the Codex conductor's spawn_agent tool. */
+/** The Harness Adapter implements this with its declared delegation capability. */
 export interface AgentAdapter {
   invoke(request: AgentInvocation): Promise<AgentResult>;
 }

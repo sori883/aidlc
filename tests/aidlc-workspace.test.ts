@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   writeFileSync,
@@ -81,4 +82,24 @@ test("workspace initialization rejects a missing project directory", () => {
     () => initializeWorkspace(missingProject),
     /Project directory is not a directory/,
   );
+});
+
+test("workspace initialization excludes host metadata from Memory seeds", () => {
+  const projectDir = mkdtempSync(join(tmpdir(), "aidlc-workspace-"));
+  const memorySourceDir = mkdtempSync(join(tmpdir(), "aidlc-memory-source-"));
+  mkdirSync(join(memorySourceDir, "phases"));
+  writeFileSync(join(memorySourceDir, "org.md"), "# Organization\n", "utf8");
+  writeFileSync(join(memorySourceDir, ".DS_Store"), "host metadata", "utf8");
+  writeFileSync(
+    join(memorySourceDir, "phases", ".DS_Store"),
+    "nested host metadata",
+    "utf8",
+  );
+
+  const result = initializeWorkspace(projectDir, { memorySourceDir });
+  const target = join(projectDir, "aidlc", "spaces", "default", "memory");
+  assert.equal(existsSync(join(target, "org.md")), true);
+  assert.equal(existsSync(join(target, ".DS_Store")), false);
+  assert.equal(existsSync(join(target, "phases", ".DS_Store")), false);
+  assert.ok(result.createdFiles.every((path) => !path.endsWith(".DS_Store")));
 });

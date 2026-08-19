@@ -1,11 +1,15 @@
 // Advisory Sensor dispatcher. Invocation errors fail the CLI; once a fire is
 // accepted, every outcome is audit-paired and returns successfully.
 
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import {
+  existsSync,
   mkdirSync,
+  readFileSync,
+  readdirSync,
   renameSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import {
@@ -34,7 +38,9 @@ import {
 import {
   activeIntentRecordDir,
   resumeIntentState,
+  stateFilePath,
 } from "./aidlc-state.ts";
+import { activeSpace, workspaceRoot } from "./aidlc-workspace.ts";
 
 export type SensorOutcome = "passed" | "failed" | "budget-override";
 
@@ -45,10 +51,44 @@ export interface SensorFireResult {
   output_path: string;
   outcome: SensorOutcome;
   detail_path?: string;
+  receipt_path?: string;
+  receipt_fresh?: boolean;
   result?: Record<string, unknown>;
 }
 
-interface ProcessResult {
+export const SENSOR_RECEIPT_VERSION = 1 as const;
+export const SENSOR_CHECKER_PROTOCOL_VERSION = 1 as const;
+
+export interface SensorReceiptInput {
+  path: string;
+  sha256: string;
+}
+
+export interface SensorReceipt {
+  version: typeof SENSOR_RECEIPT_VERSION;
+  checker_protocol_version: typeof SENSOR_CHECKER_PROTOCOL_VERSION;
+  fire_id: string;
+  sensor: string;
+  sensor_version: string;
+  stage: string;
+  outcome: SensorOutcome;
+  output_path: string;
+  output_sha256: string;
+  input_sha256: string;
+  inputs: SensorReceiptInput[];
+  checker_result: CheckerProtocolResult | null;
+  created_at: string;
+}
+
+export interface SensorReceiptFreshness {
+  fresh: boolean;
+  reasons: string[];
+  current_output_sha256: string;
+  current_input_sha256: string;
+  current_sensor_version: string;
+}
+
+export interface SensorProcessResult {
   code: number | null;
   stdout: string;
   stderr: string;
@@ -56,10 +96,123 @@ interface ProcessResult {
   spawnError?: string;
 }
 
+export interface CheckerProtocolResult extends Record<string, unknown> {
+  pass: boolean;
+}
+
+export interface SensorProcessClassification {
+  outcome: SensorOutcome;
+  checkerResult: CheckerProtocolResult | null;
+  reason?:
+    | "timeout"
+    | "spawn-failed"
+    | "missing-exit-status"
+    | "invalid-checker-protocol"
+    | "checker-budget-override"
+    | "unexpected-exit-status"
+    | "exit-status-mismatch";
+}
+
 const TOOL_DIR = dirname(fileURLToPath(import.meta.url));
 const CORE_DIR = runtimeCoreDir();
 const DEFAULT_TIMEOUT_SECONDS = 30;
 const MAX_CAPTURE = 1_000_000;
+
+function sha256(source: string | Buffer): string {
+  return createHash("sha256").update(source).digest("hex");
+}
+
+function fileDigest(path: string): string {
+  return existsSync(path) && statSync(path).isFile()
+    ? sha256(readFileSync(path))
+    : "missing";
+}
+
+function stableStateIdentity(projectDir: string): Record<string, string> {
+  const source = readFileSync(stateFilePath(projectDir), "utf8");
+  const field = (name: string): string => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`^- \\*\\*${escaped}\\*\\*:[ \\t]*(.*)$`, "m")
+      .exec(source)?.[1]?.trim() ?? "missing";
+  };
+  return {
+    project: field("Project"),
+    scope: field("Scope"),
+    project_type: field("Project Type").toLowerCase(),
+  };
+}
+
+function immediateMarkdownFiles(directory: string): string[] {
+  if (!existsSync(directory) || !statSync(directory).isDirectory()) return [];
+  return readdirSync(directory)
+    .filter((name) => name.endsWith(".md"))
+    .sort()
+    .map((name) => join(directory, name));
+}
+
+function sensorVersion(sensor: SensorDefinition): string {
+  return existsSync(sensor.sourcePath)
+    ? fileDigest(sensor.sourcePath)
+    : sha256(JSON.stringify(sensor));
+}
+
+function receiptSnapshot(
+  projectDir: string,
+  sensor: SensorDefinition,
+  stage: CompiledStage,
+  target: { absolute: string; relative: string },
+): {
+  sensorVersion: string;
+  outputSha256: string;
+  inputSha256: string;
+  inputs: SensorReceiptInput[];
+} {
+  const projectRoot = resolve(projectDir);
+  const inputPaths = new Set<string>([target.absolute]);
+  if (target.absolute.endsWith(".md")) {
+    for (const path of immediateMarkdownFiles(dirname(target.absolute))) inputPaths.add(path);
+    const template = join(
+      workspaceRoot(projectRoot),
+      "spaces",
+      activeSpace(projectRoot),
+      "memory",
+      "templates",
+      target.absolute.split(sep).at(-1) ?? "",
+    );
+    if (existsSync(template)) inputPaths.add(template);
+  } else {
+    for (const name of [
+      "package.json", "bun.lock", "bun.lockb", "tsconfig.json",
+      "eslint.config.js", "eslint.config.mjs", ".eslintrc.json",
+    ]) {
+      const path = join(projectRoot, name);
+      if (existsSync(path)) inputPaths.add(path);
+    }
+  }
+  const inputs = [...inputPaths]
+    .sort()
+    .map((path) => ({
+      path: portable(relative(projectRoot, path)),
+      sha256: fileDigest(path),
+    }));
+  const version = sensorVersion(sensor);
+  return {
+    sensorVersion: version,
+    outputSha256: fileDigest(target.absolute),
+    inputSha256: sha256(JSON.stringify({
+      sensor: sensor.id,
+      sensor_version: version,
+      stage: {
+        slug: stage.slug,
+        consumes: stage.consumes ?? [],
+        produces: stage.produces ?? [],
+      },
+      state: stableStateIdentity(projectRoot),
+      inputs,
+    })),
+    inputs,
+  };
+}
 
 function portable(path: string): string {
   return path.split(sep).join("/");
@@ -127,7 +280,7 @@ function runProcess(
   args: string[],
   projectDir: string,
   timeoutMs: number,
-): Promise<ProcessResult> {
+): Promise<SensorProcessResult> {
   return new Promise((settle) => {
     let stdout = "";
     let stderr = "";
@@ -164,18 +317,81 @@ function runProcess(
   });
 }
 
-function parseCheckerResult(stdout: string): Record<string, unknown> | null {
-  const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
-  const candidate = lines.at(-1);
-  if (candidate === undefined) return null;
-  try {
-    const value = JSON.parse(candidate) as unknown;
-    return typeof value === "object" && value !== null && !Array.isArray(value)
-      ? value as Record<string, unknown>
-      : null;
-  } catch {
-    return null;
+/** Find the last complete checker-protocol JSON line, ignoring wrapper logs. */
+export function parseCheckerProtocolResult(
+  stdout: string,
+): CheckerProtocolResult | null {
+  const lines = stdout.split(/\r?\n/);
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const candidate = lines[index]?.trim();
+    if (!candidate) continue;
+    try {
+      const value = JSON.parse(candidate) as unknown;
+      if (
+        typeof value === "object" && value !== null && !Array.isArray(value) &&
+        typeof (value as Record<string, unknown>).pass === "boolean"
+      ) return value as CheckerProtocolResult;
+    } catch {
+      // Package-manager and script wrapper lines are not checker protocol.
+    }
   }
+  return null;
+}
+
+/** Classify one checker process independently from its package-manager shell. */
+export function classifySensorProcessResult(
+  processResult: SensorProcessResult,
+): SensorProcessClassification {
+  if (processResult.timedOut) {
+    return { outcome: "budget-override", checkerResult: null, reason: "timeout" };
+  }
+  if (processResult.spawnError !== undefined) {
+    return {
+      outcome: "budget-override",
+      checkerResult: null,
+      reason: "spawn-failed",
+    };
+  }
+  if (processResult.code === null) {
+    return {
+      outcome: "budget-override",
+      checkerResult: null,
+      reason: "missing-exit-status",
+    };
+  }
+  const checkerResult = parseCheckerProtocolResult(processResult.stdout);
+  if (checkerResult === null) {
+    return {
+      outcome: "budget-override",
+      checkerResult,
+      reason: "invalid-checker-protocol",
+    };
+  }
+  if (checkerResult.budget_override === true) {
+    return {
+      outcome: "budget-override",
+      checkerResult,
+      reason: "checker-budget-override",
+    };
+  }
+  if (processResult.code !== 0 && processResult.code !== 1) {
+    return {
+      outcome: "budget-override",
+      checkerResult,
+      reason: "unexpected-exit-status",
+    };
+  }
+  if (checkerResult.pass === false) {
+    return { outcome: "failed", checkerResult };
+  }
+  if (processResult.code === 0) {
+    return { outcome: "passed", checkerResult };
+  }
+  return {
+    outcome: "budget-override",
+    checkerResult,
+    reason: "exit-status-mismatch",
+  };
 }
 
 function writeFailureDetail(
@@ -185,8 +401,8 @@ function writeFailureDetail(
   fireId: string,
   outputPath: string,
   outcome: Exclude<SensorOutcome, "passed">,
-  processResult: ProcessResult,
-  checkerResult: Record<string, unknown> | null,
+  processResult: SensorProcessResult,
+  checkerResult: CheckerProtocolResult | null,
 ): string {
   const directory = join(recordDir, ".aidlc-sensors", stage);
   const filename = `${sensorId}-${fireId}.md`;
@@ -210,6 +426,95 @@ function writeFailureDetail(
   return finalPath;
 }
 
+function writeSensorReceipt(
+  recordDir: string,
+  receipt: SensorReceipt,
+): string {
+  const directory = join(recordDir, ".aidlc-sensors", receipt.stage, "receipts");
+  const filename = `${receipt.sensor}-${receipt.fire_id}.json`;
+  const finalPath = join(directory, filename);
+  const temporaryPath = join(
+    directory,
+    `.${filename}.${process.pid}.${randomBytes(3).toString("hex")}.tmp`,
+  );
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(
+    temporaryPath,
+    `${JSON.stringify(receipt, null, 2)}\n`,
+    { encoding: "utf8", flag: "wx" },
+  );
+  renameSync(temporaryPath, finalPath);
+  return finalPath;
+}
+
+export function readSensorReceipt(path: string): SensorReceipt {
+  const value = JSON.parse(readFileSync(path, "utf8")) as Partial<SensorReceipt>;
+  if (
+    value.version !== SENSOR_RECEIPT_VERSION ||
+    value.checker_protocol_version !== SENSOR_CHECKER_PROTOCOL_VERSION ||
+    typeof value.fire_id !== "string" || typeof value.sensor !== "string" ||
+    typeof value.sensor_version !== "string" || typeof value.stage !== "string" ||
+    !["passed", "failed", "budget-override"].includes(String(value.outcome)) ||
+    typeof value.output_path !== "string" || typeof value.output_sha256 !== "string" ||
+    typeof value.input_sha256 !== "string" || !Array.isArray(value.inputs) ||
+    value.inputs.some((input) =>
+      typeof input?.path !== "string" || typeof input?.sha256 !== "string"
+    ) || typeof value.created_at !== "string"
+  ) throw new Error(`Invalid Sensor receipt: ${path}`);
+  return value as SensorReceipt;
+}
+
+export function sensorReceiptFreshness(
+  projectDir: string,
+  receipt: SensorReceipt,
+): SensorReceiptFreshness {
+  const projectRoot = resolve(projectDir);
+  const sensor = sensorDefinition(receipt.sensor);
+  const stage = loadCompiledStageGraph().find((candidate) => candidate.slug === receipt.stage);
+  if (stage === undefined) throw new Error(`Unknown receipt Stage: ${receipt.stage}`);
+  const target = workspaceRelativePath(projectRoot, receipt.output_path);
+  const current = receiptSnapshot(projectRoot, sensor, stage, target);
+  const reasons: string[] = [];
+  if (receipt.output_sha256 !== current.outputSha256) reasons.push("output-changed");
+  if (receipt.input_sha256 !== current.inputSha256) reasons.push("input-changed");
+  if (receipt.sensor_version !== current.sensorVersion) reasons.push("sensor-version-changed");
+  return {
+    fresh: reasons.length === 0,
+    reasons,
+    current_output_sha256: current.outputSha256,
+    current_input_sha256: current.inputSha256,
+    current_sensor_version: current.sensorVersion,
+  };
+}
+
+export function listSensorReceipts(projectDir: string): Array<{
+  path: string;
+  receipt: SensorReceipt;
+  freshness: SensorReceiptFreshness;
+}> {
+  const projectRoot = resolve(projectDir);
+  const root = join(activeIntentRecordDir(projectRoot), ".aidlc-sensors");
+  if (!existsSync(root)) return [];
+  return readdirSync(root)
+    .sort()
+    .flatMap((stage) => {
+      const directory = join(root, stage, "receipts");
+      if (!existsSync(directory) || !statSync(directory).isDirectory()) return [];
+      return readdirSync(directory)
+        .filter((name) => name.endsWith(".json"))
+        .sort()
+        .map((name) => join(directory, name));
+    })
+    .map((path) => {
+      const receipt = readSensorReceipt(path);
+      return {
+        path: portable(relative(projectRoot, path)),
+        receipt,
+        freshness: sensorReceiptFreshness(projectRoot, receipt),
+      };
+    });
+}
+
 /** Fire one compile-bound Sensor. Accepted outcomes are always advisory. */
 export async function fireSensor(
   projectDir: string,
@@ -225,7 +530,7 @@ export async function fireSensor(
     );
   }
   const sensor = sensorDefinition(id);
-  const { matches } = stageAndBinding(stageSlug, id);
+  const { stage, matches } = stageAndBinding(stageSlug, id);
   const target = workspaceRelativePath(projectRoot, outputPath);
   if (!matchesGlob(target.relative, matches)) {
     throw new Error(
@@ -236,6 +541,7 @@ export async function fireSensor(
   const recordDir = activeIntentRecordDir(projectRoot);
   const fireId = randomBytes(4).toString("hex");
   const tokens = commandTokens(sensor);
+  const snapshot = receiptSnapshot(projectRoot, sensor, stage, target);
   const fileFlag = "file_path" in sensor.input_schema
     ? "--file-path"
     : "--output-path";
@@ -245,6 +551,9 @@ export async function fireSensor(
     "Fire ID": fireId,
     Output: target.relative,
     Severity: sensor.default_severity,
+    "Sensor Version": snapshot.sensorVersion,
+    "Output SHA-256": snapshot.outputSha256,
+    "Input SHA-256": snapshot.inputSha256,
   });
 
   const processResult = await runProcess(
@@ -259,18 +568,33 @@ export async function fireSensor(
     projectRoot,
     (sensor.timeout_seconds ?? DEFAULT_TIMEOUT_SECONDS) * 1000,
   );
-  const checkerResult = parseCheckerResult(processResult.stdout);
-  const budgetOverride = processResult.timedOut ||
-    processResult.spawnError !== undefined ||
-    checkerResult === null ||
-    checkerResult.budget_override === true ||
-    processResult.code === null ||
-    (processResult.code !== 0 && processResult.code !== 1);
-  const outcome: SensorOutcome = budgetOverride
-    ? "budget-override"
-    : processResult.code === 0 && checkerResult.pass === true
-    ? "passed"
-    : "failed";
+  const classification = classifySensorProcessResult(processResult);
+  const { checkerResult, outcome } = classification;
+  const receipt: SensorReceipt = {
+    version: SENSOR_RECEIPT_VERSION,
+    checker_protocol_version: SENSOR_CHECKER_PROTOCOL_VERSION,
+    fire_id: fireId,
+    sensor: id,
+    sensor_version: snapshot.sensorVersion,
+    stage: stageSlug,
+    outcome,
+    output_path: target.relative,
+    output_sha256: snapshot.outputSha256,
+    input_sha256: snapshot.inputSha256,
+    inputs: snapshot.inputs,
+    checker_result: checkerResult,
+    created_at: new Date().toISOString(),
+  };
+  let receiptRelative = "unavailable";
+  let receiptError: string | undefined;
+  let receiptFresh = false;
+  try {
+    const receiptPath = writeSensorReceipt(recordDir, receipt);
+    receiptRelative = portable(relative(projectRoot, receiptPath));
+    receiptFresh = sensorReceiptFreshness(projectRoot, receipt).fresh;
+  } catch (error) {
+    receiptError = error instanceof Error ? error.message : String(error);
+  }
 
   if (outcome === "passed") {
     appendAuditEntry(projectRoot, recordDir, "SENSOR_PASSED", {
@@ -278,6 +602,9 @@ export async function fireSensor(
       Stage: stageSlug,
       "Fire ID": fireId,
       Output: target.relative,
+      Receipt: receiptRelative,
+      "Receipt Fresh": String(receiptFresh),
+      ...(receiptError === undefined ? {} : { "Receipt Error": receiptError }),
     });
     return {
       id,
@@ -285,6 +612,8 @@ export async function fireSensor(
       stage: stageSlug,
       output_path: target.relative,
       outcome,
+      ...(receiptRelative === "unavailable" ? {} : { receipt_path: receiptRelative }),
+      receipt_fresh: receiptFresh,
       ...(checkerResult === null ? {} : { result: checkerResult }),
     };
   }
@@ -316,9 +645,12 @@ export async function fireSensor(
       "Fire ID": fireId,
       Output: target.relative,
       Detail: detailRelative,
+      Receipt: receiptRelative,
+      "Receipt Fresh": String(receiptFresh),
       ...(detailError === undefined ? {} : { "Detail Error": detailError }),
+      ...(receiptError === undefined ? {} : { "Receipt Error": receiptError }),
       ...(outcome === "budget-override"
-        ? { Reason: processResult.timedOut ? "timeout" : "checker unavailable" }
+        ? { Reason: classification.reason ?? "checker unavailable" }
         : {}),
     },
   );
@@ -329,6 +661,8 @@ export async function fireSensor(
     output_path: target.relative,
     outcome,
     ...(detailRelative === "unavailable" ? {} : { detail_path: detailRelative }),
+    ...(receiptRelative === "unavailable" ? {} : { receipt_path: receiptRelative }),
+    receipt_fresh: receiptFresh,
     ...(checkerResult === null ? {} : { result: checkerResult }),
   };
 }

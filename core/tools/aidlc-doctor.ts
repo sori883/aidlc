@@ -22,6 +22,8 @@ import {
 import {
   appendAuditEntry,
   initializeAuditLog,
+  readOrderedAuditEntries,
+  type OrderedAuditEntry,
 } from "./aidlc-audit.ts";
 import {
   checkCompiledStageGraph,
@@ -45,10 +47,13 @@ import {
   repairDerivedIntentState,
   validateIntentState,
 } from "./aidlc-state.ts";
+import { checkQualityGates } from "./aidlc-quality-gate.ts";
+import { listSensorReceipts } from "./aidlc-sensor.ts";
 import { loadActiveUnitDag } from "./aidlc-unit-graph.ts";
 import {
   DEFAULT_SPACE,
   initializeWorkspace,
+  isManagedMemorySeedEntry,
   workspaceRoot,
 } from "./aidlc-workspace.ts";
 import {
@@ -71,16 +76,25 @@ export interface DoctorFinding {
 export interface DoctorReport {
   projectDir: string;
   healthy: boolean;
+  structuralHealth: DoctorHealth;
+  executionHealth: DoctorHealth;
   findings: DoctorFinding[];
   recoveryActions: string[];
   repairs: string[];
   repairFailures: string[];
 }
 
+export interface DoctorHealth {
+  audited: boolean;
+  healthy: boolean;
+  findings: DoctorFinding[];
+}
+
 export interface DoctorOptions {
   coreDir?: string;
   skillsDir?: string;
   authoredSkillDir?: string;
+  fullAudit?: boolean;
 }
 
 interface DoctorContext {
@@ -118,6 +132,13 @@ function stateField(content: string, field: string): string | null {
   const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`^- \\*\\*${escaped}\\*\\*:[ \\t]*(.*)$`, "m")
     .exec(content)?.[1]?.trim() ?? null;
+}
+
+function replaceStateField(content: string, field: string, value: string): string {
+  const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`^- \\*\\*${escaped}\\*\\*:[^\\n]*$`, "m");
+  if (!pattern.test(content)) throw new Error(`State file has no ${field} field`);
+  return content.replace(pattern, () => `- **${field}**: ${value}`);
 }
 
 function writeFileAtomic(path: string, content: string): void {
@@ -387,6 +408,7 @@ function requiredMemoryFiles(coreDir: string): string[] {
   const files: string[] = [];
   const walk = (directory: string): void => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (!isManagedMemorySeedEntry(entry.name)) continue;
       const path = join(directory, entry.name);
       if (entry.isDirectory()) walk(path);
       else if (entry.isFile()) files.push(relative(root, path));
@@ -660,6 +682,289 @@ function inspectRuntime(context: DoctorContext, findings: DoctorFinding[]): void
   }
 }
 
+function constructionCompleted(state: string, entries: readonly OrderedAuditEntry[]): boolean {
+  if (stateField(state, "Status") === "Completed") return true;
+  return entries.some((entry) =>
+    entry.event === "PHASE_COMPLETED" &&
+    (entry.fields.Phase ?? entry.fields["Phase name"] ?? "").toLowerCase() === "construction"
+  );
+}
+
+function stageExecutes(recordDir: string, slug: string): boolean {
+  try {
+    const plan = JSON.parse(
+      readFileSync(join(recordDir, ".aidlc-plan.json"), "utf8"),
+    ) as Array<{ slug?: unknown; action?: unknown }>;
+    return Array.isArray(plan) && plan.some((entry) =>
+      entry?.slug === slug && entry.action === "EXECUTE"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function inspectBoltExecution(
+  context: DoctorContext,
+  state: string,
+  entries: readonly OrderedAuditEntry[],
+  findings: DoctorFinding[],
+): void {
+  const recordDir = context.activeRecordDir;
+  if (recordDir === null) return;
+  const planPath = join(recordDir, "inception", "delivery-planning", "bolt-plan.md");
+  if (!existsSync(planPath)) return;
+  const constructionEvidence = constructionCompleted(state, entries) ||
+    entries.some((entry) =>
+      entry.event === "BOLT_STARTED" ||
+      entry.event === "BOLT_COMPLETED" ||
+      entry.event === "BOLT_FAILED"
+    );
+  if (!constructionEvidence) return;
+  const started = entries.filter((entry) => entry.event === "BOLT_STARTED");
+  const completed = entries.filter((entry) => entry.event === "BOLT_COMPLETED");
+  if (started.length === 0 || completed.length === 0) {
+    finding(
+      findings,
+      "execution.bolt-events-missing",
+      "error",
+      "manual",
+      `Bolt Plan exists but Audit has ${started.length} BOLT_STARTED and ${completed.length} BOLT_COMPLETED events; historical Bolt success cannot be inferred.`,
+      [planPath, join(recordDir, "audit")],
+    );
+  }
+  if (
+    constructionCompleted(state, entries) &&
+    (stateField(state, "Construction Autonomy Mode") ?? "unset") === "unset"
+  ) {
+    finding(
+      findings,
+      "execution.autonomy-unset",
+      "error",
+      "manual",
+      "Construction is complete but its autonomy mode is unset; Doctor will not infer the missing human choice.",
+      [join(recordDir, "aidlc-state.md")],
+    );
+  }
+}
+
+function inspectSensorExecution(
+  context: DoctorContext,
+  entries: readonly OrderedAuditEntry[],
+  findings: DoctorFinding[],
+): void {
+  const recordDir = context.activeRecordDir;
+  if (recordDir === null) return;
+  const sensorEvents = entries.filter((entry) => entry.event.startsWith("SENSOR_"));
+  const withoutFireId = sensorEvents.filter((entry) => !entry.fields["Fire ID"]);
+  if (withoutFireId.length > 0) {
+    finding(
+      findings,
+      "execution.sensor-fire-id-missing",
+      "error",
+      "manual",
+      `${withoutFireId.length} Sensor Audit events have no Fire ID and cannot be correlated safely.`,
+      [...new Set(withoutFireId.map((entry) => entry.path))],
+    );
+  }
+  const fires = new Map<string, OrderedAuditEntry[]>();
+  const terminals = new Map<string, OrderedAuditEntry[]>();
+  const terminalEvents = new Set([
+    "SENSOR_PASSED",
+    "SENSOR_FAILED",
+    "SENSOR_BUDGET_OVERRIDE",
+  ]);
+  for (const entry of sensorEvents) {
+    const fireId = entry.fields["Fire ID"];
+    if (!fireId) continue;
+    const target = entry.event === "SENSOR_FIRED"
+      ? fires
+      : terminalEvents.has(entry.event) ? terminals : null;
+    if (target !== null) target.set(fireId, [...(target.get(fireId) ?? []), entry]);
+  }
+  const duplicateFires = [...fires].filter(([, rows]) => rows.length > 1);
+  if (duplicateFires.length > 0) {
+    finding(
+      findings,
+      "execution.sensor-fire-duplicate",
+      "error",
+      "manual",
+      `${duplicateFires.length} Fire IDs have duplicate SENSOR_FIRED events.`,
+      [join(recordDir, "audit")],
+    );
+  }
+  const missingTerminal = [...fires.keys()].filter((fireId) =>
+    (terminals.get(fireId)?.length ?? 0) === 0
+  );
+  if (missingTerminal.length > 0) {
+    finding(
+      findings,
+      "execution.sensor-terminal-missing",
+      "error",
+      "manual",
+      `${missingTerminal.length} Sensor fires have no terminal outcome.`,
+      [join(recordDir, "audit")],
+    );
+  }
+  const duplicateTerminals = [...terminals].filter(([, rows]) => rows.length > 1);
+  if (duplicateTerminals.length > 0) {
+    finding(
+      findings,
+      "execution.sensor-terminal-duplicate",
+      "error",
+      "manual",
+      `${duplicateTerminals.length} Fire IDs have more than one terminal Sensor outcome.`,
+      [join(recordDir, "audit")],
+    );
+  }
+  const orphanTerminals = [...terminals.keys()].filter((fireId) => !fires.has(fireId));
+  if (orphanTerminals.length > 0) {
+    finding(
+      findings,
+      "execution.sensor-terminal-orphaned",
+      "error",
+      "manual",
+      `${orphanTerminals.length} terminal Sensor outcomes have no matching SENSOR_FIRED event.`,
+      [join(recordDir, "audit")],
+    );
+  }
+  const overrides = [...terminals.values()].flat().filter((entry) =>
+    entry.event === "SENSOR_BUDGET_OVERRIDE"
+  ).length;
+  if (fires.size >= 10 && overrides / fires.size > 0.10) {
+    finding(
+      findings,
+      "execution.sensor-override-ratio",
+      "warning",
+      "manual",
+      `Sensor budget override ratio is ${overrides}/${fires.size} (${(100 * overrides / fires.size).toFixed(1)}%), above the 10% audit threshold.`,
+      [join(recordDir, "audit")],
+    );
+  }
+
+  let receipts: ReturnType<typeof listSensorReceipts> = [];
+  try {
+    receipts = listSensorReceipts(context.projectDir);
+  } catch (error) {
+    finding(
+      findings,
+      "execution.sensor-receipt-invalid",
+      "error",
+      "manual",
+      `Sensor receipts cannot be validated: ${detail(error)}`,
+      [join(recordDir, ".aidlc-sensors")],
+    );
+    return;
+  }
+  const receiptFireIds = new Set(receipts.map((entry) => entry.receipt.fire_id));
+  const firesWithoutReceipts = [...fires.keys()].filter((fireId) =>
+    !receiptFireIds.has(fireId)
+  );
+  if (firesWithoutReceipts.length > 0) {
+    finding(
+      findings,
+      "execution.sensor-receipts-missing",
+      "warning",
+      "manual",
+      `${firesWithoutReceipts.length} Sensor fires have no hash-bound receipt; those historical results are unverifiable.`,
+      [join(recordDir, ".aidlc-sensors"), join(recordDir, "audit")],
+    );
+  }
+  const stale = receipts.filter((entry) => !entry.freshness.fresh);
+  if (stale.length > 0) {
+    finding(
+      findings,
+      "execution.sensor-receipt-stale",
+      "error",
+      "none",
+      `${stale.length} Sensor receipts are stale and must be replaced by a new Sensor fire.`,
+      stale.map((entry) => join(context.projectDir, entry.path)),
+    );
+  }
+}
+
+function inspectQualityGateExecution(
+  context: DoctorContext,
+  state: string,
+  findings: DoctorFinding[],
+): void {
+  const recordDir = context.activeRecordDir;
+  if (recordDir === null) return;
+  const manifestPath = join(
+    recordDir,
+    "construction",
+    "ci-pipeline",
+    "quality-gate-manifest.json",
+  );
+  if (!existsSync(manifestPath)) {
+    if (constructionCompleted(state, []) && stageExecutes(recordDir, "ci-pipeline")) {
+      finding(
+        findings,
+        "execution.quality-gate-manifest-missing",
+        "error",
+        "manual",
+        "Completed workflow has no Quality Gate Manifest; CI readiness is unverifiable.",
+        [manifestPath],
+      );
+    }
+    return;
+  }
+  try {
+    const checked = checkQualityGates(context.projectDir, { manifestPath });
+    if (!checked.valid) {
+      finding(
+        findings,
+        "execution.quality-gate-invalid",
+        "error",
+        "manual",
+        `Quality Gate Manifest and CI differ: ${checked.findings.map((row) => row.code).join(", ")}.`,
+        [manifestPath, ...checked.findings.map((row) => join(context.projectDir, row.path))],
+      );
+    }
+  } catch (error) {
+    finding(
+      findings,
+      "execution.quality-gate-invalid",
+      "error",
+      "manual",
+      `Quality Gate Manifest cannot be validated: ${detail(error)}`,
+      [manifestPath],
+    );
+  }
+}
+
+function inspectProjectRootExecution(
+  context: DoctorContext,
+  state: string,
+  findings: DoctorFinding[],
+): void {
+  const stored = stateField(state, "Project Root");
+  if (stored === null || resolve(stored) === context.projectDir) return;
+  finding(
+    findings,
+    "execution.project-root-mismatch",
+    "error",
+    "automatic",
+    `State Project Root is "${stored}" but the current project root is "${context.projectDir}".`,
+    [join(context.activeRecordDir ?? context.projectDir, "aidlc-state.md")],
+  );
+}
+
+function inspectExecution(
+  context: DoctorContext,
+  findings: DoctorFinding[],
+): void {
+  const recordDir = context.activeRecordDir;
+  if (recordDir === null) return;
+  const statePath = join(recordDir, "aidlc-state.md");
+  if (!existsSync(statePath)) return;
+  const state = readFileSync(statePath, "utf8");
+  const entries = readOrderedAuditEntries(recordDir);
+  inspectBoltExecution(context, state, entries, findings);
+  inspectSensorExecution(context, entries, findings);
+  inspectQualityGateExecution(context, state, findings);
+  inspectProjectRootExecution(context, state, findings);
+}
+
 /** Diagnose one project without changing it. */
 export function checkDoctor(
   projectDir: string,
@@ -668,14 +973,15 @@ export function checkDoctor(
   const projectRoot = resolve(projectDir);
   const coreDir = resolve(options.coreDir ?? DEFAULT_CORE_DIR);
   const context = buildContext(projectRoot, coreDir);
-  const findings: DoctorFinding[] = [];
+  const structuralFindings: DoctorFinding[] = [];
+  const executionFindings: DoctorFinding[] = [];
   const recoveryActions: string[] = [];
   const inspect = (name: string, operation: () => void): void => {
     try {
       operation();
     } catch (error) {
       finding(
-        findings,
+        structuralFindings,
         `doctor.${name}-inspection-failed`,
         "error",
         "manual",
@@ -683,18 +989,46 @@ export function checkDoctor(
       );
     }
   };
-  inspect("definitions", () => inspectDefinitions(context, options, findings));
-  inspect("bundle", () => inspectBundleManifest(projectRoot, findings));
-  inspect("workspace", () => inspectWorkspace(context, findings));
-  inspect("intent", () => inspectIntentRegistry(context, findings));
+  inspect("definitions", () => inspectDefinitions(context, options, structuralFindings));
+  inspect("bundle", () => inspectBundleManifest(projectRoot, structuralFindings));
+  inspect("workspace", () => inspectWorkspace(context, structuralFindings));
+  inspect("intent", () => inspectIntentRegistry(context, structuralFindings));
   inspect("state", () =>
-    inspectActiveIntent(context, findings, recoveryActions)
+    inspectActiveIntent(context, structuralFindings, recoveryActions)
   );
-  inspect("runtime", () => inspectRuntime(context, findings));
+  inspect("runtime", () => inspectRuntime(context, structuralFindings));
+  if (options.fullAudit === true) {
+    try {
+      inspectExecution(context, executionFindings);
+    } catch (error) {
+      finding(
+        executionFindings,
+        "doctor.execution-inspection-failed",
+        "error",
+        "manual",
+        `execution inspection failed safely: ${detail(error)}`,
+      );
+    }
+  }
+  structuralFindings.sort((left, right) => left.id.localeCompare(right.id));
+  executionFindings.sort((left, right) => left.id.localeCompare(right.id));
+  const findings = [...structuralFindings, ...executionFindings];
+  const structuralHealthy = structuralFindings.every((entry) => entry.severity === "info");
+  const executionHealthy = executionFindings.every((entry) => entry.severity === "info");
   findings.sort((left, right) => left.id.localeCompare(right.id));
   return {
     projectDir: projectRoot,
-    healthy: findings.every((entry) => entry.severity === "info"),
+    healthy: structuralHealthy && (options.fullAudit !== true || executionHealthy),
+    structuralHealth: {
+      audited: true,
+      healthy: structuralHealthy,
+      findings: structuralFindings,
+    },
+    executionHealth: {
+      audited: options.fullAudit === true,
+      healthy: options.fullAudit === true ? executionHealthy : true,
+      findings: executionFindings,
+    },
     findings,
     recoveryActions: [...new Set(recoveryActions)],
     repairs: [],
@@ -745,6 +1079,19 @@ function repairPlan(recordDir: string): void {
   writeFileAtomic(
     join(recordDir, ".aidlc-plan.json"),
     `${JSON.stringify(expectedPlan(recordDir), null, 2)}\n`,
+  );
+}
+
+function repairProjectRoot(context: DoctorContext): void {
+  if (context.activeRecordDir === null) throw new Error("No active Intent record");
+  const statePath = join(context.activeRecordDir, "aidlc-state.md");
+  const source = readFileSync(statePath, "utf8");
+  const stored = stateField(source, "Project Root");
+  if (stored === null) throw new Error("State file has no Project Root field");
+  if (resolve(stored) === context.projectDir) return;
+  writeFileAtomic(
+    statePath,
+    replaceStateField(source, "Project Root", context.projectDir),
   );
 }
 
@@ -807,6 +1154,10 @@ function applyAutomaticRepair(
     repairDerivedIntentState(projectDir);
     return;
   }
+  if (id === "execution.project-root-mismatch") {
+    repairProjectRoot(context);
+    return;
+  }
   throw new Error(`No automatic repair implementation for ${id}`);
 }
 
@@ -860,6 +1211,8 @@ function formatReport(report: DoctorReport): string {
   const lines = [
     `AI-DLC Doctor: ${report.healthy ? "healthy" : "attention required"}`,
     `Project: ${report.projectDir}`,
+    `Structural health: ${report.structuralHealth.healthy ? "healthy" : "attention required"}`,
+    `Execution health: ${report.executionHealth.audited ? (report.executionHealth.healthy ? "healthy" : "attention required") : "not audited"}`,
   ];
   for (const entry of report.findings) {
     lines.push(
@@ -882,15 +1235,16 @@ export function main(argv: string[]): void {
   const projectDir = flagValue(args, "--project-dir");
   if (!["check", "repair"].includes(command ?? "") || projectDir === undefined) {
     console.error(
-      "Usage: aidlc-doctor <check|repair> --project-dir <dir> [--json]",
+      "Usage: aidlc-doctor <check|repair> --project-dir <dir> [--full] [--json]",
     );
     process.exitCode = 1;
     return;
   }
   try {
+    const options = { fullAudit: args.includes("--full") };
     const report = command === "repair"
-      ? repairDoctor(projectDir)
-      : checkDoctor(projectDir);
+      ? repairDoctor(projectDir, options)
+      : checkDoctor(projectDir, options);
     process.stdout.write(
       args.includes("--json")
         ? `${JSON.stringify(report, null, 2)}\n`

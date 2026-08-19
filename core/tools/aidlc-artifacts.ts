@@ -55,6 +55,9 @@ export interface ArtifactEvidence {
 }
 
 const UNIT_PLACEHOLDER = "{unit-name}";
+const ARTIFACT_EXTENSIONS: Readonly<Record<string, string>> = {
+  "quality-gate-manifest": ".json",
+};
 
 function safePathSegment(value: string, label: string): string {
   if (
@@ -99,7 +102,7 @@ function stateRouteIsActive(
   return plan.find((candidate) => candidate.slug === slug)?.action === "EXECUTE";
 }
 
-function applicableConsumes(
+export function applicableStageConsumes(
   projectType: string,
   stage: CompiledStage,
 ): CompiledStage["consumes"] {
@@ -128,6 +131,7 @@ function standardArtifactPath(
 ): string {
   const recordDir = activeIntentRecordDir(projectDir);
   const safeArtifact = safeArtifactName(artifact);
+  const filename = `${safeArtifact}${ARTIFACT_EXTENSIONS[safeArtifact] ?? ".md"}`;
   const safeUnit = unit === undefined
     ? UNIT_PLACEHOLDER
     : safePathSegment(unit, "Unit name");
@@ -137,9 +141,9 @@ function standardArtifactPath(
         stage.phase,
         safeUnit,
         stage.slug,
-        `${safeArtifact}.md`,
+        filename,
       )
-    : join(recordDir, stage.phase, stage.slug, `${safeArtifact}.md`);
+    : join(recordDir, stage.phase, stage.slug, filename);
   return workspacePath(projectDir, absolute);
 }
 
@@ -292,7 +296,7 @@ export function resolveStageArtifacts(
   const consumes: string[] = [];
   const consumesAbsent: AbsentArtifact[] = [];
 
-  for (const consume of applicableConsumes(projectType, stage)) {
+  for (const consume of applicableStageConsumes(projectType, stage)) {
     const producer = producers.get(consume.artifact);
     if (producer === undefined) {
       throw new Error(

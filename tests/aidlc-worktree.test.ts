@@ -130,6 +130,11 @@ test("worktree CLI creates, validates, lists, describes, and idempotently discar
   const audit = readFileSync(auditPath, "utf8");
   assert.match(audit, /\*\*Event\*\*: WORKTREE_CREATED/);
   assert.match(audit, /\*\*Event\*\*: WORKTREE_DISCARDED/);
+  assert.match(
+    audit,
+    /\*\*Worktree path\*\*: \.aidlc\/worktrees\/bolt-payment-api/,
+  );
+  assert.equal(audit.includes(`**Worktree path**: ${projectDir}`), false);
   assert.equal(readFileSync(planPath, "utf8"), beforePlan);
   assert.equal(readFileSync(statePath, "utf8"), beforeState);
 });

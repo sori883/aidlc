@@ -13,7 +13,7 @@ Authoritative generated views:
 - **Project Type**: [Greenfield/Brownfield]
 - **Scope**: [scope slug from compiled scope grid]
 - **Start Date**: [ISO 8601 timestamp]
-- **State Version**: 7
+- **State Version**: 8
 - **Active Agent**: [current lead agent slug]
 - **Worktree Path**: [empty when not in a worktree]
 - **Bolt Refs**: [empty list or comma-separated bolt slugs]
@@ -37,7 +37,13 @@ Authoritative generated views:
 - **In Progress**: [current stage slug]
 
 ## Runtime State
+- **Construction Iteration**: [stage-major/unit-major]
 - **Revision Count**: [integer]
+- **Current Bolt**: [none or comma-separated Bolt IDs]
+- **Bolt Status**: [uninitialized/ready/running/awaiting-gate/awaiting-autonomy/ready-to-complete/failed-awaiting-choice/aborted/all-complete]
+- **Bolt Attempt**: [none or Bolt ID=attempt pairs]
+- **Bolt Failure**: [none or Bolt ID: reason]
+- **Bolt Next Action**: [deterministic resume action]
 
 ## Phase Progress
 <!-- Status values: Pending, Active, Verified, Skipped -->
@@ -62,6 +68,16 @@ topological order:
 Per unit:
 - [ ] Unit: [unit-slug] — [per-unit-stage-slug]
 <!-- AIDLC_UNIT_PROGRESS_END -->
+
+## Bolt Progress
+<!-- Bolt markers: [ ] pending, [-] active, [x] completed, [S] skipped, [!] failed/aborted -->
+
+The engine replaces the placeholder with one human-readable row per Bolt and a
+fenced JSON block that is the machine-readable Bolt execution state.
+
+<!-- AIDLC_BOLT_STATE_START -->
+Bolt execution: [uninitialized]
+<!-- AIDLC_BOLT_STATE_END -->
 
 ## Current Status
 - **Lifecycle Phase**: [READY/INITIALIZATION/IDEATION/INCEPTION/CONSTRUCTION/OPERATION]

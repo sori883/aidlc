@@ -36,6 +36,11 @@ test("integrated CLI exposes explicit upstream-style routes", () => {
     tool: "aidlc-sensor-linter.ts",
     args: ["--stage", "x"],
   });
+  assert.deepEqual(resolveAction(["hook", "sensor-fire"]), {
+    type: "delegate",
+    tool: "aidlc-hook.ts",
+    args: [],
+  });
   assert.equal(ROUTES.some((route) => route.noun === "state"), true);
   assert.match(renderHelp(true), /All command groups:/);
 });

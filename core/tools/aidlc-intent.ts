@@ -29,6 +29,7 @@ import { detectWorkspace } from "./aidlc-workspace-detect.ts";
 import {
   appendAuditEntry,
   initializeAuditLog,
+  portableEvidencePath,
 } from "./aidlc-audit.ts";
 
 const ACTIVE_INTENT_POINTER = "active-intent";
@@ -376,7 +377,9 @@ export function birthIntentWithState(
       Languages: scan.languages,
       Frameworks: scan.frameworks,
       "Build System": scan.buildSystem,
-      ...(scan.nestedRoot === undefined ? {} : { "Nested Root": scan.nestedRoot }),
+      ...(scan.nestedRoot === undefined
+        ? {}
+        : { "Nested Root": portableEvidencePath(projectRoot, scan.nestedRoot) }),
       ...(scan.submodules.length === 0
         ? {}
         : {

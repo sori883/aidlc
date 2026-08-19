@@ -16,6 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadAgents, type AgentDefinition } from "./aidlc-agent-loader.ts";
 import { loadCliContracts } from "./aidlc-cli-contract.ts";
 import { runnerSkillFiles } from "./aidlc-runner-gen.ts";
+import { CODEX_HARNESS } from "../../harness/codex/aidlc-harness.ts";
 
 export const CODEX_BUNDLE_GENERATOR = "aidlc-codex-bundle";
 export const CODEX_BUNDLE_SCHEMA = 1;
@@ -51,6 +52,7 @@ const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CORE_DIR = resolve(MODULE_DIR, "..");
 const DEFAULT_HARNESS_DIR = resolve(MODULE_DIR, "../../harness/codex");
 const DEFAULT_OUT_DIR = resolve("dist/codex");
+const CODEX_RUNTIME_ROOT = CODEX_HARNESS.layout.runtimeRoot;
 const CORE_TREES = [
   "aidlc-common",
   "agents",
@@ -173,20 +175,20 @@ export function transformCodexMarkdown(
           `bun\\s+${escapedRegex(toolPath)}\\s+${escapedRegex(command)}\\b`,
           "g",
         ),
-        `bun run --cwd .codex aidlc ${route} ${command} --project-dir ..`,
+        `bun run --cwd ${CODEX_RUNTIME_ROOT} aidlc ${route} ${command} --project-dir ..`,
       );
     }
     rendered = rendered.replace(
       new RegExp(`bun\\s+${escapedRegex(toolPath)}`, "g"),
-      `bun run --cwd .codex aidlc ${route}`,
+      `bun run --cwd ${CODEX_RUNTIME_ROOT} aidlc ${route}`,
     );
   }
   return rendered
     .replaceAll(
       "{{HARNESS_DIR}}/tools/data/scope-grid.json",
-      ".codex/aidlc-common/data/scope-grid.json",
+      `${CODEX_RUNTIME_ROOT}/aidlc-common/data/scope-grid.json`,
     )
-    .replaceAll("{{HARNESS_DIR}}/", ".codex/");
+    .replaceAll("{{HARNESS_DIR}}/", `${CODEX_RUNTIME_ROOT}/`);
 }
 
 function tomlString(value: string): string {
@@ -208,7 +210,7 @@ export function renderCodexAgentToml(
     "AI-DLC Codex constraints:",
     "- Work only on the exact Stage task and paths supplied by the conductor.",
     "- Do not spawn or delegate to another agent.",
-    `- The source persona is .codex/agents/${agent.name}.md.`,
+    `- The source persona is ${CODEX_HARNESS.layout.agentRoot}/${agent.name}.md.`,
     `- Harness-neutral disallowed tool category: ${agent.disallowedTools}.`,
   ].join("\n");
   return [
@@ -262,46 +264,65 @@ export function codexBundleFiles(
     if (path.endsWith(".md")) {
       return transformCodexMarkdown(content, toolScripts, projectCommands);
     }
-    if (path === ".codex/tools/aidlc-codex-hook.ts") {
-      return content.replace(
-        '"../hooks/aidlc-sensor-fire.ts"',
+    if (path === `${CODEX_RUNTIME_ROOT}/tools/aidlc-hook.ts`) {
+      return requireFile(join(harnessDir, "hooks", "aidlc-sensor-fire.ts")).replace(
+        '"../../../core/hooks/aidlc-sensor-fire.ts"',
         '"../hooks/aidlc-sensor-core.ts"',
+      );
+    }
+    if (path.endsWith(".ts")) {
+      return content.replaceAll(
+        '"../../harness/codex/aidlc-harness.ts"',
+        '"../harness/aidlc-harness.ts"',
       );
     }
     return content;
   };
-  files.set("AGENTS.md", requireFile(join(harnessDir, "AGENTS.md")));
-  files.set(".codex/hooks.json", requireFile(join(harnessDir, "hooks.json")));
   files.set(
-    ".codex/package.json",
+    CODEX_HARNESS.layout.projectInstructions[0]!,
+    requireFile(join(harnessDir, "AGENTS.md")),
+  );
+  files.set(
+    CODEX_HARNESS.layout.hookConfigPath,
+    requireFile(join(harnessDir, "hooks.json")),
+  );
+  files.set(
+    `${CODEX_RUNTIME_ROOT}/package.json`,
     runtimePackageSource,
   );
   files.set(
-    ".codex/bun.lock",
+    `${CODEX_RUNTIME_ROOT}/bun.lock`,
     requireFile(join(harnessDir, "runtime", "bun.lock")),
   );
   for (const tree of CORE_TREES) {
     collectTree(
       files,
       join(coreDir, tree),
-      join(".codex", tree),
+      join(CODEX_RUNTIME_ROOT, tree),
       transformCore,
     );
   }
   files.set(
-    ".codex/hooks/aidlc-sensor-core.ts",
+    `${CODEX_RUNTIME_ROOT}/hooks/aidlc-sensor-core.ts`,
     requireFile(join(coreDir, "hooks", "aidlc-sensor-fire.ts")),
   );
   files.set(
-    ".codex/hooks/aidlc-sensor-fire.ts",
+    `${CODEX_RUNTIME_ROOT}/hooks/aidlc-sensor-fire.ts`,
     requireFile(join(harnessDir, "hooks", "aidlc-sensor-fire.ts")).replace(
       '"../../../core/hooks/aidlc-sensor-fire.ts"',
       '"./aidlc-sensor-core.ts"',
     ),
   );
+  files.set(
+    `${CODEX_RUNTIME_ROOT}/harness/aidlc-harness.ts`,
+    requireFile(join(harnessDir, "aidlc-harness.ts")).replace(
+      '"../../core/tools/aidlc-harness-contract.ts"',
+      '"../tools/aidlc-harness-contract.ts"',
+    ),
+  );
   for (const agent of loadAgents(join(coreDir, "agents"))) {
     files.set(
-      `.codex/agents/${agent.name}.toml`,
+      `${CODEX_HARNESS.layout.agentRoot}/${agent.name}.toml`,
       renderCodexAgentToml(agent, toolScripts, projectCommands),
     );
   }
@@ -310,7 +331,7 @@ export function codexBundleFiles(
     scopesDir: join(coreDir, "scopes"),
     authoredSkillDir: join(harnessDir, "skills", "aidlc"),
   })) {
-    files.set(portable(join(".agents", "skills", path)), content);
+    files.set(portable(join(CODEX_HARNESS.layout.skillRoot, path)), content);
   }
   const manifest = manifestFor(files);
   files.set(CODEX_BUNDLE_MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);

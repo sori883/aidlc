@@ -25,6 +25,11 @@ export const RESERVED_RECORD_NAMES: ReadonlySet<string> = new Set([
   "show",
 ]);
 
+/** Files created by the host OS are not part of the portable Memory seed. */
+export function isManagedMemorySeedEntry(name: string): boolean {
+  return name !== ".DS_Store";
+}
+
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_MEMORY_SOURCE_DIR = resolve(runtimeCoreDir(), "memory");
 
@@ -118,6 +123,7 @@ function copyMissingTree(
     .sort((a, b) => a.name.localeCompare(b.name));
 
   for (const entry of entries) {
+    if (!isManagedMemorySeedEntry(entry.name)) continue;
     const sourcePath = join(sourceDir, entry.name);
     const targetPath = join(targetDir, entry.name);
     if (entry.isDirectory()) {

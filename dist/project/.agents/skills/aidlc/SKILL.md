@@ -12,7 +12,9 @@ edit `aidlc-state.md` directly.
 
 All stages follow `.codex/aidlc-common/protocols/stage-protocol.md` for
 approval gates, question format, state tracking, and completion messages.
-Read that protocol before acting on every `run-stage` directive.
+Read that protocol and this Skill's `lifecycle-rendering.md` Codex annex before
+acting on every `run-stage` directive. Codex UI operations only mirror Core
+State and Audit transitions.
 
 Run every packaged command below from the project root through the project-local native executable.
 
@@ -41,6 +43,81 @@ Run:
 `./.codex/tools/aidlc orchestrate next --project-dir .`
 
 Act on exactly one returned Directive, then call `next` again when instructed.
+
+### Construction Bolt forwarding
+
+When `print.message` starts with `BOLT_ACTION`, treat it as a Core-owned
+automatic boundary, not as a human decision. Run only the named transition,
+then call `orchestrate next` again:
+
+- `BOLT_ACTION initialize`:
+  `./.codex/tools/aidlc bolt init --project-dir .`
+- `BOLT_ACTION start B1` (or a comma-separated ready batch): obtain each Bolt
+  slug and the approved `plan.worktree` values from `aidlc bolt show`. For each
+  ID, create and verify its
+  Worktree first:
+  `./.codex/tools/aidlc worktree create --project-dir . --slug <slug> --base <base>`
+  followed by
+  `./.codex/tools/aidlc worktree verify --project-dir . --slug <slug> --event WORKTREE_CREATED`.
+  Then forward the returned absolute `worktree_path` and branch as:
+  `./.codex/tools/aidlc bolt start --project-dir . --bolt <id> --worktree <worktree_path> --ref <branch>`.
+  B1 is always the first and only ID in its initial batch. If the approved Way
+  of Working has `enabled: false`, omit only the create/verify and
+  `--worktree`/`--ref` parts; do not infer that exception from a Git error.
+- `BOLT_ACTION integrate <id> <slug>`: use the approved target branch and merge
+  strategy from `plan.worktree`, run
+  `./.codex/tools/aidlc worktree merge --project-dir . --slug <slug> --target <target> --strategy <squash|merge|rebase>`, then verify
+  `WORKTREE_MERGED`. Forward its `commit_sha` with
+  `./.codex/tools/aidlc bolt record-integration --project-dir . --bolt <id> --ref <commit_sha>`.
+  A conflict is a Bolt failure: preserve the Worktree, record `bolt fail` with
+  the exact conflict summary, and ask for retry, skip, or abort.
+- `BOLT_ACTION complete <id>`:
+  `./.codex/tools/aidlc bolt complete --project-dir . --bolt <id>`
+
+Do not infer an ID. If a boundary message and `aidlc bolt show` disagree, stop
+with the exact inconsistency instead of editing State.
+
+For a Bolt-owned `run-stage`, State has a non-`none` Current Bolt and the
+Directive has `gate: false`. Execute the Stage for the exact `unit`, but do not
+open a Stage-level human gate. After its outputs and applicable Sensor checks
+are complete, report:
+
+`./.codex/tools/aidlc orchestrate report --project-dir . --stage <stage> --unit <unit> --result completed`
+
+The Core records the per-Bolt Stage/Unit cell and opens the Bolt gate only after
+all applicable Stages 3.1 through 3.5 are settled. If Stage execution,
+review, or required validation fails and cannot be corrected in the same turn,
+record the failure once:
+
+During `code-generation`, make application-code changes in the absolute
+Worktree Path recorded for the Current Bolt. Keep declared AI-DLC record
+artifacts at their engine-resolved paths. Never place generated application
+code under the Intent record directory.
+
+`./.codex/tools/aidlc bolt fail --project-dir . --bolt <id> --reason "<exact summary>"`
+
+For `present-gate` whose `stage` is `bolt:<id>`, show the Bolt outputs and ask
+for a real approval. Forward the exact response with one of:
+
+- approve:
+  `./.codex/tools/aidlc bolt approve-gate --project-dir . --bolt <id> --user-input "<exact response>"`
+- reject:
+  `./.codex/tools/aidlc bolt reject-gate --project-dir . --bolt <id> --user-input "<exact response>"`
+
+When `ask` requests the Construction autonomy ladder, ask exactly once and
+forward the selected mode:
+
+`./.codex/tools/aidlc bolt set-autonomy --project-dir . --mode <autonomous|gated>`
+
+When `ask` reports a failed Bolt, present `retry`, `skip`, and `abort`. Never
+choose on the user's behalf. Forward the exact choice as follows:
+
+- retry: `./.codex/tools/aidlc bolt retry --project-dir . --bolt <id>`
+- skip: `./.codex/tools/aidlc bolt skip --project-dir . --bolt <id> --reason "<reason>" --user-input "<exact response>"`
+- abort: `./.codex/tools/aidlc bolt abort --project-dir . --bolt <id> --reason "<reason>" --user-input "<exact response>"`
+
+After every forwarded transition, call `orchestrate next`; do not synthesize a
+Bolt completion, gate approval, autonomy answer, or failure recovery.
 
 ### `load-steering`
 
@@ -104,7 +181,8 @@ ready, stop and ask the human.
 
 #### Learnings Ritual and gate
 
-For a normal gated Stage:
+For a normal gated Stage (`gate` is not `false` and it is not a `bolt:<id>`
+gate):
 
 1. Surface candidates:
 
@@ -133,12 +211,23 @@ run never reports against the main workflow.
 
 Print the reason concisely and stop.
 
+### `print`
+
+Handle `BOLT_ACTION` as specified above. Otherwise print `message` exactly and
+continue only when the message instructs it.
+
+### `present-gate` and `ask`
+
+Handle Bolt gates, the autonomy ladder, and failure choices as specified in
+Construction Bolt forwarding. For other stages, use `question-rendering.md`
+and never infer the user's answer.
+
 ### `error`
 
 Print the exact message, stop mutation, and explain the smallest recovery step.
 For missing, malformed, or inconsistent Workspace/Intent/State data, run:
 
-`./.codex/tools/aidlc doctor check --project-dir .`
+`./.codex/tools/aidlc doctor check --project-dir . --full`
 
 Use `doctor repair` only when the report marks the finding `automatic`; never
 replace a manual finding with inferred progress or approval.

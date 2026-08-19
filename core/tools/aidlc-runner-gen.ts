@@ -207,6 +207,7 @@ export function runnerSkillFiles(
   for (const filename of [
     "SKILL.md",
     "question-rendering.md",
+    "lifecycle-rendering.md",
     join("agents", "openai.yaml"),
   ]) {
     const path = join(authoredDir, filename);

@@ -27,6 +27,7 @@ import { initializeWorkspace } from "../core/tools/aidlc-workspace.ts";
 import {
   auditShardName,
   cloneIdPath,
+  readOrderedAuditEntries,
 } from "../core/tools/aidlc-audit.ts";
 
 function freshProject(): string {
@@ -57,7 +58,7 @@ test("Intent Birth writes the v2 state contract and adjusted plan", () => {
   assert.match(state, /- \*\*Project\*\*: Payment API/);
   assert.match(state, /- \*\*Project Type\*\*: Greenfield/);
   assert.match(state, /- \*\*Scope\*\*: mvp/);
-  assert.match(state, /- \*\*State Version\*\*: 7/);
+  assert.match(state, /- \*\*State Version\*\*: 8/);
   assert.match(state, /- \[x\] workspace-scaffold — EXECUTE/);
   assert.match(state, /- \[x\] workspace-detection — EXECUTE/);
   assert.match(state, /- \[x\] state-init — EXECUTE/);
@@ -118,6 +119,13 @@ test("Intent Birth writes the v2 state contract and adjusted plan", () => {
     ],
   );
   assert.match(audit, /\*\*Stage\*\*: intent-capture/);
+  const ordered = readOrderedAuditEntries(born.recordDir);
+  assert.deepEqual(
+    ordered.map((entry) => entry.sequence),
+    ordered.map((_entry, index) => index + 1),
+  );
+  assert.equal(new Set(ordered.map((entry) => entry.cloneId)).size, 1);
+  assert.equal(audit.match(/^\*\*Sequence\*\*:/gm)?.length, ordered.length);
 });
 
 test("set-construction-iteration validates and persists Runtime State without Audit", () => {

@@ -31,6 +31,15 @@ import {
   setConstructionIteration,
 } from "../core/tools/aidlc-state.ts";
 import { initializeWorkspace } from "../core/tools/aidlc-workspace.ts";
+import {
+  approveBoltGate,
+  completeBolt,
+  currentBoltStage,
+  initializeBoltExecution,
+  loadBoltExecution,
+  setBoltAutonomy,
+  startBolt,
+} from "../core/tools/aidlc-bolt.ts";
 
 function freshProject(): string {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-orchestrate-"));
@@ -645,6 +654,107 @@ units:
       );
     }
   }
+});
+
+test("Bolt-aware orchestration repeats 3.1-3.5 and releases 3.6 only after all Bolts", () => {
+  const projectDir = freshProject();
+  const born = birthIntentWithState(projectDir, "Thin-slice delivery", "default", "mvp");
+  while (resumeIntentState(projectDir).currentStage !== "units-generation") {
+    completeCurrentStage(projectDir, resumeIntentState(projectDir).currentStage);
+  }
+  const unitPath = join(
+    born.recordDir,
+    "inception",
+    "units-generation",
+    "unit-of-work-dependency.md",
+  );
+  mkdirSync(dirname(unitPath), { recursive: true });
+  writeFileSync(
+    unitPath,
+    `# Units\n\n\`\`\`yaml\nunits:\n` +
+      `  - name: alpha\n    depends_on: []\n` +
+      `  - name: beta\n    depends_on: [alpha]\n\`\`\`\n`,
+    "utf8",
+  );
+  completeCurrentStage(projectDir, "units-generation");
+  assert.equal(resumeIntentState(projectDir).currentStage, "delivery-planning");
+  const boltPlanPath = join(
+    born.recordDir,
+    "inception",
+    "delivery-planning",
+    "bolt-plan.md",
+  );
+  mkdirSync(dirname(boltPlanPath), { recursive: true });
+  writeFileSync(
+    boltPlanPath,
+    `# Bolt Plan\n\n\`\`\`yaml\nbolt_plan:\n  version: 1\n` +
+      `  worktree:\n    enabled: false\n    base_ref: main\n` +
+      `    target_branch: main\n    strategy: squash\n  bolts:\n` +
+      `    - id: B1\n      slug: walking-skeleton\n` +
+      `      units: [alpha, beta]\n      depends_on: []\n` +
+      `      walking_skeleton: true\n      batch: 1\n` +
+      `    - id: B2\n      slug: alpha-hardening\n` +
+      `      units: [alpha]\n      depends_on: [B1]\n` +
+      `      walking_skeleton: false\n      batch: 2\n\`\`\`\n`,
+    "utf8",
+  );
+  completeCurrentStage(projectDir, "delivery-planning");
+  assert.equal(resumeIntentState(projectDir).currentStage, "functional-design");
+
+  const initialize = resolveNextDirective(projectDir);
+  assert.equal(initialize.kind, "print");
+  initializeBoltExecution(projectDir);
+  assert.equal(resolveNextDirective(projectDir).kind, "print");
+  startBolt(projectDir, "B1");
+
+  let cells = 0;
+  while (currentBoltStage(projectDir, "B1") !== null) {
+    const cursor = currentBoltStage(projectDir, "B1")!;
+    const directive = resolveRunnable(projectDir).directive;
+    assert.equal(directive.stage, cursor.stage);
+    assert.equal(directive.unit, cursor.unit);
+    assert.equal(directive.gate, false);
+    materialize(projectDir, directive.produces);
+    assert.equal(reportStageResult(projectDir, {
+      stage: directive.stage,
+      unit: directive.unit,
+      result: "completed",
+    }).kind, "done");
+    cells += 1;
+  }
+  assert.ok(cells >= 2);
+  assert.equal(loadBoltExecution(projectDir).next.status, "awaiting-gate");
+  assert.equal(resolveNextDirective(projectDir).kind, "present-gate");
+  approveBoltGate(projectDir, "B1", "Approve walking skeleton");
+  assert.equal(resolveNextDirective(projectDir).kind, "ask");
+  setBoltAutonomy(projectDir, "autonomous");
+  assert.equal(resolveNextDirective(projectDir).kind, "print");
+  completeBolt(projectDir, "B1");
+  assert.equal(resolveNextDirective(projectDir).kind, "print");
+  startBolt(projectDir, "B2");
+
+  while (currentBoltStage(projectDir, "B2") !== null) {
+    const cursor = currentBoltStage(projectDir, "B2")!;
+    const directive = resolveRunnable(projectDir).directive;
+    assert.equal(directive.stage, cursor.stage);
+    assert.equal(directive.unit, "alpha");
+    materialize(projectDir, directive.produces);
+    assert.equal(reportStageResult(projectDir, {
+      stage: directive.stage,
+      unit: directive.unit,
+      result: "completed",
+    }).kind, "done");
+  }
+
+  assert.equal(loadBoltExecution(projectDir).next.status, "all-complete");
+  assert.equal(resumeIntentState(projectDir).currentStage, "build-and-test");
+  const aggregate = resolveRunnable(projectDir).directive;
+  assert.equal(aggregate.stage, "build-and-test");
+  const audit = readFileSync(born.auditPath, "utf8");
+  assert.equal((audit.match(/\*\*Event\*\*: BOLT_STARTED/g) ?? []).length, 2);
+  assert.equal((audit.match(/\*\*Event\*\*: BOLT_COMPLETED/g) ?? []).length, 2);
+  assert.match(audit, /\*\*Stage\*\*: functional-design[\s\S]*\*\*Bolt ID\*\*: B1/);
+  assert.match(audit, /\*\*Stage\*\*: functional-design[\s\S]*\*\*Bolt ID\*\*: B2/);
 });
 
 test("next emits done after the active workflow completes", () => {

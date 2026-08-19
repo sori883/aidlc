@@ -9,6 +9,7 @@ mode: inline
 produces:
   - ci-config
   - quality-gates
+  - quality-gate-manifest
   - ci-pipeline-questions
 consumes:
   - artifact: code-summary
@@ -31,7 +32,7 @@ scopes:
   - infra
   - workshop
 inputs: Code generation output from code-generation stage, build/test results from build-and-test stage
-outputs: ci-config.md, quality-gates.md, ci-pipeline-questions.md (under this stage's record dir, engine-resolved)
+outputs: ci-config.md, quality-gates.md, quality-gate-manifest.json, ci-pipeline-questions.md (under this stage's record dir, engine-resolved)
 ---
 
 # CI Pipeline
@@ -69,9 +70,64 @@ Validate CI choices against existing infrastructure and team capabilities.
 
 ### Step 5: Generate Artifacts
 
-Create CI pipeline configuration (buildspec.yml, workflow YAML, or equivalent), quality gate definitions, and artifact repository configuration.
+Create CI pipeline configuration (buildspec.yml, workflow YAML, or equivalent),
+quality gate definitions, and artifact repository configuration. Also create
+`<record>/construction/ci-pipeline/quality-gate-manifest.json` using version 1
+of the provider-neutral contract. For GitHub Actions it MUST declare:
+
+- `provider.id: "github-actions"`
+- package manifest path and package manager
+- every provider workflow by its exact YAML `name` and project-relative path
+- every gate with a unique ID, one of `node-test`, `workerd-test`,
+  `browser-test`, `coverage`, `build`, `architecture`, or `security`, whether it
+  is required, the package script, exact workflow name, job ID, and runtime
+- one stable aggregate workflow/job/check name
+- the required check list
+
+Example shape:
+
+```json
+{
+  "version": 1,
+  "provider": { "id": "github-actions" },
+  "package": { "path": "package.json", "manager": "pnpm" },
+  "workflows": [
+    { "name": "Quality", "path": ".github/workflows/quality.yml" }
+  ],
+  "gates": [
+    {
+      "id": "node-test",
+      "kind": "node-test",
+      "required": true,
+      "script": "test",
+      "workflow": "Quality",
+      "job": "node-test",
+      "runtime": "node"
+    }
+  ],
+  "aggregate": {
+    "workflow": "Quality",
+    "job": "quality",
+    "required_check": "Quality / Quality"
+  },
+  "required_checks": ["Quality / Quality"]
+}
+```
+
+Do not list a gate unless its package script and provider job both execute it.
+Every required fresh-runner job must set up its declared runtime and package
+manager, perform a frozen install, and invoke the declared script.
 
 ### Step 6: Phase Boundary Verification
+
+Before phase-boundary verification, run:
+
+`./.codex/tools/aidlc quality-gate check --project-dir . --project-dir <project-root>`
+
+Fix every error before presenting the Stage gate. YAML structure and semantic
+manifest alignment are always checked. `--actionlint` is an additional
+provider-native lint pass when the binary is available; it does not replace
+the semantic check.
 
 Run Construction → Operation verification check:
 - Architecture → Code → Tests alignment

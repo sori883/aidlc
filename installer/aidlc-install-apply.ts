@@ -6,6 +6,7 @@ import {
   type Harness,
   type InstallationManifest,
 } from "../core/tools/aidlc-distribution-contract.ts";
+import type { HarnessDescriptor } from "../core/tools/aidlc-harness-contract.ts";
 import { AIDLC_VERSION } from "../core/tools/aidlc-version.ts";
 import { atomicWrite, safeDestination } from "./aidlc-install-fs.ts";
 import { finishLegacyMigration } from "./aidlc-install-legacy.ts";
@@ -18,6 +19,7 @@ import type {
 export interface ApplyInstallationOptions {
   projectDir: string;
   harness: Harness;
+  harnessDescriptor?: HarnessDescriptor;
   distribution: DownloadedDistribution;
   previous: PreviousInstallation | null;
   plan: InstallPlan;
@@ -58,7 +60,11 @@ export function applyInstallation(options: ApplyInstallationOptions): void {
     );
   }
   atomicWrite(
-    safeDestination(options.projectDir, INSTALLATION_MANIFEST),
+    safeDestination(
+      options.projectDir,
+      options.harnessDescriptor?.layout.installationManifestPath ??
+        INSTALLATION_MANIFEST,
+    ),
     Buffer.from(`${JSON.stringify(installationManifest(options), null, 2)}\n`),
     false,
   );
