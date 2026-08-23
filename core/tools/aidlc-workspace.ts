@@ -25,9 +25,9 @@ export const RESERVED_RECORD_NAMES: ReadonlySet<string> = new Set([
   "show",
 ]);
 
-/** Files created by the host OS are not part of the portable Memory seed. */
+/** vNext seeds only org/team/project Memory and ignores host metadata. */
 export function isManagedMemorySeedEntry(name: string): boolean {
-  return name !== ".DS_Store";
+  return name !== ".DS_Store" && name !== "phases";
 }
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));

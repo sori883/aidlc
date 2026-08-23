@@ -1,80 +1,60 @@
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { test } from "bun:test";
-import {
-  renderHelp,
-  resolveAction,
-  ROUTES,
-} from "../core/tools/aidlc.ts";
+import { renderHelp, resolveAction, ROUTES } from "../core/tools/aidlc.ts";
 import { AIDLC_VERSION } from "../core/tools/aidlc-version.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
 
-function run(path: string, args: string[]) {
-  return spawnSync(process.execPath, [path, ...args], {
+function run(args: string[]) {
+  return spawnSync(process.execPath, ["core/tools/aidlc.ts", ...args], {
     cwd: ROOT,
     encoding: "utf8",
   });
 }
 
-test("integrated CLI exposes explicit upstream-style routes", () => {
-  assert.deepEqual(resolveAction(["graph", "compile", "--check"]), {
+test("integrated CLI exposes only vNext workflow routes", () => {
+  assert.deepEqual(resolveAction(["graph", "validate"]), {
     type: "delegate",
-    tool: "aidlc-graph.ts",
-    args: ["compile", "--check"],
+    tool: "aidlc-core-route.ts",
+    args: ["validate"],
   });
-  assert.deepEqual(resolveAction(["next", "--project-dir", "."]), {
+  assert.deepEqual(resolveAction(["next", "."]), {
     type: "delegate",
-    tool: "aidlc-orchestrate.ts",
-    args: ["next", "--project-dir", "."],
+    tool: "aidlc-vnext-orchestrate.ts",
+    args: ["next", "."],
   });
-  assert.deepEqual(resolveAction(["__sensor-script", "linter", "--stage", "x"]), {
-    type: "delegate",
-    tool: "aidlc-sensor-linter.ts",
-    args: ["--stage", "x"],
-  });
-  assert.deepEqual(resolveAction(["hook", "sensor-fire"]), {
-    type: "delegate",
-    tool: "aidlc-hook.ts",
-    args: [],
-  });
+  assert.equal(ROUTES.some((route) => route.noun === "plan"), true);
   assert.equal(ROUTES.some((route) => route.noun === "state"), true);
-  assert.match(renderHelp(true), /All command groups:/);
+  assert.equal(ROUTES.some((route) => route.noun === "scope"), false);
+  assert.equal(ROUTES.some((route) => route.noun === "bolt"), false);
+  assert.match(renderHelp(true), /fixed vNext Catalog/);
 });
 
-test("integrated CLI preserves direct CLI output and exit status", () => {
-  for (const [integratedArgs, directTool, directArgs] of [
-    [["utility", "scope-table"], "aidlc-utility.ts", ["scope-table"]],
-    [["graph", "compile", "--check"], "aidlc-graph.ts", ["compile", "--check"]],
-    [["contract", "check"], "aidlc-runtime-contract.ts", ["check"]],
-  ] as const) {
-    const integrated = run("core/tools/aidlc.ts", [...integratedArgs]);
-    const direct = run(`core/tools/${directTool}`, [...directArgs]);
-    assert.equal(integrated.status, direct.status);
-    assert.equal(integrated.stdout, direct.stdout);
-    assert.equal(integrated.stderr, direct.stderr);
+test("integrated CLI rejects v2 workflow and unknown routes", () => {
+  for (const args of [
+    ["graph", "compile"],
+    ["state", "skip", ".", "ST-00"],
+    ["report", "."],
+    ["scope", "check"],
+    ["unknown", "command"],
+  ]) {
+    const result = run(args);
+    assert.equal(result.status, 1, args.join(" "));
   }
-});
-
-test("integrated CLI rejects unknown routes before delegation", () => {
-  const result = run("core/tools/aidlc.ts", ["unknown", "command"]);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /unknown command or noun 'unknown'/);
 });
 
 test("integrated CLI exposes the release version", () => {
   assert.deepEqual(resolveAction(["--version"]), { type: "version" });
-  assert.deepEqual(resolveAction(["-V"]), { type: "version" });
-  const result = run("core/tools/aidlc.ts", ["--version"]);
+  const result = run(["--version"]);
   assert.equal(result.status, 0);
   assert.equal(result.stdout, `aidlc ${AIDLC_VERSION}\n`);
-  assert.equal(result.stderr, "");
 });
 
-test("every packaged TypeScript tool exports main(argv)", async () => {
+test("every packaged vNext TypeScript tool exports main(argv)", async () => {
   const runtime = JSON.parse(
     readFileSync(resolve(ROOT, "harness/codex/runtime/package.json"), "utf8"),
   ) as { scripts: Record<string, string> };

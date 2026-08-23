@@ -13,9 +13,7 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { loadAgents, type AgentDefinition } from "./aidlc-agent-loader.ts";
 import { loadCliContracts } from "./aidlc-cli-contract.ts";
-import { runnerSkillFiles } from "./aidlc-runner-gen.ts";
 import { CODEX_HARNESS } from "../../harness/codex/aidlc-harness.ts";
 
 export const CODEX_BUNDLE_GENERATOR = "aidlc-codex-bundle";
@@ -55,12 +53,26 @@ const DEFAULT_OUT_DIR = resolve("dist/codex");
 const CODEX_RUNTIME_ROOT = CODEX_HARNESS.layout.runtimeRoot;
 const CORE_TREES = [
   "aidlc-common",
-  "agents",
-  "knowledge",
   "memory",
-  "scopes",
-  "sensors",
-  "tools",
+] as const;
+
+const ACTIVE_TOOL_FILES = [
+  "aidlc.ts",
+  "aidlc-version.ts",
+  "aidlc-runtime-paths.ts",
+  "aidlc-workspace.ts",
+  "aidlc-workspace-lock.ts",
+  "aidlc-space.ts",
+  "aidlc-intent.ts",
+  "aidlc-audit.ts",
+  "aidlc-stage-contract.ts",
+  "aidlc-core-route.ts",
+  "aidlc-effective-policy.ts",
+  "aidlc-vnext-state.ts",
+  "aidlc-vnext-directive.ts",
+  "aidlc-vnext-orchestrate.ts",
+  "aidlc-vnext-plan.ts",
+  "aidlc-vnext-doctor.ts",
 ] as const;
 
 function portable(path: string): string {
@@ -184,41 +196,11 @@ export function transformCodexMarkdown(
     );
   }
   return rendered
-    .replaceAll(
-      "{{HARNESS_DIR}}/tools/data/scope-grid.json",
-      `${CODEX_RUNTIME_ROOT}/aidlc-common/data/scope-grid.json`,
-    )
     .replaceAll("{{HARNESS_DIR}}/", `${CODEX_RUNTIME_ROOT}/`);
 }
 
 function tomlString(value: string): string {
   return JSON.stringify(value);
-}
-
-/** Render one project-scoped Codex custom Agent from an AI-DLC Agent. */
-export function renderCodexAgentToml(
-  agent: AgentDefinition,
-  toolScripts: ReadonlyMap<string, string> = codexRuntimeToolScripts(
-    requireFile(join(DEFAULT_HARNESS_DIR, "runtime", "package.json")),
-  ),
-  projectCommands: ReadonlyMap<string, ReadonlySet<string>> =
-    codexProjectCommands(),
-): string {
-  const instructions = [
-    transformCodexMarkdown(agent.instructions, toolScripts, projectCommands),
-    "",
-    "AI-DLC Codex constraints:",
-    "- Work only on the exact Stage task and paths supplied by the conductor.",
-    "- Do not spawn or delegate to another agent.",
-    `- The source persona is ${CODEX_HARNESS.layout.agentRoot}/${agent.name}.md.`,
-    `- Harness-neutral disallowed tool category: ${agent.disallowedTools}.`,
-  ].join("\n");
-  return [
-    `name = ${tomlString(agent.name)}`,
-    `description = ${tomlString(agent.description)}`,
-    `developer_instructions = ${tomlString(instructions)}`,
-    "",
-  ].join("\n");
 }
 
 function manifestFor(files: ReadonlyMap<string, string>): CodexBundleManifest {
@@ -302,37 +284,23 @@ export function codexBundleFiles(
       transformCore,
     );
   }
-  files.set(
-    `${CODEX_RUNTIME_ROOT}/hooks/aidlc-sensor-core.ts`,
-    requireFile(join(coreDir, "hooks", "aidlc-sensor-fire.ts")),
-  );
-  files.set(
-    `${CODEX_RUNTIME_ROOT}/hooks/aidlc-sensor-fire.ts`,
-    requireFile(join(harnessDir, "hooks", "aidlc-sensor-fire.ts")).replace(
-      '"../../../core/hooks/aidlc-sensor-fire.ts"',
-      '"./aidlc-sensor-core.ts"',
-    ),
-  );
-  files.set(
-    `${CODEX_RUNTIME_ROOT}/harness/aidlc-harness.ts`,
-    requireFile(join(harnessDir, "aidlc-harness.ts")).replace(
-      '"../../core/tools/aidlc-harness-contract.ts"',
-      '"../tools/aidlc-harness-contract.ts"',
-    ),
-  );
-  for (const agent of loadAgents(join(coreDir, "agents"))) {
+  for (const name of ACTIVE_TOOL_FILES) {
     files.set(
-      `${CODEX_HARNESS.layout.agentRoot}/${agent.name}.toml`,
-      renderCodexAgentToml(agent, toolScripts, projectCommands),
+      `${CODEX_RUNTIME_ROOT}/tools/${name}`,
+      transformCore(
+        `${CODEX_RUNTIME_ROOT}/tools/${name}`,
+        requireFile(join(coreDir, "tools", name)),
+      ),
     );
   }
-  for (const [path, content] of runnerSkillFiles({
-    graphPath: join(coreDir, "aidlc-common", "data", "stage-graph.json"),
-    scopesDir: join(coreDir, "scopes"),
-    authoredSkillDir: join(harnessDir, "skills", "aidlc"),
-  })) {
-    files.set(portable(join(CODEX_HARNESS.layout.skillRoot, path)), content);
-  }
+  collectTree(
+    files,
+    join(harnessDir, "skills", "aidlc"),
+    join(CODEX_HARNESS.layout.skillRoot, "aidlc"),
+    (path, content) => path.endsWith(".md")
+      ? transformCodexMarkdown(content, toolScripts, projectCommands)
+      : content,
+  );
   const manifest = manifestFor(files);
   files.set(CODEX_BUNDLE_MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
   return files;

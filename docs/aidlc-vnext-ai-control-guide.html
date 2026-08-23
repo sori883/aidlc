@@ -1,0 +1,1236 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AI-DLC vNextがAIに進行を任せすぎない仕組みを、初心者向けに短文と図で説明します。">
+  <title>AI-DLC vNext｜AIに進行を任せない仕組み</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --page: light-dark(#f3f6f4, #0d1413);
+      --surface: light-dark(#ffffff, #17201e);
+      --surface-soft: light-dark(#f7faf8, #111a18);
+      --ink: light-dark(#17221f, #edf7f3);
+      --muted: light-dark(#60706a, #a9bbb4);
+      --line: light-dark(#cddbd5, #354740);
+      --green: light-dark(#087a55, #62d6a5);
+      --green-soft: light-dark(#dff2e9, #153c30);
+      --blue: light-dark(#246a9d, #75c5f7);
+      --blue-soft: light-dark(#e3f0f8, #17374a);
+      --amber: light-dark(#a16000, #f1bf61);
+      --amber-soft: light-dark(#fff0ce, #473418);
+      --purple: light-dark(#684ca9, #bea9fa);
+      --purple-soft: light-dark(#eee8fb, #30274c);
+      --red: light-dark(#a8443a, #f18c82);
+      --red-soft: light-dark(#fae6e3, #432522);
+      --shadow: 0 22px 62px light-dark(rgb(40 72 61 / 11%), rgb(0 0 0 / 30%));
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 7% 0%, light-dark(rgb(50 164 113 / 11%), rgb(50 164 113 / 8%)), transparent 34rem),
+        radial-gradient(circle at 96% 12%, light-dark(rgb(71 120 205 / 9%), rgb(71 120 205 / 8%)), transparent 30rem),
+        var(--page);
+      color: var(--ink);
+      font-family:
+        Inter, "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo,
+        system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.72;
+    }
+
+    a {
+      color: var(--green);
+      text-underline-offset: 0.2em;
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 72px;
+    }
+
+    .topbar,
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .topbar {
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      font-weight: 850;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 11px;
+      background: var(--green);
+      color: light-dark(#ffffff, #082119);
+      font-size: 0.75rem;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 0.76rem;
+      font-weight: 800;
+    }
+
+    .status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
+      gap: 42px;
+      align-items: center;
+      min-height: 520px;
+      padding: clamp(34px, 6vw, 70px);
+      border: 1px solid var(--line);
+      border-radius: 32px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -170px;
+      bottom: -210px;
+      width: 480px;
+      height: 480px;
+      border-radius: 50%;
+      background: var(--green-soft);
+      opacity: 0.75;
+    }
+
+    .hero-copy,
+    .hero-figure {
+      position: relative;
+      z-index: 1;
+    }
+
+    .eyebrow {
+      margin-bottom: 12px;
+      color: var(--green);
+      font-size: 0.8rem;
+      font-weight: 900;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 670px;
+      margin-bottom: 22px;
+      font-size: clamp(2.45rem, 5.8vw, 5.15rem);
+      line-height: 1.04;
+      letter-spacing: -0.055em;
+    }
+
+    .hero-lead {
+      max-width: 600px;
+      margin-bottom: 22px;
+      color: var(--muted);
+      font-size: clamp(1rem, 2vw, 1.22rem);
+    }
+
+    .hero-answer {
+      display: inline-flex;
+      gap: 9px;
+      align-items: flex-start;
+      padding: 12px 15px;
+      border-radius: 14px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-weight: 850;
+    }
+
+    .hero-figure {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: light-dark(rgb(255 255 255 / 78%), rgb(8 15 14 / 58%));
+    }
+
+    .figure-title {
+      margin-bottom: 14px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 850;
+      letter-spacing: 0.08em;
+    }
+
+    .rail {
+      display: grid;
+      gap: 10px;
+    }
+
+    .rail-row {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 11px;
+      align-items: center;
+      min-height: 66px;
+      padding: 11px 14px 11px 11px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--surface);
+    }
+
+    .rail-number {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      border-radius: 12px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 0.87rem;
+      font-weight: 900;
+    }
+
+    .rail-row:nth-child(2) .rail-number {
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .rail-row:nth-child(3) .rail-number {
+      background: var(--purple-soft);
+      color: var(--purple);
+    }
+
+    .rail-copy strong,
+    .rail-copy span {
+      display: block;
+    }
+
+    .rail-copy strong {
+      font-size: 0.92rem;
+    }
+
+    .rail-copy span {
+      color: var(--muted);
+      font-size: 0.77rem;
+    }
+
+    .rail-arrow {
+      height: 15px;
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 1.1rem;
+      font-weight: 900;
+    }
+
+    .section {
+      padding-top: 78px;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.78fr) minmax(280px, 1.22fr);
+      gap: 42px;
+      align-items: end;
+      margin-bottom: 30px;
+    }
+
+    h2 {
+      margin-bottom: 0;
+      font-size: clamp(1.95rem, 4vw, 3.2rem);
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+    }
+
+    .section-intro {
+      margin-bottom: 2px;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .step-card {
+      position: relative;
+      overflow: hidden;
+      min-height: 330px;
+      padding: 25px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--surface);
+      box-shadow: 0 13px 34px light-dark(rgb(42 70 59 / 6%), rgb(0 0 0 / 18%));
+    }
+
+    .step-card::after {
+      content: attr(data-step);
+      position: absolute;
+      right: 14px;
+      bottom: -28px;
+      color: var(--surface-soft);
+      font-size: 8.7rem;
+      font-weight: 950;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    .step-badge {
+      display: inline-grid;
+      min-width: 40px;
+      height: 40px;
+      place-items: center;
+      margin-bottom: 22px;
+      border-radius: 13px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .step-card:nth-child(2) .step-badge {
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .step-card:nth-child(3) .step-badge {
+      background: var(--purple-soft);
+      color: var(--purple);
+    }
+
+    .step-card h3 {
+      position: relative;
+      z-index: 1;
+      margin-bottom: 13px;
+      font-size: 1.3rem;
+      line-height: 1.35;
+    }
+
+    .step-card p {
+      position: relative;
+      z-index: 1;
+      color: var(--muted);
+    }
+
+    .step-card .owner {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 6px 9px;
+      border-radius: 9px;
+      background: var(--surface-soft);
+      color: var(--ink);
+      font-size: 0.74rem;
+      font-weight: 850;
+    }
+
+    .stage-strip {
+      display: grid;
+      grid-template-columns: repeat(10, minmax(68px, 1fr));
+      gap: 7px;
+      overflow-x: auto;
+      padding: 8px 4px 18px;
+      scrollbar-color: var(--line) transparent;
+    }
+
+    .stage {
+      position: relative;
+      min-width: 68px;
+      padding: 13px 8px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--surface);
+      text-align: center;
+    }
+
+    .stage:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      top: 50%;
+      right: -10px;
+      z-index: 2;
+      width: 13px;
+      color: var(--green);
+      font-weight: 900;
+      transform: translateY(-50%);
+    }
+
+    .stage span,
+    .stage strong {
+      display: block;
+    }
+
+    .stage span {
+      color: var(--green);
+      font-size: 0.7rem;
+      font-weight: 900;
+    }
+
+    .stage strong {
+      margin-top: 4px;
+      font-size: 0.72rem;
+      line-height: 1.3;
+    }
+
+    .modes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 15px;
+    }
+
+    .mode {
+      min-height: 210px;
+      padding: 23px;
+      border: 1px solid var(--line);
+      border-radius: 21px;
+      background: var(--surface);
+    }
+
+    .mode code {
+      display: inline-block;
+      margin-bottom: 17px;
+      padding: 6px 9px;
+      border-radius: 9px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-family: inherit;
+      font-size: 0.76rem;
+      font-weight: 900;
+    }
+
+    .mode:nth-child(2) code {
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .mode:nth-child(3) code {
+      background: var(--purple-soft);
+      color: var(--purple);
+    }
+
+    .mode h3 {
+      margin-bottom: 9px;
+      font-size: 1.15rem;
+    }
+
+    .mode p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .plan-compare {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 70px minmax(0, 1fr);
+      gap: 17px;
+      align-items: stretch;
+    }
+
+    .plan-card {
+      padding: 27px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--surface);
+    }
+
+    .plan-card.is-stage {
+      border-top: 5px solid var(--green);
+    }
+
+    .plan-card.is-bolt {
+      border-top: 5px solid var(--blue);
+    }
+
+    .plan-label {
+      margin-bottom: 9px;
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+    }
+
+    .plan-card h3 {
+      margin-bottom: 11px;
+      font-size: 1.35rem;
+    }
+
+    .plan-card p {
+      margin-bottom: 16px;
+      color: var(--muted);
+    }
+
+    .plan-card ul {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+
+    .plan-card li + li {
+      margin-top: 7px;
+    }
+
+    .compare-arrow {
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 2.1rem;
+      font-weight: 900;
+    }
+
+    .equation {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1.25fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .equation-card {
+      min-height: 178px;
+      display: grid;
+      align-content: center;
+      gap: 8px;
+      padding: 22px 18px;
+      border: 1px solid var(--line);
+      border-radius: 21px;
+      background: var(--surface);
+      text-align: center;
+    }
+
+    .equation-card.is-ai {
+      background: var(--blue-soft);
+    }
+
+    .equation-card.is-core {
+      background: var(--green-soft);
+    }
+
+    .equation-card.is-human {
+      background: var(--amber-soft);
+    }
+
+    .equation-card.is-result {
+      background: var(--purple-soft);
+    }
+
+    .equation-icon {
+      font-size: 1.55rem;
+    }
+
+    .equation-card strong,
+    .equation-card span {
+      display: block;
+    }
+
+    .equation-card strong {
+      font-size: 1rem;
+    }
+
+    .equation-card span {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    .operator {
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 1.45rem;
+      font-weight: 900;
+    }
+
+    .example {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .example-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: center;
+      padding: 22px 26px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-soft);
+    }
+
+    .example-head h3,
+    .example-head p {
+      margin-bottom: 0;
+    }
+
+    .example-head p {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .example-flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0;
+      padding: 28px;
+    }
+
+    .example-route {
+      display: grid;
+      grid-template-columns: repeat(10, minmax(78px, 1fr));
+      gap: 6px;
+      overflow-x: auto;
+      padding: 24px 28px 4px;
+      scrollbar-color: var(--line) transparent;
+    }
+
+    .route-stop {
+      position: relative;
+      min-width: 78px;
+      padding: 11px 7px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface-soft);
+      text-align: center;
+    }
+
+    .route-stop:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      top: 50%;
+      right: -9px;
+      z-index: 2;
+      color: var(--green);
+      font-weight: 900;
+      transform: translateY(-50%);
+    }
+
+    .route-stop strong,
+    .route-stop span {
+      display: block;
+    }
+
+    .route-stop strong {
+      color: var(--green);
+      font-size: 0.7rem;
+    }
+
+    .route-stop span {
+      margin-top: 2px;
+      font-size: 0.67rem;
+      font-weight: 800;
+    }
+
+    .route-stop.is-focus {
+      border-color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .example-detail-label {
+      margin: 22px 28px -10px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 850;
+    }
+
+    .example-step {
+      position: relative;
+      min-height: 190px;
+      padding: 19px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .example-step:first-child {
+      border-radius: 18px 0 0 18px;
+    }
+
+    .example-step:last-child {
+      border-radius: 0 18px 18px 0;
+    }
+
+    .example-step + .example-step {
+      border-left: 0;
+    }
+
+    .example-step:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      top: 31px;
+      right: -12px;
+      z-index: 2;
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--green);
+      color: light-dark(#fff, #082119);
+      font-size: 0.8rem;
+      font-weight: 900;
+    }
+
+    .example-step small {
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .example-step h4 {
+      margin: 10px 0 9px;
+      font-size: 1rem;
+    }
+
+    .example-step p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 0.87rem;
+    }
+
+    .guardrail {
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr);
+      gap: 18px;
+      align-items: center;
+      margin-top: 22px;
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: 19px;
+      background: var(--red-soft);
+    }
+
+    .guardrail-icon {
+      display: grid;
+      width: 52px;
+      height: 52px;
+      place-items: center;
+      border-radius: 16px;
+      background: var(--surface);
+      color: var(--red);
+      font-size: 1.3rem;
+      font-weight: 900;
+    }
+
+    .guardrail strong,
+    .guardrail span {
+      display: block;
+    }
+
+    .guardrail span {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .guardrail.is-safe {
+      background: var(--green-soft);
+    }
+
+    .guardrail.is-safe .guardrail-icon {
+      color: var(--green);
+    }
+
+    footer {
+      margin-top: 68px;
+      padding-top: 22px;
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .section-head {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        min-height: 0;
+      }
+
+      .steps {
+        grid-template-columns: 1fr;
+      }
+
+      .modes {
+        grid-template-columns: 1fr;
+      }
+
+      .step-card {
+        min-height: 250px;
+      }
+
+      .plan-compare {
+        grid-template-columns: 1fr;
+      }
+
+      .compare-arrow {
+        transform: rotate(90deg);
+      }
+
+      .equation {
+        grid-template-columns: 1fr;
+      }
+
+      .equation-card {
+        min-height: 130px;
+      }
+
+      .operator {
+        height: 28px;
+      }
+
+      .example-flow {
+        grid-template-columns: 1fr;
+      }
+
+      .example-step:first-child {
+        border-radius: 18px 18px 0 0;
+      }
+
+      .example-step:last-child {
+        border-radius: 0 0 18px 18px;
+      }
+
+      .example-step + .example-step {
+        border-top: 0;
+        border-left: 1px solid var(--line);
+      }
+
+      .example-step:not(:last-child)::after {
+        top: auto;
+        right: 25px;
+        bottom: -12px;
+        transform: rotate(90deg);
+      }
+    }
+
+    @media (max-width: 560px) {
+      .page {
+        width: min(100% - 20px, 1120px);
+        padding-top: 12px;
+      }
+
+      .topbar {
+        align-items: flex-start;
+      }
+
+      .status {
+        max-width: 145px;
+        border-radius: 13px;
+      }
+
+      .hero {
+        gap: 28px;
+        padding: 28px 20px;
+        border-radius: 24px;
+      }
+
+      h1 {
+        font-size: clamp(2.25rem, 13vw, 3.5rem);
+      }
+
+      .hero-figure,
+      .step-card,
+      .plan-card {
+        padding: 19px;
+      }
+
+      .section {
+        padding-top: 58px;
+      }
+
+      .section-head {
+        gap: 16px;
+      }
+
+      .example-head,
+      .example-flow {
+        padding: 19px;
+      }
+
+      .example-route {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        overflow: visible;
+        padding: 19px 19px 4px;
+      }
+
+      .route-stop {
+        min-width: 0;
+      }
+
+      .route-stop:not(:last-child)::after {
+        display: none;
+      }
+
+      .example-detail-label {
+        margin: 20px 19px -6px;
+      }
+
+      .example-head,
+      footer {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .guardrail {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="topbar">
+      <div class="brand">
+        <span class="brand-mark">AI</span>
+        <span>AI-DLC vNext</span>
+      </div>
+      <span class="status">概念説明・実装変更なし</span>
+    </div>
+
+    <section class="hero" aria-labelledby="page-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Control before autonomy</p>
+        <h1 id="page-title">AIに、行き先は任せない。</h1>
+        <p class="hero-lead">
+          AIは考えて提案します。けれど、次に進む場所は決めません。
+          決められた道をCore（進行を管理するプログラム）が管理し、
+          大事な判断は人間が行います。
+        </p>
+        <div class="hero-answer">
+          <span aria-hidden="true">✓</span>
+          <span>実行計画は、固定されたステージを基準に作ります。</span>
+        </div>
+      </div>
+
+      <div class="hero-figure" role="img" aria-label="AI-DLCを三段階で制御する図">
+        <div class="figure-title">大きい計画から、小さい作業へ</div>
+        <div class="rail">
+          <div class="rail-row">
+            <span class="rail-number">1</span>
+            <div class="rail-copy">
+              <strong>ステージを選ぶ</strong>
+              <span>Coreが固定ルールから選択</span>
+            </div>
+          </div>
+          <div class="rail-arrow" aria-hidden="true">↓</div>
+          <div class="rail-row">
+            <span class="rail-number">2</span>
+            <div class="rail-copy">
+              <strong>Bolt計画を承認する</strong>
+              <span>AIが提案、Coreが検査、人間が承認</span>
+            </div>
+          </div>
+          <div class="rail-arrow" aria-hidden="true">↓</div>
+          <div class="rail-row">
+            <span class="rail-number">3</span>
+            <div class="rail-copy">
+              <strong>1つのBoltを実行する</strong>
+              <span>AIは指定された範囲だけを実装</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="three-levels">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Three levels</p>
+          <h2 id="three-levels">3つの段階で迷走を防ぐ</h2>
+        </div>
+        <p class="section-intro">
+          大きな道順と、製造の作業一覧と、今やる1件を分けます。
+          AIが勝手に範囲を広げにくくなります。
+        </p>
+      </div>
+
+      <div class="steps">
+        <article class="step-card" data-step="1">
+          <span class="step-badge">1</span>
+          <h3>ステージは、最初から決まった道</h3>
+          <p>
+            vNextにはST-00からST-09までの10ステージがあります。
+            AIはステージを追加・削除・飛ばすことができません。
+          </p>
+          <span class="owner">進行役：Core</span>
+        </article>
+
+        <article class="step-card" data-step="2">
+          <span class="step-badge">2</span>
+          <h3>Bolt計画は、製造時の作業一覧</h3>
+          <p>
+            ST-05でAIが小さな実装単位を提案します。
+            Coreが抜け・依存関係・確認方法を検査し、人間が承認します。
+          </p>
+          <span class="owner">提案：AI ／ 検査：Core ／ 承認：人間</span>
+        </article>
+
+        <article class="step-card" data-step="3">
+          <span class="step-badge">3</span>
+          <h3>AIは、今のBoltだけを実行</h3>
+          <p>
+            ST-06ではCoreが実行可能なBoltを1つ指定します。
+            AIは、そのBoltをどう実装するかだけを考えます。
+          </p>
+          <span class="owner">対象の指定：Core ／ 実装：AI</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="fixed-route">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Fixed route</p>
+          <h2 id="fixed-route">ステージは固定する</h2>
+        </div>
+        <p class="section-intro">
+          Coreは現在の状態、必要な成果物、検査結果を読み、
+          ルールに従って次のステージを選びます。
+        </p>
+      </div>
+
+      <div class="stage-strip" aria-label="AI-DLC vNextの10ステージ">
+        <div class="stage"><span>ST-00</span><strong>準備</strong></div>
+        <div class="stage"><span>ST-01</span><strong>状況把握</strong></div>
+        <div class="stage"><span>ST-02</span><strong>目的整理</strong></div>
+        <div class="stage"><span>ST-03</span><strong>要件</strong></div>
+        <div class="stage"><span>ST-04</span><strong>構成決定</strong></div>
+        <div class="stage"><span>ST-05</span><strong>製造契約</strong></div>
+        <div class="stage"><span>ST-06</span><strong>製造</strong></div>
+        <div class="stage"><span>ST-07</span><strong>確認</strong></div>
+        <div class="stage"><span>ST-08</span><strong>公開</strong></div>
+        <div class="stage"><span>ST-09</span><strong>効果確認</strong></div>
+      </div>
+
+      <div class="guardrail">
+        <div class="guardrail-icon" aria-hidden="true">!</div>
+        <div>
+          <strong>AIの自由回答を、そのまま進行命令にはしません。</strong>
+          <span>ルールで判断できない場合は、勝手に進まず人間へ確認します。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="fast-path">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Small change</p>
+          <h2 id="fast-path">小さな変更は、軽く通る</h2>
+        </div>
+        <p class="section-intro">
+          10ステージは、10個の重い資料を作るという意味ではありません。
+          Coreが各チェックポイントを確認し、必要な作業だけを行います。
+        </p>
+      </div>
+
+      <div class="modes">
+        <article class="mode">
+          <code>execute</code>
+          <h3>新しく実行する</h3>
+          <p>今回の変更に、新しい調査、設計、実装、判断が必要です。</p>
+        </article>
+        <article class="mode">
+          <code>reuse</code>
+          <h3>既存を再利用する</h3>
+          <p>現在の設計やルールを確認し、そのまま使った理由を残します。</p>
+        </article>
+        <article class="mode">
+          <code>not_applicable</code>
+          <h3>今回は該当しない</h3>
+          <p>関係しない理由を残します。無言で飛ばすことはありません。</p>
+        </article>
+      </div>
+
+      <div class="guardrail is-safe">
+        <div class="guardrail-icon" aria-hidden="true">✓</div>
+        <div>
+          <strong>AIは候補と根拠を提案できます。決定するのはCoreです。</strong>
+          <span>Coreが規則で決められない場合だけ、人間へ確認します。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="two-plans">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Two plans</p>
+          <h2 id="two-plans">「実行計画」は2種類ある</h2>
+        </div>
+        <p class="section-intro">
+          名前が似ていますが、役割は別です。
+          AIが自由に作れるのは、どちらでもありません。
+        </p>
+      </div>
+
+      <div class="plan-compare">
+        <article class="plan-card is-stage">
+          <div class="plan-label">大きな進行</div>
+          <h3>ステージ実行計画</h3>
+          <p>どのステージを、どの条件で進むかを表します。</p>
+          <ul>
+            <li>元になる10ステージは固定</li>
+            <li>次のステージはCoreが選ぶ</li>
+            <li>AIは経路を書き換えられない</li>
+          </ul>
+        </article>
+
+        <div class="compare-arrow" aria-hidden="true">→</div>
+
+        <article class="plan-card is-bolt">
+          <div class="plan-label">製造の内訳</div>
+          <h3>Bolt計画</h3>
+          <p>ST-06で何をどの順に作り、どう確認するかを表します。</p>
+          <ul>
+            <li>ST-03〜05の設計を基準にする</li>
+            <li>AIの提案をCoreが機械的に検査</li>
+            <li>人間が承認した内容を固定</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="formula">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">The formula</p>
+          <h2 id="formula">役割を混ぜない</h2>
+        </div>
+        <p class="section-intro">
+          AIの得意な提案力を使いながら、進行と重要判断を外へ出します。
+          これがvNextの基本的な考え方です。
+        </p>
+      </div>
+
+      <div class="equation" role="img" aria-label="AIが提案し、Coreが検査と進行を行い、人間が重要判断をすることで、制御されたAI-DLCになる図">
+        <div class="equation-card is-ai">
+          <span class="equation-icon" aria-hidden="true">✦</span>
+          <strong>AIが提案</strong>
+          <span>文書・設計・Bolt・実装案</span>
+        </div>
+        <div class="operator" aria-hidden="true">＋</div>
+        <div class="equation-card is-core">
+          <span class="equation-icon" aria-hidden="true">◆</span>
+          <strong>Coreが制御</strong>
+          <span>検査・記録・次の指示</span>
+        </div>
+        <div class="operator" aria-hidden="true">＋</div>
+        <div class="equation-card is-human">
+          <span class="equation-icon" aria-hidden="true">●</span>
+          <strong>人間が判断</strong>
+          <span>目的・例外・最終承認</span>
+        </div>
+        <div class="operator" aria-hidden="true">＝</div>
+        <div class="equation-card is-result">
+          <span class="equation-icon" aria-hidden="true">✓</span>
+          <strong>制御されたAI-DLC</strong>
+          <span>AIだけで進路を変えられない</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="example-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Simple example</p>
+          <h2 id="example-title">ログイン機能なら</h2>
+        </div>
+        <p class="section-intro">
+          AIが突然コードを書き始めるのではなく、
+          決められた順番で材料をそろえてから製造します。
+        </p>
+      </div>
+
+      <div class="example">
+        <div class="example-head">
+          <h3>1つの機能が進む例</h3>
+          <p>10ステージを確認し、必要な作業だけを行います</p>
+        </div>
+
+        <div class="example-route" aria-label="ログイン機能が通る10ステージ">
+          <div class="route-stop"><strong>ST-00</strong><span>準備</span></div>
+          <div class="route-stop"><strong>ST-01</strong><span>状況把握</span></div>
+          <div class="route-stop"><strong>ST-02</strong><span>目的整理</span></div>
+          <div class="route-stop is-focus"><strong>ST-03</strong><span>要件</span></div>
+          <div class="route-stop is-focus"><strong>ST-04</strong><span>構成決定</span></div>
+          <div class="route-stop is-focus"><strong>ST-05</strong><span>製造契約</span></div>
+          <div class="route-stop is-focus"><strong>ST-06</strong><span>製造</span></div>
+          <div class="route-stop is-focus"><strong>ST-07</strong><span>確認</span></div>
+          <div class="route-stop"><strong>ST-08</strong><span>公開</span></div>
+          <div class="route-stop"><strong>ST-09</strong><span>効果確認</span></div>
+        </div>
+
+        <p class="example-detail-label">緑色のST-03〜ST-07を、下で詳しく説明します。</p>
+        <div class="example-flow">
+          <article class="example-step">
+            <small>ST-03</small>
+            <h4>必要条件を決める</h4>
+            <p>ログイン方法や、失敗時の動きを明確にします。</p>
+          </article>
+          <article class="example-step">
+            <small>ST-04</small>
+            <h4>認証構成を決める</h4>
+            <p>既存構成を再利用するか、新しい技術判断が必要かを確認します。</p>
+          </article>
+          <article class="example-step">
+            <small>ST-05</small>
+            <h4>Bolt計画を承認する</h4>
+            <p>保存、API、画面、試験の依存関係を確認します。</p>
+          </article>
+          <article class="example-step">
+            <small>ST-06</small>
+            <h4>指定Boltを実装する</h4>
+            <p>AIはCoreから渡された現在のBoltだけを作ります。</p>
+          </article>
+          <article class="example-step">
+            <small>ST-07</small>
+            <h4>要件と見比べる</h4>
+            <p>違えば製造へ戻し、要件変更ならST-03へ戻します。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <span>AI-DLC vNext｜AI進行制御の初心者向け説明</span>
+      <a href="./aidlc-vnext-m0-result.html">M0調査結果へ戻る</a>
+    </footer>
+  </main>
+</body>
+</html>

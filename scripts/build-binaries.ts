@@ -183,14 +183,12 @@ function smoke(executable: string): BinaryBuildReport["gates"] {
   }
   gates.push(help);
 
-  const graph = assertCommand("graph", installedExecutable, ["graph", "compile", "--check"], pathless);
-  if (!graph.stdout.includes("32 stages")) throw new Error("graph smoke missed Stage count");
+  const graph = assertCommand("graph", installedExecutable, ["graph", "validate"], pathless);
+  const graphResult = JSON.parse(graph.stdout) as { valid?: boolean; workflow?: string };
+  if (graphResult.valid !== true || graphResult.workflow !== "vnext") {
+    throw new Error("graph smoke did not validate vNext definitions");
+  }
   gates.push(graph);
-
-  const sensors = assertCommand("sensor", installedExecutable, ["sensor", "list"], pathless);
-  const sensorList = JSON.parse(sensors.stdout) as unknown[];
-  if (sensorList.length === 0) throw new Error("sensor smoke returned no Sensors");
-  gates.push(sensors);
 
   gates.push(assertCommand(
     "workspace",
@@ -199,61 +197,28 @@ function smoke(executable: string): BinaryBuildReport["gates"] {
     { cwd: projectDir, pathless: true },
   ));
   gates.push(assertCommand(
-    "doctor",
+    "intent",
     installedExecutable,
-    ["doctor", "check", "--project-dir", projectDir],
+    ["intent", "birth", projectDir, "Binary Smoke"],
     { cwd: projectDir, pathless: true },
   ));
   gates.push(assertCommand(
-    "intent",
+    "doctor",
     installedExecutable,
-    ["intent", "birth", projectDir, "Binary Smoke", "--scope", "poc"],
+    ["doctor", "check", projectDir],
     { cwd: projectDir, pathless: true },
   ));
   const next = assertCommand(
     "orchestrate",
     installedExecutable,
-    ["orchestrate", "next", "--project-dir", projectDir],
+    ["next", projectDir],
     { cwd: projectDir, pathless: true },
   );
-  const directive = JSON.parse(next.stdout) as { kind?: string };
-  if (directive.kind !== "load-steering") {
+  const directive = JSON.parse(next.stdout) as { kind?: string; stage?: string };
+  if (directive.kind !== "parked" || directive.stage !== "ST-00") {
     throw new Error(`orchestrate smoke returned ${String(directive.kind)}`);
   }
   gates.push(next);
-
-  const sensorOutput = join(projectDir, "aidlc-docs", "binary-sensor-smoke.md");
-  mkdirSync(dirname(sensorOutput), { recursive: true });
-  writeFileSync(sensorOutput, "# Binary Sensor Smoke\n", "utf8");
-  const sensorFire = assertCommand(
-    "sensor-fire",
-    installedExecutable,
-    [
-      "sensor", "fire", "claim-sources", "--stage", "intent-capture",
-      "--output-path", sensorOutput, "--project-dir", projectDir,
-    ],
-    { cwd: projectDir, pathless: true },
-  );
-  const fireResult = JSON.parse(sensorFire.stdout) as { outcome?: string };
-  if (!new Set(["passed", "failed", "budget-override"]).has(fireResult.outcome ?? "")) {
-    throw new Error(`sensor-fire smoke returned ${String(fireResult.outcome)}`);
-  }
-  gates.push(sensorFire);
-
-  gates.push(assertCommand(
-    "hook",
-    installedExecutable,
-    ["hook", "sensor-fire"],
-    {
-      cwd: projectDir,
-      pathless: true,
-      input: JSON.stringify({
-        hook_event_name: "PostToolUse",
-        tool_name: "apply_patch",
-        tool_input: { command: "*** Begin Patch\n*** Update File: README.md\n*** End Patch" },
-      }),
-    },
-  ));
   return gates;
 }
 
@@ -292,7 +257,7 @@ export function buildBinary(targetName: BinaryTargetName): BinaryBuildReport {
     platform: distributionPlatform(target.name),
   });
   const runtime = join(layout.outDir, ".codex");
-  const requiredAsset = join(runtime, "aidlc-common", "data", "stage-graph.json");
+  const requiredAsset = join(runtime, "aidlc-common", "data", "vnext-stage-graph.json");
   if (!existsSync(requiredAsset)) throw new Error(`Runtime asset is missing: ${requiredAsset}`);
 
   const runtimeSmoke = shouldRun(target.name);

@@ -29,20 +29,18 @@ test("builds and smoke-gates a Harness-neutral project-local native binary", () 
   assert.equal(report.target, "native");
   assert.equal(report.version, AIDLC_VERSION);
   assert.equal(report.runtime_smoke, true);
-  assert.equal(report.gates.length, 15);
+  assert.equal(report.gates.length, 12);
   assert.equal(report.gates.every((gate) => gate.ok), true);
 
   const project = resolve(NATIVE_DIR, "project-layout");
   const runtime = resolve(project, ".codex");
-  assert.equal(existsSync(resolve(runtime, "aidlc-common/data/stage-graph.json")), true);
+  assert.equal(existsSync(resolve(runtime, "aidlc-common/data/vnext-stage-graph.json")), true);
   assert.equal(existsSync(resolve(project, ".agents/skills/aidlc/SKILL.md")), true);
   const skill = readFileSync(resolve(project, ".agents/skills/aidlc/SKILL.md"), "utf8");
   assert.match(skill, /`\.\/\.codex\/tools\/aidlc workspace init \.`/);
   assert.doesNotMatch(skill, /bun run --cwd \.codex aidlc/);
   const hooks = readFileSync(resolve(project, ".codex/hooks.json"), "utf8");
-  assert.match(hooks, /\.codex\/tools\/aidlc hook sensor-fire/);
-  assert.doesNotMatch(hooks, /sensor-hook/);
-  assert.doesNotMatch(hooks, /git rev-parse/);
+  assert.deepEqual(JSON.parse(hooks), { hooks: {} });
 
   const installedExecutable = resolve(
     project,
@@ -52,11 +50,16 @@ test("builds and smoke-gates a Harness-neutral project-local native binary", () 
   mkdirSync(resolve(project, ".codex/tools"), { recursive: true });
   cpSync(EXECUTABLE, installedExecutable);
 
-  const pathless = spawnSync(installedExecutable, ["graph", "compile", "--check"], {
+  const pathless = spawnSync(installedExecutable, ["graph", "validate"], {
     cwd: project,
     encoding: "utf8",
     env: { ...process.env, PATH: "" },
   });
   assert.equal(pathless.status, 0, `${pathless.stdout}\n${pathless.stderr}`);
-  assert.match(pathless.stdout, /32 stages/);
+  assert.deepEqual(JSON.parse(pathless.stdout), {
+    valid: true,
+    workflow: "vnext",
+    catalog_version: "vnext-stage-catalog-v1",
+    graph_version: "vnext-10-stage-graph-v1",
+  });
 });

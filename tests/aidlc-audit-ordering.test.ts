@@ -15,7 +15,7 @@ import { initializeWorkspace } from "../core/tools/aidlc-workspace.ts";
 test("Audit appends a unique monotonic sequence under the Workspace lock", () => {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-audit-sequence-"));
   initializeWorkspace(projectDir);
-  const born = birthIntentWithState(projectDir, "Audit sequence", "default", "poc");
+  const born = birthIntentWithState(projectDir, "Audit sequence", "default");
   const before = readOrderedAuditEntries(born.recordDir);
   const first = appendAuditEntry(projectDir, born.recordDir, "DECISION_RECORDED", {
     Decision: "one",
@@ -67,7 +67,7 @@ test("distributed Audit shards have deterministic clone and sequence order", () 
 test("concurrent processes cannot duplicate or reverse a shard sequence", async () => {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-audit-concurrent-"));
   initializeWorkspace(projectDir);
-  const born = birthIntentWithState(projectDir, "Audit concurrency", "default", "poc");
+  const born = birthIntentWithState(projectDir, "Audit concurrency", "default");
   const before = readOrderedAuditEntries(born.recordDir).length;
   const children = Array.from({ length: 6 }, (_value, index) => new Promise<void>(
     (accept, reject) => {

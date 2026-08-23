@@ -23,7 +23,6 @@ import {
   PROJECT_LAYOUT_SCHEMA,
   type DistributionPlatform,
 } from "./aidlc-distribution-contract.ts";
-import { writeCompiledStageGraph } from "./aidlc-graph.ts";
 
 export { PROJECT_LAYOUT_MANIFEST, PROJECT_LAYOUT_SCHEMA } from "./aidlc-distribution-contract.ts";
 export type { DistributionPlatform } from "./aidlc-distribution-contract.ts";
@@ -85,17 +84,7 @@ function rewriteCommands(
 }
 
 function installedHook(content: string): string {
-  const hooks = JSON.parse(content) as {
-    hooks: { PostToolUse: Array<{ hooks: Array<Record<string, unknown>> }> };
-  };
-  const hook = hooks.hooks.PostToolUse[0]?.hooks[0];
-  if (hook === undefined) throw new Error("Codex PostToolUse hook is missing");
-  hook.command =
-    'CODEX_PROJECT_DIR="$PWD" ./.codex/tools/aidlc hook sensor-fire';
-  hook.commandWindows =
-    'powershell -NoProfile -Command "$root = (Get-Location).Path; ' +
-    '$env:CODEX_PROJECT_DIR = $root; & \"$root/.codex/tools/aidlc.exe\" hook sensor-fire"';
-  return `${JSON.stringify(hooks, null, 2)}\n`;
+  return content;
 }
 
 function mappedRuntimePath(
@@ -167,17 +156,6 @@ export function writeProjectLayout(
     mkdirSync(dirname(absolute), { recursive: true });
     writeFileSync(absolute, content, "utf8");
   }
-  const coreDir = join(outDir, descriptor.layout.runtimeRoot);
-  writeCompiledStageGraph({
-    stagesDir: join(coreDir, "aidlc-common", "stages"),
-    agentsDir: join(coreDir, "agents"),
-    sensorsDir: join(coreDir, "sensors"),
-    memoryDir: join(coreDir, "memory"),
-    scopesDir: join(coreDir, "scopes"),
-    harnessDir: descriptor.layout.runtimeRoot,
-    graphPath: join(coreDir, "aidlc-common", "data", "stage-graph.json"),
-    scopeGridPath: join(coreDir, "aidlc-common", "data", "scope-grid.json"),
-  });
   return { outDir, files: [...files.keys()].sort() };
 }
 

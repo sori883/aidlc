@@ -1,93 +1,10 @@
-# AI-DLC State Tracking
+# AI-DLC vNext State
 
-This document defines the `aidlc-state.md` section and field contract. The
-engine writes the concrete state file and enumerates stages from the compiled
-stage graph plus scope grid; this template must not hand-list shipped stages.
+Core writes `aidlc-state.json` and `stage-execution-plan.json` as the
+authoritative machine records. `aidlc-state.md` is only a human-readable mirror.
 
-Authoritative generated views:
-- Stage graph: `core/aidlc-common/data/stage-graph.json`
-- Scope grid: `core/aidlc-common/data/scope-grid.json`
+The State always names one of the fixed Stages `ST-00` through `ST-09`. The
+Stage Execution Plan records `execute`, `reuse`, or `not_applicable` for every
+Stage. AI may propose a decision; only Core may persist it or choose a route.
 
-## Project Information
-- **Project**: [project description]
-- **Project Type**: [Greenfield/Brownfield]
-- **Scope**: [scope slug from compiled scope grid]
-- **Start Date**: [ISO 8601 timestamp]
-- **State Version**: 8
-- **Active Agent**: [current lead agent slug]
-- **Worktree Path**: [empty when not in a worktree]
-- **Bolt Refs**: [empty list or comma-separated bolt slugs]
-- **Practices Affirmed Timestamp**: [ISO 8601 timestamp on affirmation]
-
-## Scope Configuration
-- **Stages to Execute**: [comma-separated stage numbers included in scope]
-- **Stages to Skip**: [comma-separated stage numbers with reasons, or none]
-- **Depth**: [Minimal/Standard/Comprehensive]
-- **Test Strategy**: [Minimal/Standard/Comprehensive]
-
-## Workspace State
-- **Project Root**: [absolute workspace path]
-- **Languages**: [detected languages]
-- **Frameworks**: [detected frameworks]
-- **Build System**: [detected build system]
-
-## Execution Plan Summary
-- **Total Stages**: [count of EXECUTE stages]
-- **Completed**: [count of completed EXECUTE stages]
-- **In Progress**: [current stage slug]
-
-## Runtime State
-- **Construction Iteration**: [stage-major/unit-major]
-- **Revision Count**: [integer]
-- **Current Bolt**: [none or comma-separated Bolt IDs]
-- **Bolt Status**: [uninitialized/ready/running/awaiting-gate/awaiting-autonomy/ready-to-complete/failed-awaiting-choice/aborted/all-complete]
-- **Bolt Attempt**: [none or Bolt ID=attempt pairs]
-- **Bolt Failure**: [none or Bolt ID: reason]
-- **Bolt Next Action**: [deterministic resume action]
-
-## Phase Progress
-<!-- Status values: Pending, Active, Verified, Skipped -->
-
-- **[Phase]**: [Pending/Active/Verified/Skipped]
-
-## Stage Progress
-<!-- Checkbox states: [ ] pending, [-] in-progress, [?] awaiting approval, [R] revising, [x] completed, [S] skipped -->
-
-The engine emits one phase heading per compiled phase, then one checkbox row per
-compiled stage in that phase:
-
-### [PHASE] PHASE
-- [ ] stage-slug — [EXECUTE/SKIP: reason]
-
-The Construction phase also contains an engine-managed Unit progress block.
-Before `units-generation` completes it contains `Per unit: [TBD]`; afterwards
-the engine emits one row for every executable per-Unit stage and Unit in
-topological order:
-
-<!-- AIDLC_UNIT_PROGRESS_START -->
-Per unit:
-- [ ] Unit: [unit-slug] — [per-unit-stage-slug]
-<!-- AIDLC_UNIT_PROGRESS_END -->
-
-## Bolt Progress
-<!-- Bolt markers: [ ] pending, [-] active, [x] completed, [S] skipped, [!] failed/aborted -->
-
-The engine replaces the placeholder with one human-readable row per Bolt and a
-fenced JSON block that is the machine-readable Bolt execution state.
-
-<!-- AIDLC_BOLT_STATE_START -->
-Bolt execution: [uninitialized]
-<!-- AIDLC_BOLT_STATE_END -->
-
-## Current Status
-- **Lifecycle Phase**: [READY/INITIALIZATION/IDEATION/INCEPTION/CONSTRUCTION/OPERATION]
-- **Current Stage**: [stage slug or status text]
-- **Next Stage**: [next stage slug or none]
-- **Status**: [Running/Completed]
-- **Construction Autonomy Mode**: [unset/autonomous/gated]
-- **Last Updated**: [ISO 8601 timestamp]
-
-## Session Resume Point
-- **Last Completed Stage**: [stage slug]
-- **Next Action**: [what to do next]
-- **Pending Artifacts**: [any incomplete artifacts or none]
+There is no Scope, work type, profile, or free-form next-Stage field.

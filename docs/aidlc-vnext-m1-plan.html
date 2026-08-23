@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AI-DLC vNextのマイルストーン1で実装する内容を、初心者向けに短文と図で説明します。">
+  <title>AI-DLC vNext｜M1 実装計画</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --page: light-dark(#f3f6f4, #0d1413);
+      --surface: light-dark(#ffffff, #17201e);
+      --soft: light-dark(#f7faf8, #111a18);
+      --ink: light-dark(#17221f, #edf7f3);
+      --muted: light-dark(#60706a, #a9bbb4);
+      --line: light-dark(#cddbd5, #354740);
+      --green: light-dark(#087a55, #62d6a5);
+      --green-soft: light-dark(#dff2e9, #153c30);
+      --blue: light-dark(#246a9d, #75c5f7);
+      --blue-soft: light-dark(#e3f0f8, #17374a);
+      --amber: light-dark(#a16000, #f1bf61);
+      --amber-soft: light-dark(#fff0ce, #473418);
+      --purple: light-dark(#684ca9, #bea9fa);
+      --purple-soft: light-dark(#eee8fb, #30274c);
+      --shadow: 0 22px 62px light-dark(rgb(40 72 61 / 11%), rgb(0 0 0 / 30%));
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 7% 0%, light-dark(rgb(50 164 113 / 11%), rgb(50 164 113 / 8%)), transparent 34rem),
+        radial-gradient(circle at 96% 12%, light-dark(rgb(71 120 205 / 9%), rgb(71 120 205 / 8%)), transparent 30rem),
+        var(--page);
+      color: var(--ink);
+      font-family: Inter, "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, system-ui, sans-serif;
+      line-height: 1.72;
+    }
+
+    a { color: var(--green); text-underline-offset: 0.2em; }
+
+    .page {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 72px;
+    }
+
+    .topbar,
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .topbar { margin-bottom: 18px; }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      font-weight: 850;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 11px;
+      background: var(--green);
+      color: light-dark(#fff, #082119);
+      font-size: 0.75rem;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 0.76rem;
+      font-weight: 800;
+    }
+
+    .status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--amber);
+    }
+
+    .status.is-complete::before { background: var(--green); }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.06fr) minmax(340px, 0.94fr);
+      gap: 42px;
+      align-items: center;
+      min-height: 500px;
+      padding: clamp(34px, 6vw, 68px);
+      border: 1px solid var(--line);
+      border-radius: 32px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      margin-bottom: 12px;
+      color: var(--green);
+      font-size: 0.8rem;
+      font-weight: 900;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin-bottom: 22px;
+      font-size: clamp(2.45rem, 5.8vw, 5rem);
+      line-height: 1.04;
+      letter-spacing: -0.055em;
+    }
+
+    .hero-lead {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: clamp(1rem, 2vw, 1.2rem);
+    }
+
+    .bridge {
+      display: grid;
+      gap: 10px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--soft);
+    }
+
+    .bridge-step {
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--surface);
+      text-align: center;
+    }
+
+    .bridge-step span,
+    .bridge-step strong { display: block; }
+
+    .bridge-step span {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 850;
+    }
+
+    .bridge-step strong { font-size: 0.96rem; }
+
+    .bridge-step.is-current {
+      border-color: var(--green);
+      background: var(--green-soft);
+      color: var(--green);
+    }
+
+    .bridge-arrow {
+      height: 16px;
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .section { padding-top: 78px; }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.76fr) minmax(280px, 1.24fr);
+      gap: 42px;
+      align-items: end;
+      margin-bottom: 30px;
+    }
+
+    h2 {
+      margin-bottom: 0;
+      font-size: clamp(1.95rem, 4vw, 3.2rem);
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+    }
+
+    .section-intro {
+      margin-bottom: 2px;
+      color: var(--muted);
+    }
+
+    .steps,
+    .rules,
+    .files {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 15px;
+    }
+
+    .card {
+      min-height: 280px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 23px;
+      background: var(--surface);
+    }
+
+    .card-number {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      margin-bottom: 24px;
+      place-items: center;
+      border-radius: 13px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .card:nth-child(2) .card-number {
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .card:nth-child(3) .card-number {
+      background: var(--purple-soft);
+      color: var(--purple);
+    }
+
+    .card h3 { margin-bottom: 10px; font-size: 1.22rem; }
+    .card p { margin-bottom: 0; color: var(--muted); }
+
+    .authority {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+      gap: 13px;
+      align-items: stretch;
+    }
+
+    .authority-box {
+      min-height: 180px;
+      display: grid;
+      align-content: center;
+      gap: 7px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 21px;
+      text-align: center;
+    }
+
+    .authority-box.is-ai { background: var(--blue-soft); }
+    .authority-box.is-check { background: var(--soft); }
+    .authority-box.is-core { background: var(--green-soft); }
+
+    .authority-box strong,
+    .authority-box span { display: block; }
+    .authority-box span { color: var(--muted); font-size: 0.82rem; }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 1.8rem;
+      font-weight: 900;
+    }
+
+    .rule {
+      min-height: 160px;
+      padding: 21px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface);
+    }
+
+    .rule code {
+      display: inline-block;
+      margin-bottom: 14px;
+      padding: 5px 8px;
+      border-radius: 8px;
+      background: var(--purple-soft);
+      color: var(--purple);
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 900;
+    }
+
+    .rule strong,
+    .rule span { display: block; }
+    .rule span { color: var(--muted); font-size: 0.86rem; }
+
+    .file-card {
+      min-height: 190px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface);
+    }
+
+    .file-card b,
+    .file-card code,
+    .file-card span { display: block; }
+    .file-card b { margin-bottom: 12px; color: var(--green); }
+    .file-card code {
+      overflow-wrap: anywhere;
+      margin-bottom: 12px;
+      color: var(--ink);
+      font-size: 0.78rem;
+    }
+    .file-card span { color: var(--muted); font-size: 0.85rem; }
+
+    .not-doing {
+      padding: 27px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--amber-soft);
+    }
+
+    .not-doing h3 { margin-bottom: 15px; }
+    .not-doing ul { margin: 0; padding-left: 1.25rem; }
+    .not-doing li + li { margin-top: 8px; }
+
+    .gate {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+      gap: 30px;
+      align-items: center;
+      padding: clamp(28px, 5vw, 52px);
+      border: 1px solid var(--line);
+      border-radius: 29px;
+      background: var(--green-soft);
+      box-shadow: var(--shadow);
+    }
+
+    .gate h2 { margin-bottom: 13px; }
+    .gate p { margin-bottom: 0; color: var(--muted); }
+
+    .gate-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .gate-list li {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--surface);
+      font-size: 0.86rem;
+      font-weight: 800;
+    }
+
+    .gate-list li + li { margin-top: 9px; }
+    .gate-icon { color: var(--green); font-weight: 900; }
+
+    footer {
+      margin-top: 68px;
+      padding-top: 22px;
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .section-head,
+      .gate { grid-template-columns: 1fr; }
+      .steps,
+      .rules,
+      .files { grid-template-columns: 1fr; }
+      .card { min-height: 220px; }
+      .authority { grid-template-columns: 1fr; }
+      .arrow { height: 28px; transform: rotate(90deg); }
+    }
+
+    @media (max-width: 560px) {
+      .page { width: min(100% - 20px, 1120px); padding-top: 12px; }
+      .topbar { align-items: flex-start; }
+      .status { max-width: 150px; border-radius: 13px; }
+      .hero { min-height: 0; gap: 28px; padding: 28px 20px; border-radius: 24px; }
+      h1 { font-size: clamp(2.25rem, 13vw, 3.5rem); }
+      .section { padding-top: 58px; }
+      .section-head { gap: 15px; }
+      .card, .file-card, .not-doing { padding: 19px; }
+      footer { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="topbar">
+      <div class="brand">
+        <span class="brand-mark">M1</span>
+        <span>AI-DLC vNext</span>
+      </div>
+      <span class="status is-complete">承認済み・実装PASS</span>
+    </div>
+
+    <section class="hero" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">Milestone 1 plan</p>
+        <h1 id="page-title">M1は、交通ルールをコードにする。</h1>
+        <p class="hero-lead">
+          まだ10ステージを動かしません。
+          先に、全ステージが守る共通形式と、Coreだけが決定できる検査規則を作ります。
+        </p>
+      </div>
+
+      <div class="bridge" role="img" aria-label="M0からM1を経てM2でRuntimeを切り替える順番">
+        <div class="bridge-step">
+          <span>M0・完了候補</span>
+          <strong>方針と回収境界</strong>
+        </div>
+        <div class="bridge-arrow" aria-hidden="true">↓</div>
+        <div class="bridge-step is-current">
+          <span>M1・今回</span>
+          <strong>共通ContractとCore権限</strong>
+        </div>
+        <div class="bridge-arrow" aria-hidden="true">↓</div>
+        <div class="bridge-step">
+          <span>M2・次</span>
+          <strong>固定10 Stageへ切り替え</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="steps-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Three steps</p>
+          <h2 id="steps-title">M1で行う3つのこと</h2>
+        </div>
+        <p class="section-intro">
+          既存Runtimeから独立した小さな土台として作り、検査が完成してからM2で接続します。
+        </p>
+      </div>
+
+      <div class="steps">
+        <article class="card">
+          <span class="card-number">1</span>
+          <h3>共通Stage Contract</h3>
+          <p>Stage ID、目的、入出力、完了条件、停止条件、人間判断などの共通形式を決めます。</p>
+        </article>
+        <article class="card">
+          <span class="card-number">2</span>
+          <h3>進行判断のContract</h3>
+          <p>Stage Execution Planと、実行・再利用・該当なしの判断形式を決めます。</p>
+        </article>
+        <article class="card">
+          <span class="card-number">3</span>
+          <h3>厳しい検査とtest</h3>
+          <p>不明な項目、根拠のない通過、AI名義の確定判断を拒否するtestを作ります。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="authority-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Authority boundary</p>
+          <h2 id="authority-title">AIの提案を、そのまま採用しない</h2>
+        </div>
+        <p class="section-intro">
+          M1では、提案と確定を別のデータとして扱うContractを作ります。
+        </p>
+      </div>
+
+      <div class="authority" role="img" aria-label="AIの提案をvalidatorが検査し、Coreだけが確定する図">
+        <div class="authority-box is-ai">
+          <strong>AIが提案</strong>
+          <span>必要なStage作業と根拠</span>
+        </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="authority-box is-check">
+          <strong>Validatorが検査</strong>
+          <span>形式・根拠・Evidence</span>
+        </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="authority-box is-core">
+          <strong>Coreが確定</strong>
+          <span>M1で形式を固定、M2でRuntimeへ接続</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="rules-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Stage decision</p>
+          <h2 id="rules-title">3つの通過方法</h2>
+        </div>
+        <p class="section-intro">
+          無言のスキップは作りません。どの結果にも理由を必須にします。
+        </p>
+      </div>
+
+      <div class="rules">
+        <article class="rule">
+          <code>execute</code>
+          <strong>新しく実行</strong>
+          <span>必要な成果物と完了条件を指定します。</span>
+        </article>
+        <article class="rule">
+          <code>reuse</code>
+          <strong>既存を再利用</strong>
+          <span>再利用するArtifactとEvidenceを必須にします。</span>
+        </article>
+        <article class="rule">
+          <code>not_applicable</code>
+          <strong>今回は該当なし</strong>
+          <span>該当しない理由と検査根拠を必須にします。</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="files-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Implementation scope</p>
+          <h2 id="files-title">変更する予定のファイル</h2>
+        </div>
+        <p class="section-intro">
+          M1では独立したContractとtestを作ります。既存v2 Runtimeの切り替えはM2です。
+        </p>
+      </div>
+
+      <div class="files">
+        <article class="file-card">
+          <b>新規・TypeScript</b>
+          <code>core/tools/aidlc-stage-contract.ts</code>
+          <span>共通型、固定値、fail-closed validatorを実装します。</span>
+        </article>
+        <article class="file-card">
+          <b>新規・Bun test</b>
+          <code>tests/aidlc-stage-contract.test.ts</code>
+          <span>正常、欠落、未知項目、権限違反、Evidence不足を検証します。</span>
+        </article>
+        <article class="file-card">
+          <b>新規・技術資料</b>
+          <code>docs/aidlc-vnext-stage-contract.md</code>
+          <span>各fieldの意味、所有者、禁止事項を実装と一致させます。</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="not-title">
+      <div class="not-doing">
+        <h3 id="not-title">M1では、まだ行わないこと</h3>
+        <ul>
+          <li>v2の32 Stage CatalogとGraphを削除しません。</li>
+          <li>有効なRuntimeを10 Stageへ切り替えません。</li>
+          <li>ST-00〜ST-09固有の処理を実装しません。</li>
+          <li>Bolt実行、Feedback、Releaseを実装しません。</li>
+          <li>Workflow selectorやv2互換モードを追加しません。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="gate-title">
+      <div class="gate">
+        <div>
+          <p class="eyebrow">Approval gate</p>
+          <h2 id="gate-title">承認済み。M1実装は完了しました。</h2>
+          <p>
+            対象test、typecheck、release:checkが成功し、M1の結果HTMLも作成しました。
+          </p>
+        </div>
+        <ul class="gate-list">
+          <li><span class="gate-icon">✓</span><span>実装対象3ファイル＋結果HTML</span></li>
+          <li><span class="gate-icon">✓</span><span>既存Runtimeの切替なし</span></li>
+          <li><span class="gate-icon">✓</span><span>全261 test PASS</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <footer>
+      <span>AI-DLC vNext｜Milestone 1 Implementation Plan</span>
+      <a href="./aidlc-vnext-m0-result.html">M0調査結果へ戻る</a>
+    </footer>
+  </main>
+</body>
+</html>

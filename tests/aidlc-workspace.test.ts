@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { test } from "bun:test";
 import { initializeWorkspace } from "../core/tools/aidlc-workspace.ts";
 
-test("initializes the upstream-compatible default workspace shell", () => {
+test("initializes the vNext default workspace shell", () => {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-workspace-"));
   const result = initializeWorkspace(projectDir);
 
@@ -28,18 +28,9 @@ test("initializes the upstream-compatible default workspace shell", () => {
     ),
     readFileSync("core/memory/org.md", "utf8"),
   );
-  assert.ok(
-    existsSync(
-      join(
-        projectDir,
-        "aidlc",
-        "spaces",
-        "default",
-        "memory",
-        "phases",
-        "construction.md",
-      ),
-    ),
+  assert.equal(
+    existsSync(join(projectDir, "aidlc", "spaces", "default", "memory", "phases")),
+    false,
   );
   assert.equal(
     existsSync(join(projectDir, "aidlc", "spaces", "default", "intents")),

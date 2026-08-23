@@ -18,19 +18,16 @@ import {
 } from "./aidlc-workspace.ts";
 import { withWorkspaceLock } from "./aidlc-workspace-lock.ts";
 import {
-  initializeIntentStateAt,
-  type InitializedIntentState,
-} from "./aidlc-state.ts";
-import {
-  loadCompiledStageGraph,
-  resolvePlanForScope,
-} from "./aidlc-graph.ts";
-import { detectWorkspace } from "./aidlc-workspace-detect.ts";
-import {
   appendAuditEntry,
   initializeAuditLog,
-  portableEvidencePath,
 } from "./aidlc-audit.ts";
+import { loadVNextDefinitions, createInitialStageExecutionPlan } from "./aidlc-core-route.ts";
+import { writeEffectivePolicySnapshot } from "./aidlc-effective-policy.ts";
+import {
+  initializeVNextIntentStateAt,
+  type VNextIntentState,
+} from "./aidlc-vnext-state.ts";
+import type { StageExecutionPlan } from "./aidlc-stage-contract.ts";
 
 const ACTIVE_INTENT_POINTER = "active-intent";
 export { slugify } from "./aidlc-workspace.ts";
@@ -39,7 +36,6 @@ export interface IntentRegistryEntry {
   uuid: string;
   slug: string;
   dirName?: string;
-  scope?: string;
   repos?: string[];
   status: string;
 }
@@ -53,7 +49,9 @@ export interface BornIntent {
 }
 
 export interface BornIntentWithState extends BornIntent {
-  state: InitializedIntentState;
+  state: VNextIntentState;
+  plan: StageExecutionPlan;
+  policyPath: string;
   auditPath: string;
 }
 
@@ -282,168 +280,82 @@ export function switchIntent(
   return { ...match, active: true };
 }
 
-/**
- * Create and select one intent record using the current upstream identity and
- * directory conventions. Full state generation belongs to the next stage.
- */
-export function birthIntent(
-  projectDir: string,
-  label: string,
-  space = activeSpace(projectDir),
-  scope?: string,
-  repos?: string[],
-): BornIntent {
-  const projectRoot = resolve(projectDir);
-  return withWorkspaceLock(projectRoot, () =>
-    birthIntentUnlocked(projectRoot, label, space, scope, repos)
-  );
-}
-
-/**
- * Upstream v2 Intent Birth transaction: mint the record, detect the workspace,
- * resolve its scope plan, and replace the placeholder with the full state file.
- */
+/** Create one vNext Intent and let Core persist its immutable initial route. */
 export function birthIntentWithState(
   projectDir: string,
   label: string,
   space = activeSpace(projectDir),
-  scope = "poc",
   repos?: string[],
 ): BornIntentWithState {
   const projectRoot = resolve(projectDir);
-  // Fail before minting the record so an invalid scope cannot leave a partial
-  // Intent or registry row behind.
-  const scopePlan = resolvePlanForScope(scope);
-  const graph = loadCompiledStageGraph();
+  const definitions = loadVNextDefinitions();
   return withWorkspaceLock(projectRoot, () => {
-    const born = birthIntentUnlocked(projectRoot, label, space, scope, repos);
+    const born = birthIntentUnlocked(projectRoot, label, space, repos);
     const startedAt = new Date().toISOString();
     const request = `/aidlc ${label}`;
     const auditPath = initializeAuditLog(projectRoot, born.recordDir);
     appendAuditEntry(projectRoot, born.recordDir, "WORKFLOW_STARTED", {
-      Scope: scope,
+      Workflow: "vNext",
       Request: request,
       ...(repos === undefined || repos.length === 0
         ? {}
         : { Repos: repos.join(", ") }),
     });
-
-    const initializationStageCount = scopePlan.filter(
-      (stage) => stage.phase === "initialization" && stage.action === "EXECUTE",
-    ).length;
-    appendAuditEntry(projectRoot, born.recordDir, "PHASE_STARTED", {
-      Phase: "initialization",
-      "Stage count": String(initializationStageCount),
-      Scope: scope,
-    });
-    const phases = [...new Set(graph.map((stage) => stage.phase))];
-    for (const phase of phases) {
-      if (phase === "initialization") continue;
-      const stages = scopePlan.filter((stage) => stage.phase === phase);
-      if (stages.length > 0 && !stages.some((stage) => stage.action === "EXECUTE")) {
-        appendAuditEntry(projectRoot, born.recordDir, "PHASE_SKIPPED", {
-          Phase: phase,
-          Scope: scope,
-          Reason: `scope ${scope} excludes ${phase}`,
-        });
-      }
-    }
-
-    appendAuditEntry(projectRoot, born.recordDir, "STAGE_STARTED", {
-      Stage: "workspace-scaffold",
-      Agent: "orchestrator",
-    });
-    ensureIntentBirthDirectories(projectRoot, born.recordDir, space, phases);
+    ensureIntentBirthDirectories(projectRoot, born.recordDir, space, ["artifacts"]);
     appendAuditEntry(projectRoot, born.recordDir, "WORKSPACE_SCAFFOLDED", {
       Request: request,
-      Details:
-        "Per-intent artifact dirs + space-level knowledge/ ensured (shell shipped by SEED)",
+      Details: "vNext Intent record and artifact directories ensured",
     });
-    appendAuditEntry(projectRoot, born.recordDir, "STAGE_COMPLETED", {
-      Stage: "workspace-scaffold",
-      Details: "Per-intent artifact dirs + space-level knowledge/ ensured",
-    });
-
-    appendAuditEntry(projectRoot, born.recordDir, "STAGE_STARTED", {
-      Stage: "workspace-detection",
-      Agent: "orchestrator",
-    });
-    const scan = detectWorkspace(projectRoot);
-    const uninitializedSubmodules = scan.submodules.filter(
-      (submodule) => !submodule.initialized,
+    const policy = writeEffectivePolicySnapshot(
+      projectRoot,
+      born.recordDir,
+      born.uuid,
+      { createdAt: startedAt },
     );
-    appendAuditEntry(projectRoot, born.recordDir, "WORKSPACE_SCANNED", {
-      "Project Type": scan.projectType,
-      Languages: scan.languages,
-      Frameworks: scan.frameworks,
-      "Build System": scan.buildSystem,
-      ...(scan.nestedRoot === undefined
-        ? {}
-        : { "Nested Root": portableEvidencePath(projectRoot, scan.nestedRoot) }),
-      ...(scan.submodules.length === 0
-        ? {}
-        : {
-            Submodules:
-              `${scan.submodules.length} declared, ` +
-              `${uninitializedSubmodules.length} uninitialized`,
-          }),
-      Details: "Deterministic rule-based scan",
+    appendAuditEntry(projectRoot, born.recordDir, "POLICY_SNAPSHOT_CREATED", {
+      "Snapshot ID": policy.snapshot.snapshot_id,
+      Revision: String(policy.snapshot.revision),
+      "Source Priority": policy.snapshot.source_priority.join(" > "),
     });
-    appendAuditEntry(projectRoot, born.recordDir, "STAGE_COMPLETED", {
-      Stage: "workspace-detection",
-      Details:
-        `Classified ${scan.projectType}; languages=${scan.languages}; ` +
-        `frameworks=${scan.frameworks}`,
+    const plan = createInitialStageExecutionPlan(
+      born.uuid,
+      definitions.graph.graph_version,
+      policy.reference,
+    );
+    const initialized = initializeVNextIntentStateAt(
+      projectRoot,
+      born.recordDir,
+      {
+        intentId: born.uuid,
+        catalogVersion: definitions.catalog.catalog_version,
+        graphVersion: definitions.graph.graph_version,
+        policySnapshot: policy.reference,
+        plan,
+        createdAt: startedAt,
+      },
+    );
+    appendAuditEntry(projectRoot, born.recordDir, "PLAN_CREATED", {
+      Revision: String(plan.revision),
+      "Decision Authority": "core",
+      "Stage Count": String(plan.stage_decisions.length),
+      "Safe Default": "execute",
     });
-
-    appendAuditEntry(projectRoot, born.recordDir, "STAGE_STARTED", {
-      Stage: "state-init",
-      Agent: "orchestrator",
+    appendAuditEntry(projectRoot, born.recordDir, "ROUTE_DECIDED", {
+      "Current Stage": initialized.state.current_stage,
+      Graph: initialized.state.graph_version,
+      "Decision Authority": "core",
     });
-    const state = initializeIntentStateAt(projectRoot, born.recordDir, {
-      scope,
-      projectDescription: label,
-      startedAt,
-      workspaceScan: scan,
+    appendAuditEntry(projectRoot, born.recordDir, "ROUTE_BLOCKED", {
+      Stage: initialized.state.current_stage,
+      Reason: initialized.state.parked_reason ?? "Stage shell is unavailable",
     });
-    appendAuditEntry(projectRoot, born.recordDir, "WORKSPACE_INITIALISED", {
-      Request: request,
-      "Project Type": scan.projectType,
-      Scope: scope,
-      Languages: scan.languages,
-      Frameworks: scan.frameworks,
-      "Build System": scan.buildSystem,
-      Details:
-        `${state.totalStages} stages in scope, routing to ` +
-        `${state.firstStage ?? "none"}`,
-    });
-    appendAuditEntry(projectRoot, born.recordDir, "STAGE_COMPLETED", {
-      Stage: "state-init",
-      Details:
-        `State initialized: ${scope} scope, ${state.totalStages} stages, ` +
-        `routing to ${state.firstStage ?? "none"}`,
-    });
-
-    const firstStage = graph.find((stage) => stage.slug === state.firstStage);
-    if (firstStage !== undefined && firstStage.phase !== "initialization") {
-      appendAuditEntry(projectRoot, born.recordDir, "PHASE_COMPLETED", {
-        "From phase": "initialization",
-        "To phase": firstStage.phase,
-        "Stages completed": String(state.completedStages),
-      });
-      appendAuditEntry(projectRoot, born.recordDir, "PHASE_VERIFIED", {
-        "Phase boundary": `initialization → ${firstStage.phase}`,
-      });
-      appendAuditEntry(projectRoot, born.recordDir, "PHASE_STARTED", {
-        Phase: firstStage.phase,
-        Scope: scope,
-      });
-      appendAuditEntry(projectRoot, born.recordDir, "STAGE_STARTED", {
-        Stage: firstStage.slug,
-        Agent: firstStage.lead_agent,
-      });
-    }
-    return { ...born, state, auditPath };
+    return {
+      ...born,
+      state: initialized.state,
+      plan,
+      policyPath: policy.path,
+      auditPath,
+    };
   });
 }
 
@@ -469,7 +381,6 @@ function birthIntentUnlocked(
   projectRoot: string,
   label: string,
   space: string,
-  scope?: string,
   repos?: string[],
 ): BornIntent {
   const spaceDir = join(workspaceRoot(projectRoot), "spaces", space);
@@ -501,7 +412,6 @@ function birthIntentUnlocked(
     uuid,
     slug,
     dirName,
-    ...(scope === undefined ? {} : { scope }),
     ...(repos === undefined || repos.length === 0 ? {} : { repos }),
     status: "in-flight",
   };
@@ -517,7 +427,7 @@ export function main(argv: string[]): void {
     command === "birth" &&
     projectDir !== undefined &&
     label !== undefined &&
-    (args.length === 0 || (args.length === 2 && args[0] === "--scope"));
+    args.length === 0;
   const validSwitch =
     command === "switch" &&
     projectDir !== undefined &&
@@ -530,7 +440,7 @@ export function main(argv: string[]): void {
   if (!validBirth && !validSwitch && !validList) {
     console.error(
       "Usage: aidlc-intent list <project-dir> [--json]\n" +
-        "       aidlc-intent birth <project-dir> <label> [--scope <scope>]\n" +
+        "       aidlc-intent birth <project-dir> <label>\n" +
         "       aidlc-intent switch <project-dir> <intent>",
     );
     process.exitCode = 1;
@@ -580,7 +490,6 @@ export function main(argv: string[]): void {
       projectDir,
       label,
       activeSpace(projectDir),
-      args[1] ?? "poc",
     );
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } catch (error) {

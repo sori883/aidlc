@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AI-DLC vNextマイルストーン1の実装結果を、初心者向けに短文と図で説明します。">
+  <title>AI-DLC vNext｜M1 実装結果</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --page: light-dark(#f3f6f4, #0d1413);
+      --surface: light-dark(#ffffff, #17201e);
+      --soft: light-dark(#f7faf8, #111a18);
+      --ink: light-dark(#17221f, #edf7f3);
+      --muted: light-dark(#60706a, #a9bbb4);
+      --line: light-dark(#cddbd5, #354740);
+      --green: light-dark(#087a55, #62d6a5);
+      --green-soft: light-dark(#dff2e9, #153c30);
+      --blue: light-dark(#246a9d, #75c5f7);
+      --blue-soft: light-dark(#e3f0f8, #17374a);
+      --amber: light-dark(#a16000, #f1bf61);
+      --amber-soft: light-dark(#fff0ce, #473418);
+      --purple: light-dark(#684ca9, #bea9fa);
+      --purple-soft: light-dark(#eee8fb, #30274c);
+      --red: light-dark(#a8443a, #f18c82);
+      --red-soft: light-dark(#fae6e3, #432522);
+      --shadow: 0 22px 62px light-dark(rgb(40 72 61 / 11%), rgb(0 0 0 / 30%));
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 7% 0%, light-dark(rgb(50 164 113 / 11%), rgb(50 164 113 / 8%)), transparent 34rem),
+        radial-gradient(circle at 96% 12%, light-dark(rgb(71 120 205 / 9%), rgb(71 120 205 / 8%)), transparent 30rem),
+        var(--page);
+      color: var(--ink);
+      font-family: Inter, "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, system-ui, sans-serif;
+      line-height: 1.72;
+    }
+
+    a { color: var(--green); text-underline-offset: 0.2em; }
+
+    .page {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 72px;
+    }
+
+    .topbar,
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .topbar { margin-bottom: 18px; }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      font-weight: 850;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 11px;
+      background: var(--green);
+      color: light-dark(#fff, #082119);
+      font-size: 0.75rem;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 0.76rem;
+      font-weight: 800;
+    }
+
+    .status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.07fr) minmax(340px, 0.93fr);
+      gap: 42px;
+      align-items: center;
+      min-height: 500px;
+      padding: clamp(34px, 6vw, 68px);
+      border: 1px solid var(--line);
+      border-radius: 32px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      margin-bottom: 12px;
+      color: var(--green);
+      font-size: 0.8rem;
+      font-weight: 900;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin-bottom: 22px;
+      font-size: clamp(2.45rem, 5.8vw, 5rem);
+      line-height: 1.04;
+      letter-spacing: -0.055em;
+    }
+
+    .hero-lead {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: clamp(1rem, 2vw, 1.2rem);
+    }
+
+    .scoreboard {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--soft);
+    }
+
+    .score {
+      min-height: 120px;
+      display: grid;
+      align-content: center;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--surface);
+      text-align: center;
+    }
+
+    .score strong,
+    .score span { display: block; }
+    .score strong { color: var(--green); font-size: 1.8rem; line-height: 1.15; }
+    .score span { margin-top: 7px; color: var(--muted); font-size: 0.76rem; }
+
+    .section { padding-top: 78px; }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.76fr) minmax(280px, 1.24fr);
+      gap: 42px;
+      align-items: end;
+      margin-bottom: 30px;
+    }
+
+    h2 {
+      margin-bottom: 0;
+      font-size: clamp(1.95rem, 4vw, 3.2rem);
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+    }
+
+    .section-intro { margin-bottom: 2px; color: var(--muted); }
+
+    .flow {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+      gap: 13px;
+      align-items: stretch;
+    }
+
+    .flow-box {
+      min-height: 190px;
+      display: grid;
+      align-content: center;
+      gap: 7px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 21px;
+      text-align: center;
+    }
+
+    .flow-box.is-ai { background: var(--blue-soft); }
+    .flow-box.is-check { background: var(--soft); }
+    .flow-box.is-core { background: var(--green-soft); }
+    .flow-box strong, .flow-box span { display: block; }
+    .flow-box span { color: var(--muted); font-size: 0.82rem; }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 1.8rem;
+      font-weight: 900;
+    }
+
+    .built,
+    .rejections,
+    .docs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 15px;
+    }
+
+    .card {
+      min-height: 250px;
+      padding: 23px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--surface);
+    }
+
+    .card-label {
+      display: inline-block;
+      margin-bottom: 21px;
+      padding: 6px 9px;
+      border-radius: 9px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 0.74rem;
+      font-weight: 900;
+    }
+
+    .card h3 { margin-bottom: 10px; font-size: 1.18rem; }
+    .card p { margin-bottom: 0; color: var(--muted); font-size: 0.9rem; }
+
+    .reject {
+      min-height: 165px;
+      padding: 21px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--red-soft);
+    }
+
+    .reject strong,
+    .reject span { display: block; }
+    .reject strong { margin-bottom: 8px; color: var(--red); }
+    .reject span { color: var(--muted); font-size: 0.86rem; }
+
+    .stage-line {
+      display: grid;
+      grid-template-columns: repeat(10, minmax(74px, 1fr));
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 10px;
+      scrollbar-color: var(--line) transparent;
+    }
+
+    .stage {
+      min-width: 74px;
+      padding: 13px 7px;
+      border: 1px solid var(--green);
+      border-radius: 13px;
+      background: var(--green-soft);
+      text-align: center;
+    }
+
+    .stage strong,
+    .stage span { display: block; }
+    .stage strong { color: var(--green); font-size: 0.72rem; }
+    .stage span { font-size: 0.69rem; font-weight: 800; }
+
+    .verification {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 0.82fr);
+      gap: 28px;
+      align-items: center;
+      padding: clamp(28px, 5vw, 50px);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: var(--green-soft);
+      box-shadow: var(--shadow);
+    }
+
+    .verification h2 { margin-bottom: 13px; }
+    .verification p { margin-bottom: 0; color: var(--muted); }
+
+    .checks {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .checks li {
+      display: grid;
+      grid-template-columns: 26px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 11px 13px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--surface);
+      font-size: 0.82rem;
+      font-weight: 800;
+    }
+
+    .checks li + li { margin-top: 8px; }
+    .check-icon, .pass { color: var(--green); font-weight: 900; }
+    .pass { font-size: 0.7rem; letter-spacing: 0.06em; }
+
+    .boundary {
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr);
+      gap: 18px;
+      align-items: center;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--amber-soft);
+    }
+
+    .boundary-icon {
+      display: grid;
+      width: 52px;
+      height: 52px;
+      place-items: center;
+      border-radius: 16px;
+      background: var(--surface);
+      color: var(--amber);
+      font-weight: 900;
+    }
+
+    .boundary strong,
+    .boundary span { display: block; }
+    .boundary span { color: var(--muted); font-size: 0.9rem; }
+
+    .doc-link {
+      min-height: 125px;
+      display: grid;
+      align-content: center;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: var(--surface);
+      text-decoration: none;
+    }
+
+    .doc-link strong,
+    .doc-link span { display: block; }
+    .doc-link strong { margin-bottom: 6px; color: var(--ink); }
+    .doc-link span { color: var(--muted); font-size: 0.8rem; }
+
+    footer {
+      margin-top: 68px;
+      padding-top: 22px;
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .section-head,
+      .verification { grid-template-columns: 1fr; }
+      .flow { grid-template-columns: 1fr; }
+      .arrow { height: 28px; transform: rotate(90deg); }
+      .built, .rejections, .docs { grid-template-columns: 1fr; }
+      .card { min-height: 210px; }
+    }
+
+    @media (max-width: 560px) {
+      .page { width: min(100% - 20px, 1120px); padding-top: 12px; }
+      .topbar { align-items: flex-start; }
+      .status { max-width: 150px; border-radius: 13px; }
+      .hero { min-height: 0; gap: 28px; padding: 28px 20px; border-radius: 24px; }
+      h1 { font-size: clamp(2.25rem, 13vw, 3.5rem); }
+      .scoreboard { grid-template-columns: 1fr; }
+      .section { padding-top: 58px; }
+      .section-head { gap: 15px; }
+      .stage-line { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+      .stage { min-width: 0; }
+      .boundary { grid-template-columns: 1fr; }
+      .checks li { grid-template-columns: 24px 1fr; }
+      .pass { grid-column: 2; }
+      footer { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="topbar">
+      <div class="brand">
+        <span class="brand-mark">M1</span>
+        <span>AI-DLC vNext</span>
+      </div>
+      <span class="status">実装・全体検証PASS</span>
+    </div>
+
+    <section class="hero" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">Milestone 1 result</p>
+        <h1 id="page-title">交通ルールの型が、できました。</h1>
+        <p class="hero-lead">
+          AIの提案とCoreの確定判断を分離しました。
+          根拠のない通過や、固定10ステージの並べ替えは検査で止まります。
+        </p>
+      </div>
+
+      <div class="scoreboard" aria-label="M1検証結果">
+        <div class="score"><strong>18</strong><span>M1 test PASS</span></div>
+        <div class="score"><strong>261</strong><span>全test PASS</span></div>
+        <div class="score"><strong>0</strong><span>fail</span></div>
+        <div class="score"><strong>PASS</strong><span>release:check</span></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="flow-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Authority boundary</p>
+          <h2 id="flow-title">提案と確定を分けた</h2>
+        </div>
+        <p class="section-intro">
+          AIから受け取るschemaには、確定権限や次Stageのfieldがありません。
+          混ざっていれば未知fieldとして拒否します。
+        </p>
+      </div>
+
+      <div class="flow" role="img" aria-label="AIの提案を検査しCoreの確定判断へ変換する図">
+        <div class="flow-box is-ai">
+          <strong>AIのProposal</strong>
+          <span>候補・理由・Evidence</span>
+        </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="flow-box is-check">
+          <strong>fail-closed検査</strong>
+          <span>未知fieldや権限混入を拒否</span>
+        </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="flow-box is-core">
+          <strong>Core Decision</strong>
+          <span>Core専用schemaで確定</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="built-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Implemented</p>
+          <h2 id="built-title">今回作った3つ</h2>
+        </div>
+        <p class="section-intro">
+          Contractを既存Runtimeから独立させたため、M1だけでv2の動作は変わりません。
+        </p>
+      </div>
+
+      <div class="built">
+        <article class="card">
+          <span class="card-label">TypeScript</span>
+          <h3>共通Contract</h3>
+          <p>Stage、Artifact、Proposal、Core Decision、Stage Execution Planを型にしました。</p>
+        </article>
+        <article class="card">
+          <span class="card-label">Bun test</span>
+          <h3>18件の境界test</h3>
+          <p>正常系だけでなく、欠落、偽装、並べ替え、Evidence不足を検査します。</p>
+        </article>
+        <article class="card">
+          <span class="card-label">Documentation</span>
+          <h3>所有権の技術資料</h3>
+          <p>各fieldの意味、AI・Coreの境界、M2で接続する場所を記録しました。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="reject-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Fail closed</p>
+          <h2 id="reject-title">危ない入力は止める</h2>
+        </div>
+        <p class="section-intro">
+          曖昧なまま補完せず、Contract違反として明示的に失敗させます。
+        </p>
+      </div>
+
+      <div class="rejections">
+        <article class="reject"><strong>未知のStage</strong><span>ST-10など、固定10 ID以外を拒否します。</span></article>
+        <article class="reject"><strong>AIの権限混入</strong><span>Proposal内のdecision_authorityやnext_stageを拒否します。</span></article>
+        <article class="reject"><strong>根拠なしの通過</strong><span>reuse／not_applicableはEvidence 0件を拒否します。</span></article>
+        <article class="reject"><strong>Stage不足</strong><span>Planに10 Stageすべてがなければ拒否します。</span></article>
+        <article class="reject"><strong>順番の変更</strong><span>固定Stage順の入れ替えを拒否します。</span></article>
+        <article class="reject"><strong>内容のdrift</strong><span>Artifact versionとSHA-256で参照内容を固定します。</span></article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="fixed-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Fixed stages</p>
+          <h2 id="fixed-title">Planには10 Stageすべて</h2>
+        </div>
+        <p class="section-intro">
+          各Stageにexecute、reuse、not_applicableのどれかをCoreが記録する形式です。
+        </p>
+      </div>
+
+      <div class="stage-line" aria-label="Stage Execution Planに必須の10ステージ">
+        <div class="stage"><strong>ST-00</strong><span>準備</span></div>
+        <div class="stage"><strong>ST-01</strong><span>状況把握</span></div>
+        <div class="stage"><strong>ST-02</strong><span>目的整理</span></div>
+        <div class="stage"><strong>ST-03</strong><span>要件</span></div>
+        <div class="stage"><strong>ST-04</strong><span>構成</span></div>
+        <div class="stage"><strong>ST-05</strong><span>製造契約</span></div>
+        <div class="stage"><strong>ST-06</strong><span>製造</span></div>
+        <div class="stage"><strong>ST-07</strong><span>確認</span></div>
+        <div class="stage"><strong>ST-08</strong><span>公開</span></div>
+        <div class="stage"><strong>ST-09</strong><span>効果</span></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="verify-title">
+      <div class="verification">
+        <div>
+          <p class="eyebrow">Verification</p>
+          <h2 id="verify-title">既存基盤も壊していません。</h2>
+          <p>
+            現在の32 Stage Graphが残っているのは計画どおりです。
+            M1は独立Contractを作り、Runtime切り替えはM2で行います。
+          </p>
+        </div>
+        <ul class="checks">
+          <li><span class="check-icon">✓</span><span>M1 target test</span><span class="pass">18 PASS</span></li>
+          <li><span class="check-icon">✓</span><span>TypeScript</span><span class="pass">PASS</span></li>
+          <li><span class="check-icon">✓</span><span>Graph check</span><span class="pass">PASS</span></li>
+          <li><span class="check-icon">✓</span><span>Runtime Contract</span><span class="pass">PASS</span></li>
+          <li><span class="check-icon">✓</span><span>全Bun test</span><span class="pass">261 PASS</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="boundary-title">
+      <div class="boundary">
+        <div class="boundary-icon">M2</div>
+        <div>
+          <strong id="boundary-title">まだ、AIからCoreへのRuntime接続はしていません。</strong>
+          <span>
+            M2で固定10 Stage Graph、Effective Policy、State／Audit、Orchestratorへ接続し、
+            本当にCoreだけが遷移を確定する実行境界を完成させます。
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="docs-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Documents</p>
+          <h2 id="docs-title">詳細資料</h2>
+        </div>
+        <p class="section-intro">必要な場合だけ参照できます。</p>
+      </div>
+      <div class="docs">
+        <a class="doc-link" href="./aidlc-vnext-stage-contract.md"><strong>Stage Contract</strong><span>field、所有権、検査規則</span></a>
+        <a class="doc-link" href="./aidlc-vnext-m1-plan.html"><strong>M1計画</strong><span>実装前に承認した範囲</span></a>
+        <a class="doc-link" href="./aidlc-vnext-milestones.md"><strong>マイルストーン</strong><span>M1とM2の境界</span></a>
+      </div>
+    </section>
+
+    <footer>
+      <span>AI-DLC vNext｜Milestone 1 Result</span>
+      <a href="./aidlc-vnext-m0-result.html">M0調査結果へ戻る</a>
+    </footer>
+  </main>
+</body>
+</html>

@@ -17,7 +17,7 @@ import {
   initializeWorkspace,
 } from "../core/tools/aidlc-workspace.ts";
 
-test("creates the full upstream additional-space shape", () => {
+test("creates a vNext Space with only the three policy Memory layers", () => {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-space-"));
   initializeWorkspace(projectDir);
   const result = createSpace(projectDir, "Team A");
@@ -46,10 +46,6 @@ test("creates the full upstream additional-space shape", () => {
     ),
   );
   for (const relativePath of [
-    "memory/phases/ideation.md",
-    "memory/phases/inception.md",
-    "memory/phases/construction.md",
-    "memory/phases/operation.md",
     "memory/templates/.gitkeep",
     "intents",
     "codekb/.gitkeep",
@@ -57,6 +53,7 @@ test("creates the full upstream additional-space shape", () => {
   ]) {
     assert.ok(existsSync(join(result.spaceDir, relativePath)), relativePath);
   }
+  assert.equal(existsSync(join(result.spaceDir, "memory", "phases")), false);
 });
 
 test("switches to an existing normalized space", () => {

@@ -22,7 +22,7 @@ import { initializeWorkspace } from "../core/tools/aidlc-workspace.ts";
 function freshProject(): { projectDir: string; recordDir: string } {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-memory-"));
   initializeWorkspace(projectDir);
-  birthIntentWithState(projectDir, "Payment API", "default", "mvp");
+  birthIntentWithState(projectDir, "Payment API", "default");
   return { projectDir, recordDir: activeIntentRecordDir(projectDir) };
 }
 

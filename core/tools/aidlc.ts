@@ -18,39 +18,18 @@ export type Action =
   | { type: "error"; message: string; code: number };
 
 export const ROUTES: readonly Route[] = [
-  { noun: "artifact", tool: "aidlc-artifacts.ts", commands: ["check", "show"], summary: "validate and resolve Stage artifacts" },
-  { noun: "bolt", tool: "aidlc-bolt.ts", commands: ["init", "show", "next", "start", "complete", "record-integration", "fail", "retry", "skip", "abort", "approve-gate", "reject-gate", "set-autonomy"], summary: "validate and transition Construction Bolts" },
-  { noun: "contract", tool: "aidlc-runtime-contract.ts", commands: ["check"], summary: "validate the installed runtime contract" },
-  { noun: "doctor", tool: "aidlc-doctor.ts", commands: ["check", "repair"], summary: "diagnose and repair AI-DLC state" },
-  { noun: "graph", tool: "aidlc-graph.ts", commands: ["compile", "resolve", "ars", "validate-grid"], summary: "compile and query the Stage Graph" },
+  { noun: "doctor", tool: "aidlc-vnext-doctor.ts", commands: ["check", "repair"], summary: "diagnose and repair vNext Core state" },
+  { noun: "graph", tool: "aidlc-core-route.ts", commands: ["show", "catalog", "validate"], summary: "inspect the fixed vNext Catalog and Graph" },
   { noun: "intent", tool: "aidlc-intent.ts", commands: ["birth", "list", "switch"], summary: "create and select Intents" },
-  { noun: "learnings", tool: "aidlc-learnings.ts", commands: ["surface", "persist"], summary: "surface and persist learned Rules" },
-  { noun: "log", tool: "aidlc-log.ts", commands: ["decision", "answer"], summary: "append decision and answer events" },
-  { noun: "memory", tool: "aidlc-memory.ts", commands: ["init"], summary: "initialize Stage Memory" },
-  { noun: "orchestrate", tool: "aidlc-orchestrate.ts", commands: ["next", "report"], summary: "resolve and report Workflow actions" },
-  { noun: "quality-gate", tool: "aidlc-quality-gate.ts", commands: ["check"], summary: "validate Quality Gate manifests against provider CI" },
-  { noun: "sensor", tool: "aidlc-sensor.ts", commands: ["list", "describe", "fire"], summary: "inspect and fire Sensors" },
+  { noun: "orchestrate", tool: "aidlc-vnext-orchestrate.ts", commands: ["next"], summary: "resolve the next Core-owned vNext action" },
+  { noun: "plan", tool: "aidlc-vnext-plan.ts", commands: ["show", "revise"], summary: "inspect or revise the Core-owned Stage Execution Plan" },
   { noun: "space", tool: "aidlc-space.ts", commands: ["create", "list", "switch"], summary: "create and select Spaces" },
-  { noun: "state", tool: "aidlc-state.ts", commands: ["init", "show", "advance", "skip", "resume", "check", "practices-event", "practices-promote", "set-construction-iteration"], summary: "inspect and mutate Workflow State" },
-  { noun: "unit", tool: "aidlc-unit-graph.ts", commands: ["check", "show"], summary: "inspect the active Unit DAG" },
-  { noun: "utility", tool: "aidlc-utility.ts", commands: ["detect", "scope-table", "stage-table", "codekb-path", "recompose"], summary: "run shared AI-DLC utilities" },
+  { noun: "state", tool: "aidlc-vnext-state.ts", commands: ["show", "resume", "check"], summary: "inspect the Core-owned vNext State" },
   { noun: "workspace", tool: "aidlc-workspace.ts", commands: ["init"], summary: "initialize an AI-DLC Workspace" },
-  { noun: "workspace-detect", tool: "aidlc-workspace-detect.ts", commands: ["detect"], summary: "detect project characteristics" },
-  { noun: "workspace-migrate", tool: "aidlc-workspace-migrate.ts", commands: ["migrate"], summary: "migrate a legacy Workspace" },
-  { noun: "worktree", tool: "aidlc-worktree.ts", commands: ["create", "merge", "discard", "verify", "validate", "list", "info"], summary: "manage AI-DLC Worktrees" },
 ];
 
 const TOP_LEVEL: Readonly<Record<string, readonly [string, string]>> = {
-  next: ["aidlc-orchestrate.ts", "next"],
-  report: ["aidlc-orchestrate.ts", "report"],
-};
-
-const SENSOR_WORKERS: Readonly<Record<string, string>> = {
-  "claim-sources": "aidlc-sensor-claim-sources.ts",
-  linter: "aidlc-sensor-linter.ts",
-  "required-sections": "aidlc-sensor-required-sections.ts",
-  "type-check": "aidlc-sensor-type-check.ts",
-  "upstream-coverage": "aidlc-sensor-upstream-coverage.ts",
+  next: ["aidlc-vnext-orchestrate.ts", "next"],
 };
 
 function error(message: string): Action {
@@ -73,19 +52,6 @@ export function resolveAction(argv: string[]): Action {
     return { type: "delegate", tool: top[0], args: [top[1], ...argv.slice(1)] };
   }
 
-  if (argv[0] === "__sensor-script") {
-    const tool = SENSOR_WORKERS[argv[1] ?? ""];
-    return tool === undefined
-      ? error(`aidlc: unknown Sensor worker '${argv[1] ?? ""}'`)
-      : { type: "delegate", tool, args: argv.slice(2) };
-  }
-
-  if (argv[0] === "hook") {
-    return argv[1] === "sensor-fire"
-      ? { type: "delegate", tool: "aidlc-hook.ts", args: argv.slice(2) }
-      : error(`aidlc: unknown hook '${argv[1] ?? ""}'`);
-  }
-
   const route = ROUTES.find((candidate) => candidate.noun === argv[0]);
   if (route === undefined) {
     return error(`aidlc: unknown command or noun '${argv[0]}'`);
@@ -106,7 +72,6 @@ export function renderHelp(all = false): string {
     "",
     "Common commands:",
     "  aidlc next [args]       resolve the next Workflow action",
-    "  aidlc report [args]     report a Stage result",
     "  aidlc doctor check      diagnose the active Workspace",
     "  aidlc state resume      show the persisted resume point",
     "  aidlc --help            show this help",
@@ -145,32 +110,14 @@ type DelegateModule = {
 
 async function loadDelegate(tool: string): Promise<DelegateModule | null> {
   switch (tool) {
-    case "aidlc-artifacts.ts": return import("./aidlc-artifacts.ts");
-    case "aidlc-bolt.ts": return import("./aidlc-bolt.ts");
-    case "aidlc-hook.ts": return import("./aidlc-hook.ts");
-    case "aidlc-runtime-contract.ts": return import("./aidlc-runtime-contract.ts");
-    case "aidlc-doctor.ts": return import("./aidlc-doctor.ts");
-    case "aidlc-graph.ts": return import("./aidlc-graph.ts");
+    case "aidlc-vnext-doctor.ts": return import("./aidlc-vnext-doctor.ts");
+    case "aidlc-core-route.ts": return import("./aidlc-core-route.ts");
     case "aidlc-intent.ts": return import("./aidlc-intent.ts");
-    case "aidlc-learnings.ts": return import("./aidlc-learnings.ts");
-    case "aidlc-log.ts": return import("./aidlc-log.ts");
-    case "aidlc-memory.ts": return import("./aidlc-memory.ts");
-    case "aidlc-orchestrate.ts": return import("./aidlc-orchestrate.ts");
-    case "aidlc-quality-gate.ts": return import("./aidlc-quality-gate.ts");
-    case "aidlc-sensor.ts": return import("./aidlc-sensor.ts");
-    case "aidlc-sensor-claim-sources.ts": return import("./aidlc-sensor-claim-sources.ts");
-    case "aidlc-sensor-linter.ts": return import("./aidlc-sensor-linter.ts");
-    case "aidlc-sensor-required-sections.ts": return import("./aidlc-sensor-required-sections.ts");
-    case "aidlc-sensor-type-check.ts": return import("./aidlc-sensor-type-check.ts");
-    case "aidlc-sensor-upstream-coverage.ts": return import("./aidlc-sensor-upstream-coverage.ts");
+    case "aidlc-vnext-orchestrate.ts": return import("./aidlc-vnext-orchestrate.ts");
+    case "aidlc-vnext-plan.ts": return import("./aidlc-vnext-plan.ts");
     case "aidlc-space.ts": return import("./aidlc-space.ts");
-    case "aidlc-state.ts": return import("./aidlc-state.ts");
-    case "aidlc-unit-graph.ts": return import("./aidlc-unit-graph.ts");
-    case "aidlc-utility.ts": return import("./aidlc-utility.ts");
+    case "aidlc-vnext-state.ts": return import("./aidlc-vnext-state.ts");
     case "aidlc-workspace.ts": return import("./aidlc-workspace.ts");
-    case "aidlc-workspace-detect.ts": return import("./aidlc-workspace-detect.ts");
-    case "aidlc-workspace-migrate.ts": return import("./aidlc-workspace-migrate.ts");
-    case "aidlc-worktree.ts": return import("./aidlc-worktree.ts");
     default: return null;
   }
 }

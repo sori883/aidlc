@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>AI-DLC vNext｜M2 具体実装計画</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: light-dark(#edf4f1, #0b1411);
+      --surface: light-dark(#ffffff, #17201d);
+      --soft: light-dark(#f5f8f7, #111a17);
+      --ink: light-dark(#17221e, #edf7f3);
+      --muted: light-dark(#5c6b65, #a8b9b2);
+      --line: light-dark(#ccd8d3, #34463f);
+      --green: light-dark(#087c59, #62d6ae);
+      --green-soft: light-dark(#dff3eb, #153b31);
+      --blue: light-dark(#1e668d, #79bee0);
+      --blue-soft: light-dark(#e2f0f8, #17364a);
+      --amber: light-dark(#9b6500, #f2bf62);
+      --amber-soft: light-dark(#fff0cc, #483518);
+      --red: light-dark(#9e433a, #f08d83);
+      --red-soft: light-dark(#f9e4e1, #452723);
+      --shadow: 0 18px 48px light-dark(#46645b1a, #00000045);
+      --radius: 26px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 2%, light-dark(#dcefe7, #17352c), transparent 30rem),
+        radial-gradient(circle at 96% 18%, light-dark(#e0edf5, #172f45), transparent 32rem),
+        var(--bg);
+      line-height: 1.72;
+    }
+
+    a { color: inherit; }
+
+    .page {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 30px 0 56px;
+    }
+
+    .topbar,
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .topbar { margin-bottom: 18px; }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 850;
+    }
+
+    .brand-mark,
+    .step-number {
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      color: white;
+      background: var(--green);
+      font-weight: 900;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border: 1px solid var(--amber);
+      border-radius: 999px;
+      background: var(--amber-soft);
+      font-size: .82rem;
+      font-weight: 850;
+    }
+
+    .status::before {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--amber);
+      content: "";
+    }
+
+    .hero,
+    .section,
+    .approval {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--surface) 94%, transparent);
+    }
+
+    .hero {
+      padding: clamp(30px, 6vw, 66px);
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--green);
+      font-size: .78rem;
+      font-weight: 900;
+      letter-spacing: .17em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p { margin-top: 0; }
+
+    h1 {
+      max-width: 870px;
+      margin-bottom: 20px;
+      font-size: clamp(2.45rem, 7vw, 5.2rem);
+      line-height: 1.04;
+      letter-spacing: -.055em;
+    }
+
+    h2 {
+      margin-bottom: 10px;
+      font-size: clamp(1.8rem, 4.2vw, 3.2rem);
+      line-height: 1.14;
+      letter-spacing: -.045em;
+    }
+
+    h3 {
+      margin-bottom: 8px;
+      font-size: 1.1rem;
+      line-height: 1.4;
+    }
+
+    .hero-lead,
+    .section-intro,
+    .step p,
+    .file-group p,
+    .sandbox p,
+    .approval p,
+    .decision span,
+    .test-row span { color: var(--muted); }
+
+    .hero-lead {
+      max-width: 780px;
+      margin-bottom: 0;
+      font-size: clamp(1rem, 2vw, 1.24rem);
+    }
+
+    .route-map {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      align-items: stretch;
+      gap: 11px;
+      margin-top: 34px;
+    }
+
+    .route-box {
+      display: grid;
+      align-content: center;
+      min-height: 116px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--soft);
+      text-align: center;
+    }
+
+    .route-box.is-core {
+      border-color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .route-box.is-test {
+      border-color: var(--blue);
+      background: var(--blue-soft);
+    }
+
+    .route-box span { color: var(--muted); font-size: .82rem; }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 1.6rem;
+      font-weight: 900;
+    }
+
+    .section {
+      margin-top: 24px;
+      padding: clamp(26px, 5vw, 54px);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, .75fr);
+      align-items: end;
+      gap: 30px;
+      margin-bottom: 28px;
+    }
+
+    .section-intro { margin-bottom: 5px; }
+
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .fact {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--soft);
+    }
+
+    .fact strong {
+      display: block;
+      color: var(--green);
+      font-size: 1.15rem;
+    }
+
+    .fact span { color: var(--muted); font-size: .88rem; }
+
+    .steps { display: grid; gap: 12px; }
+
+    .step {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) minmax(220px, .55fr);
+      gap: 18px;
+      align-items: start;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--soft);
+    }
+
+    .step p { margin-bottom: 0; }
+
+    .done-check {
+      padding: 11px 13px;
+      border-radius: 12px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: .82rem;
+      font-weight: 850;
+    }
+
+    .decisions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .decision {
+      padding: 21px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--soft);
+    }
+
+    .decision strong,
+    .decision span { display: block; }
+    .decision strong { margin-bottom: 7px; }
+
+    .decision.is-stop {
+      border-color: var(--amber);
+      background: var(--amber-soft);
+    }
+
+    .file-groups {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 13px;
+    }
+
+    .file-group {
+      min-width: 0;
+      padding: 21px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: var(--soft);
+    }
+
+    .file-group b {
+      display: inline-block;
+      margin-bottom: 10px;
+      padding: 4px 9px;
+      border-radius: 8px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: .76rem;
+    }
+
+    .file-group code {
+      display: block;
+      overflow-wrap: anywhere;
+      font-size: .78rem;
+      line-height: 1.65;
+    }
+
+    .file-group p { margin: 11px 0 0; font-size: .88rem; }
+
+    .remove b { background: var(--red-soft); color: var(--red); }
+
+    .decision-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--soft);
+      font-size: .9rem;
+    }
+
+    .decision-table th,
+    .decision-table td {
+      padding: 13px 15px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .decision-table th { color: var(--green); }
+    .decision-table tr:last-child td { border-bottom: 0; }
+
+    .tests {
+      display: grid;
+      gap: 9px;
+    }
+
+    .test-row {
+      display: grid;
+      grid-template-columns: 112px minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+      padding: 15px 17px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--soft);
+    }
+
+    .test-row strong { color: var(--green); }
+
+    .sandbox {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 18px;
+      align-items: center;
+      margin-top: 24px;
+      padding: 24px;
+      border: 1px solid var(--blue);
+      border-radius: 19px;
+      background: var(--blue-soft);
+    }
+
+    .sandbox-icon {
+      display: grid;
+      place-items: center;
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+      background: var(--surface);
+      color: var(--blue);
+      font-weight: 900;
+    }
+
+    .sandbox code {
+      display: block;
+      overflow-wrap: anywhere;
+      font-size: .84rem;
+    }
+
+    .sandbox p { margin-bottom: 0; }
+
+    .approval {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 18px;
+      align-items: center;
+      margin-top: 24px;
+      padding: 25px;
+      border-color: var(--amber);
+      background: var(--amber-soft);
+    }
+
+    .approval-badge {
+      display: grid;
+      place-items: center;
+      width: 68px;
+      height: 68px;
+      border-radius: 18px;
+      background: var(--surface);
+      color: var(--amber);
+      font-weight: 900;
+    }
+
+    .approval strong { display: block; margin-bottom: 5px; }
+    .approval p { margin-bottom: 0; }
+
+    footer {
+      margin-top: 34px;
+      padding: 22px 2px 0;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .84rem;
+    }
+
+    footer nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    @media (max-width: 760px) {
+      .page { width: min(100% - 20px, 560px); padding-top: 12px; }
+      .topbar { align-items: flex-start; }
+      .status { max-width: 155px; border-radius: 14px; line-height: 1.35; }
+      .hero { padding: 30px 18px; }
+      h1 { font-size: clamp(2.5rem, 13.5vw, 4.1rem); }
+      .route-map { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); min-height: 28px; }
+      .section { padding: 28px 18px; }
+      .section-head,
+      .facts,
+      .decisions,
+      .file-groups { grid-template-columns: 1fr; }
+      .step { grid-template-columns: auto minmax(0, 1fr); }
+      .step .done-check { grid-column: 1 / -1; }
+      .test-row { grid-template-columns: 1fr; gap: 2px; }
+      .sandbox,
+      .approval { grid-template-columns: 1fr; }
+      .decision-table { display: block; overflow-x: auto; white-space: nowrap; }
+      footer { display: block; }
+      footer nav { margin-top: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="topbar">
+      <div class="brand"><span class="brand-mark">M2</span><span>AI-DLC vNext</span></div>
+      <span class="status">実装前レビュー・未承認</span>
+    </div>
+
+    <section class="hero" aria-labelledby="page-title">
+      <p class="eyebrow">Milestone 2 implementation plan</p>
+      <h1 id="page-title">10 Stage Runtimeへ、一方向に切り替える。</h1>
+      <p class="hero-lead">
+        現行コードと試験先を調査し、変更順を6段階に分けました。
+        最終状態にはv2 Workflow selector、32 Stage、Scope Gridを残しません。
+      </p>
+
+      <div class="route-map" role="img" aria-label="現行v2 RuntimeからCore Routeを経て指定試験ディレクトリで検証する図">
+        <div class="route-box"><span>現在</span><strong>v2・32 Stage</strong></div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="route-box is-core"><span>M2実装</span><strong>Core Route・10 Stage</strong></div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="route-box is-test"><span>実地確認</span><strong>07.ai-dlc-make-test3</strong></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="facts-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Investigation</p>
+          <h2 id="facts-title">調査で確認したこと</h2>
+        </div>
+        <p class="section-intro">M2はJSON一枚の差し替えではなく、Runtime全体のRoute切り替えです。</p>
+      </div>
+
+      <div class="facts">
+        <div class="fact"><strong>32 Stage</strong><span>Catalog、Graph、各Stage本文が現在の有効定義です。</span></div>
+        <div class="fact"><strong>9 Scope</strong><span>Scope GridがEXECUTE／SKIPを決め、StateとOrchestratorが利用しています。</span></div>
+        <div class="fact"><strong>空の試験先</strong><span>指定ディレクトリには既存ファイルがなく、新規導入を安全に確認できます。</span></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="steps-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Six implementation beats</p>
+          <h2 id="steps-title">実装は6段階</h2>
+        </div>
+        <p class="section-intro">各段階で対象testを通します。v2とvNextを選ぶ機能は作りません。</p>
+      </div>
+
+      <div class="steps">
+        <article class="step">
+          <span class="step-number">1</span>
+          <div><h3>固定CatalogとGraphを作る</h3><p>ST-00〜ST-09のID、名前、前進順、ST-07からの許可された戻り先をCore定義にします。未知のStageや自由な遷移は拒否します。</p></div>
+          <span class="done-check">完了判定：10件・順序・戻り先test</span>
+        </article>
+        <article class="step">
+          <span class="step-number">2</span>
+          <div><h3>PolicyとPlanをCoreで確定する</h3><p>active Spaceのorg.md、team.md、project.mdとIntent固有リスクをsnapshot化します。M1 Contractを使い、CoreだけがPlan revisionを作ります。</p></div>
+          <span class="done-check">完了判定：改ざん・Evidence不足を拒否</span>
+        </article>
+        <article class="step">
+          <span class="step-number">3</span>
+          <div><h3>StateとAuditをvNextへ接続する</h3><p>State versionを更新し、Plan revision、graph version、policy snapshot、現在位置を記録します。Auditを先に書く現在の安全機構は再利用します。</p></div>
+          <span class="done-check">完了判定：途中失敗でState不変</span>
+        </article>
+        <article class="step">
+          <span class="step-number">4</span>
+          <div><h3>OrchestratorとDoctorを切り替える</h3><p>次StageはCore Routeからだけ取得します。DoctorはGraph、Plan、State、Auditの不一致を検出し、AIが書いた遷移を受け付けません。</p></div>
+          <span class="done-check">完了判定：AI単独遷移が失敗</span>
+        </article>
+        <article class="step">
+          <span class="step-number">5</span>
+          <div><h3>v2 Workflow資産を外す</h3><p>Scope Grid、9 Scope、32 Stage本文、ARS RouteをRuntimeと配布物から削除します。CLI、Codex bundle、binary smoke testも10 Stage前提へ変えます。</p></div>
+          <span class="done-check">完了判定：配布物にv2 Routeなし</span>
+        </article>
+        <article class="step">
+          <span class="step-number">6</span>
+          <div><h3>指定ディレクトリで実地試験する</h3><p>空のProjectへCodex bundleを導入し、Workspace初期化、Intent作成、Plan、Doctor、次Action、安全停止まで確認します。</p></div>
+          <span class="done-check">完了判定：実地結果HTMLを作成</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="rules-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Core decision rules</p>
+          <h2 id="rules-title">Stage通過の決定規則</h2>
+        </div>
+        <p class="section-intro">情報が足りない場合は短縮せず、安全側のexecuteにします。</p>
+      </div>
+
+      <table class="decision-table">
+        <thead><tr><th>候補</th><th>Coreが採用できる条件</th><th>条件不足</th></tr></thead>
+        <tbody>
+          <tr><td><strong>execute</strong></td><td>安全側の初期値。新しい作業が必要、または判断材料が不足。</td><td>そのままexecute。</td></tr>
+          <tr><td><strong>reuse</strong></td><td>実在するArtifactのversionとSHA-256が一致し、Stage Contractが再利用を許可。</td><td>拒否してexecute、または人間へ確認。</td></tr>
+          <tr><td><strong>not_applicable</strong></td><td>Stage固有の決定規則が非該当と判定、または人間が例外判断。AIの理由だけでは不可。</td><td>拒否してexecute、または人間へ確認。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" aria-labelledby="boundaries-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Safety boundaries</p>
+          <h2 id="boundaries-title">今回固定する4つの境界</h2>
+        </div>
+        <p class="section-intro">M3以降のStage詳細がなくても、AIが穴を埋めて進まないようにします。</p>
+      </div>
+
+      <div class="decisions">
+        <div class="decision"><strong>v2 Intentは移行しない</strong><span>進行中v2 Intentの互換読み込みや自動変換は作りません。M2後は新しいvNext Intentだけを扱います。</span></div>
+        <div class="decision"><strong>初期Planは安全側</strong><span>ST-00を含む全Stageを消さずに持ちます。Evidenceがない短縮は行いません。</span></div>
+        <div class="decision"><strong>Coreだけが記録する</strong><span>AI Proposalとpersist済みCore Decisionを別経路にし、State／Audit mutationをCore関数へ限定します。</span></div>
+        <div class="decision is-stop"><strong>M3までST-00で安全停止</strong><span>固定Routeは有効にしますが、詳細未設計のStage本文をAIに推測させません。<code>next</code>はCore-ownedなparked結果を返します。</span></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="files-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">File map</p>
+          <h2 id="files-title">変更する場所</h2>
+        </div>
+        <p class="section-intro">大きな既存ファイルは一度に書き換えず、Core Routeを先に作ってから入口を切り替えます。</p>
+      </div>
+
+      <div class="file-groups">
+        <article class="file-group">
+          <b>新規</b>
+          <code>core/tools/aidlc-core-route.ts</code>
+          <code>core/tools/aidlc-effective-policy.ts</code>
+          <code>tests/aidlc-core-route.test.ts</code>
+          <code>tests/aidlc-effective-policy.test.ts</code>
+          <p>固定Route、Plan revision、Policy snapshotを独立testできるようにします。</p>
+        </article>
+        <article class="file-group">
+          <b>置換</b>
+          <code>core/aidlc-common/data/stage-catalog.json</code>
+          <code>core/aidlc-common/data/stage-graph.json</code>
+          <code>core/tools/aidlc-stage-loader.ts</code>
+          <code>core/tools/aidlc-graph.ts</code>
+          <p>32 Stage用schemaを、固定10 Stageと許可Routeのschemaへ置き換えます。</p>
+        </article>
+        <article class="file-group">
+          <b>Runtime接続</b>
+          <code>core/tools/aidlc-intent.ts</code>
+          <code>core/tools/aidlc-state.ts</code>
+          <code>core/tools/aidlc-audit.ts</code>
+          <code>core/tools/aidlc-directive.ts</code>
+          <code>core/tools/aidlc-orchestrate.ts</code>
+          <code>core/tools/aidlc-doctor.ts</code>
+          <p>scope起点をやめ、Plan・Policy・Core Route起点へ切り替えます。</p>
+        </article>
+        <article class="file-group">
+          <b>Memory・配布</b>
+          <code>core/tools/aidlc-rule-loader.ts</code>
+          <code>core/memory/org.md</code>
+          <code>core/tools/aidlc-codex-bundle.ts</code>
+          <code>core/tools/aidlc-project-layout.ts</code>
+          <code>harness/codex/skills/aidlc/SKILL.md</code>
+          <code>scripts/build-binaries.ts</code>
+          <p>scope別の厳しさを除き、Memory snapshotと10 Stageだけを配布します。</p>
+        </article>
+        <article class="file-group remove">
+          <b>削除</b>
+          <code>core/aidlc-common/data/scope-grid.json</code>
+          <code>core/scopes/</code>
+          <code>core/tools/aidlc-scope-loader.ts</code>
+          <code>core/tools/data/ars-priors.json</code>
+          <code>core/aidlc-common/stages/</code>
+          <p>v2 Routeを作る資産です。再利用する実行機構とは分けて削除します。</p>
+        </article>
+        <article class="file-group">
+          <b>既存test更新</b>
+          <code>stage-loader / graph / intent / state</code>
+          <code>orchestrate / doctor / bundle / binary</code>
+          <code>stage-cli-e2e / distribution</code>
+          <p>v2固有の期待値は10 Stageへ置換し、Workspace・Audit・Installerなどの基盤回帰testは維持します。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="tests-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Verification ladder</p>
+          <h2 id="tests-title">試験は内側から外側へ</h2>
+        </div>
+        <p class="section-intro">失敗箇所を特定しやすい順番で確認します。</p>
+      </div>
+
+      <div class="tests">
+        <div class="test-row"><strong>1. Contract</strong><span>未知field、未知Stage、順序変更、Evidence不足、偽装authorityを拒否。</span></div>
+        <div class="test-row"><strong>2. Route</strong><span>前進RouteとST-07の戻りだけを許可し、自由遷移を拒否。</span></div>
+        <div class="test-row"><strong>3. Persistence</strong><span>Policy snapshot、Plan revision、State、Auditが同じversionを参照。</span></div>
+        <div class="test-row"><strong>4. Runtime</strong><span>Intent birth、next、report、resume、DoctorがCore Routeだけを使用。</span></div>
+        <div class="test-row"><strong>5. Distribution</strong><span>Codex bundleとbinaryに10 Stage資産だけが入り、旧Scope Routeがない。</span></div>
+        <div class="test-row"><strong>6. Release</strong><span>typecheck、Graph、Runtime Contract、全Bun testを一括実行。</span></div>
+        <div class="test-row"><strong>7. Sandbox</strong><span>指定ディレクトリへ導入し、実際のProject操作とDoctorを確認。</span></div>
+      </div>
+
+      <div class="sandbox">
+        <div class="sandbox-icon">E2E</div>
+        <div>
+          <strong>ユーザー指定の試験先</strong>
+          <code>/Users/const/sori883/ai-dlc-cycle/07.ai-dlc-make-test3</code>
+          <p>現在は空です。実装承認後の最終試験でのみ書き込み、生成結果はユーザーが確認できるよう残します。</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="approval" aria-label="M2実装承認状態">
+      <div class="approval-badge">STOP</div>
+      <div>
+        <strong>このHTMLは実装計画です。TypeScript変更はまだ始めていません。</strong>
+        <p>この計画への明示的な承認を受けた後、Step 1から順に実装し、各Stepのtest結果を報告します。</p>
+      </div>
+    </div>
+
+    <footer>
+      <span>AI-DLC vNext｜Milestone 2 Implementation Plan</span>
+      <nav>
+        <a href="./aidlc-vnext-m2-plan.html">M2概要</a>
+        <a href="./aidlc-vnext-m1-result.html">M1結果</a>
+        <a href="./aidlc-vnext-milestones.md">マイルストーン</a>
+      </nav>
+    </footer>
+  </main>
+</body>
+</html>

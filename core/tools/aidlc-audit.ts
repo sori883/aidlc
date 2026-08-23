@@ -58,7 +58,12 @@ export type AuditEvent =
   | "DOCTOR_REPAIRED"
   | "WORKSPACE_SCAFFOLDED"
   | "WORKSPACE_SCANNED"
-  | "WORKSPACE_INITIALISED";
+  | "WORKSPACE_INITIALISED"
+  | "POLICY_SNAPSHOT_CREATED"
+  | "PLAN_CREATED"
+  | "PLAN_REVISED"
+  | "ROUTE_DECIDED"
+  | "ROUTE_BLOCKED";
 
 export interface AuditAppendResult {
   appended: true;
@@ -131,6 +136,11 @@ const EVENT_HEADINGS: Record<AuditEvent, string> = {
   WORKSPACE_SCAFFOLDED: "Workspace Scaffolded",
   WORKSPACE_SCANNED: "Workspace Scanned",
   WORKSPACE_INITIALISED: "Workspace Initialised",
+  POLICY_SNAPSHOT_CREATED: "Effective Policy Snapshot Created",
+  PLAN_CREATED: "Stage Execution Plan Created",
+  PLAN_REVISED: "Stage Execution Plan Revised",
+  ROUTE_DECIDED: "Core Route Decision",
+  ROUTE_BLOCKED: "Core Route Blocked",
 };
 
 const cloneIds = new Map<string, string>();

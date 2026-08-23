@@ -96,11 +96,11 @@ test("GitHub distribution installs without npm, Git, authentication, Bun, or Nod
   assert.equal(manifest.repository, "sori883/aidlc");
   assert.equal(manifest.tag, `v${AIDLC_VERSION}`);
   assert.equal(manifest.binaries.length, 1);
-  assert.equal(manifest.files.length > 150, true);
+  assert.equal(manifest.files.length >= 10, true);
   assert.equal(manifest.files.some(({ path }) => path.endsWith(".ts")), false);
   assert.equal(
     manifest.files.some(({ path, area }) =>
-      path === ".codex/aidlc-common/data/stage-graph.json" && area === "core"),
+      path === ".codex/aidlc-common/data/vnext-stage-graph.json" && area === "core"),
     true,
   );
   assert.equal(
@@ -198,7 +198,7 @@ test("GitHub distribution installs without npm, Git, authentication, Bun, or Nod
     assert.equal(existsSync(resolve(project, "AGENTS.md")), true);
     assert.equal(existsSync(resolve(project, ".codex/hooks.json")), true);
     assert.equal(
-      existsSync(resolve(project, ".codex/aidlc-common/data/stage-graph.json")),
+      existsSync(resolve(project, ".codex/aidlc-common/data/vnext-stage-graph.json")),
       true,
     );
     const installedManifest = JSON.parse(
@@ -219,21 +219,21 @@ test("GitHub distribution installs without npm, Git, authentication, Bun, or Nod
     const version = run(executable, ["--version"], project, pathless);
     assert.equal(version.status, 0, version.stderr);
     assert.equal(version.stdout.trim(), `aidlc ${AIDLC_VERSION}`);
-    const graph = run(executable, ["graph", "compile", "--check"], project, pathless);
+    const graph = run(executable, ["graph", "validate"], project, pathless);
     assert.equal(graph.status, 0, `${graph.stdout}\n${graph.stderr}`);
-    assert.match(graph.stdout, /32 stages/);
+    assert.equal((JSON.parse(graph.stdout) as { workflow: string }).workflow, "vnext");
     const workspace = run(executable, ["workspace", "init", "."], project, pathless);
     assert.equal(workspace.status, 0, `${workspace.stdout}\n${workspace.stderr}`);
     const intent = run(
       executable,
-      ["intent", "birth", ".", "HTTP Installer", "--scope", "poc"],
+      ["intent", "birth", ".", "HTTP Installer"],
       project,
       pathless,
     );
     assert.equal(intent.status, 0, `${intent.stdout}\n${intent.stderr}`);
     const doctor = run(
       executable,
-      ["doctor", "check", "--project-dir", "."],
+      ["doctor", "check", "."],
       project,
       pathless,
     );

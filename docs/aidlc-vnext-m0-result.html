@@ -1,0 +1,872 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AI-DLC vNext マイルストーン0の調査結果を、初心者向けに短文と図で説明します。">
+  <title>AI-DLC vNext｜M0 調査結果</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --page: light-dark(#f4f6f4, #0e1414);
+      --surface: light-dark(#ffffff, #182020);
+      --surface-soft: light-dark(#edf5f1, #172925);
+      --ink: light-dark(#14211d, #edf7f2);
+      --muted: light-dark(#5d6c66, #a8bab3);
+      --line: light-dark(#ccd9d3, #344640);
+      --green: light-dark(#147452, #65d4a7);
+      --green-soft: light-dark(#dcefe7, #173e32);
+      --blue: light-dark(#246797, #77c2f3);
+      --blue-soft: light-dark(#e2eff8, #193648);
+      --amber: light-dark(#996200, #f0c46b);
+      --amber-soft: light-dark(#fff0c9, #463518);
+      --red: light-dark(#a2443b, #f28d83);
+      --red-soft: light-dark(#f8e3e0, #432522);
+      --purple: light-dark(#6752a4, #b7a6f4);
+      --purple-soft: light-dark(#ece7fa, #2b2547);
+      --shadow: 0 20px 54px light-dark(rgb(42 70 59 / 10%), rgb(0 0 0 / 28%));
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 8% 2%, light-dark(rgb(56 159 112 / 10%), rgb(56 159 112 / 8%)), transparent 36rem),
+        radial-gradient(circle at 94% 16%, light-dark(rgb(64 117 185 / 9%), rgb(64 117 185 / 8%)), transparent 30rem),
+        var(--page);
+      color: var(--ink);
+      font-family:
+        Inter, "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo,
+        system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.72;
+    }
+
+    a {
+      color: var(--green);
+      text-underline-offset: 0.2em;
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 72px;
+    }
+
+    .topbar,
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .topbar {
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      font-weight: 850;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 11px;
+      background: var(--green);
+      color: light-dark(#ffffff, #082119);
+      font-size: 0.75rem;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 0.76rem;
+      font-weight: 800;
+    }
+
+    .status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--amber);
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      min-height: 470px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
+      gap: 38px;
+      align-items: center;
+      padding: clamp(34px, 6vw, 68px);
+      border: 1px solid var(--line);
+      border-radius: 32px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -150px;
+      bottom: -180px;
+      width: 430px;
+      height: 430px;
+      border-radius: 50%;
+      background: var(--green-soft);
+      opacity: 0.75;
+    }
+
+    .hero-copy,
+    .hero-figure {
+      position: relative;
+      z-index: 1;
+    }
+
+    .eyebrow {
+      margin-bottom: 11px;
+      color: var(--green);
+      font-size: 0.8rem;
+      font-weight: 900;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 650px;
+      margin-bottom: 21px;
+      font-size: clamp(2.45rem, 5.8vw, 5.3rem);
+      line-height: 1.03;
+      letter-spacing: -0.055em;
+    }
+
+    .hero-lead {
+      max-width: 580px;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: clamp(1rem, 2vw, 1.22rem);
+    }
+
+    .hero-figure {
+      display: grid;
+      gap: 12px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: light-dark(rgb(255 255 255 / 75%), rgb(8 15 15 / 55%));
+    }
+
+    .figure-title {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 850;
+      letter-spacing: 0.08em;
+    }
+
+    .funnel {
+      display: grid;
+      gap: 10px;
+    }
+
+    .funnel-row {
+      min-height: 58px;
+      display: grid;
+      place-items: center;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--surface);
+      text-align: center;
+      font-size: 0.9rem;
+      font-weight: 850;
+    }
+
+    .funnel-arrow {
+      height: 20px;
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .funnel-row.is-sort {
+      width: 86%;
+      justify-self: center;
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .funnel-row.is-next {
+      width: 72%;
+      justify-self: center;
+      background: var(--green-soft);
+      color: var(--green);
+    }
+
+    .section {
+      padding-top: 78px;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.76fr) minmax(280px, 1.24fr);
+      gap: 42px;
+      align-items: end;
+      margin-bottom: 30px;
+    }
+
+    h2 {
+      margin-bottom: 0;
+      font-size: clamp(1.9rem, 4vw, 3.15rem);
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+    }
+
+    .section-intro {
+      margin-bottom: 2px;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .principles {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .principle {
+      min-height: 220px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--surface);
+    }
+
+    .principle-number {
+      display: grid;
+      width: 40px;
+      height: 40px;
+      margin-bottom: 26px;
+      place-items: center;
+      border-radius: 13px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 0.82rem;
+      font-weight: 900;
+    }
+
+    .principle h3 {
+      margin-bottom: 9px;
+      font-size: 1.12rem;
+    }
+
+    .principle p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .coverage {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stage {
+      min-height: 210px;
+      padding: 19px;
+      border: 1px solid var(--line);
+      border-radius: 19px;
+      background: var(--surface);
+    }
+
+    .stage-id {
+      display: inline-block;
+      margin-bottom: 18px;
+      color: var(--green);
+      font-size: 0.75rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+    }
+
+    .stage h3 {
+      min-height: 50px;
+      margin-bottom: 10px;
+      font-size: 1rem;
+      line-height: 1.35;
+    }
+
+    .stage p {
+      margin-bottom: 12px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.62;
+    }
+
+    .stage-tag {
+      display: inline-block;
+      padding: 5px 8px;
+      border-radius: 8px;
+      background: var(--purple-soft);
+      color: var(--purple);
+      font-size: 0.7rem;
+      font-weight: 850;
+    }
+
+    .boundary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--line);
+      gap: 1px;
+    }
+
+    .boundary-card {
+      min-height: 260px;
+      padding: 24px;
+      background: var(--surface);
+    }
+
+    .boundary-card b {
+      display: block;
+      margin-bottom: 18px;
+      font-size: 1.1rem;
+    }
+
+    .boundary-card p {
+      margin-bottom: 14px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .boundary-card small {
+      color: var(--muted);
+      font-size: 0.76rem;
+      line-height: 1.55;
+    }
+
+    .boundary-card[data-type="keep"] b {
+      color: var(--green);
+    }
+
+    .boundary-card[data-type="change"] b {
+      color: var(--blue);
+    }
+
+    .boundary-card[data-type="replace"] b {
+      color: var(--amber);
+    }
+
+    .boundary-card[data-type="remove"] b {
+      color: var(--red);
+    }
+
+    .new-work {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .new-card {
+      min-height: 150px;
+      padding: 21px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--purple-soft);
+    }
+
+    .new-card strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--purple);
+      font-size: 1rem;
+    }
+
+    .new-card span {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .result {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(340px, 0.95fr);
+      gap: 30px;
+      align-items: center;
+      padding: clamp(28px, 5vw, 54px);
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      background: var(--surface-soft);
+    }
+
+    .result h2 {
+      margin-bottom: 15px;
+    }
+
+    .result p {
+      margin-bottom: 0;
+      color: var(--muted);
+    }
+
+    .checks {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .checks li {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--surface);
+      font-size: 0.85rem;
+      font-weight: 800;
+    }
+
+    .check-icon {
+      display: grid;
+      width: 23px;
+      height: 23px;
+      place-items: center;
+      border-radius: 7px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 0.72rem;
+    }
+
+    .check-state {
+      color: var(--green);
+      font-size: 0.68rem;
+      letter-spacing: 0.06em;
+    }
+
+    .checks li.is-wait .check-icon {
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+
+    .checks li.is-wait .check-state {
+      color: var(--amber);
+    }
+
+    .docs {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .doc-link {
+      min-height: 120px;
+      display: grid;
+      align-content: center;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: var(--surface);
+      text-decoration: none;
+    }
+
+    .doc-link strong {
+      margin-bottom: 5px;
+      color: var(--ink);
+      font-size: 0.94rem;
+    }
+
+    .doc-link span {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    footer {
+      padding: 34px 4px 0;
+    }
+
+    @media (max-width: 940px) {
+      .hero,
+      .section-head,
+      .result {
+        grid-template-columns: 1fr;
+      }
+
+      .coverage {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .boundary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .new-work {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .docs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 660px) {
+      .page {
+        width: min(100% - 20px, 1120px);
+        padding-top: 14px;
+      }
+
+      .topbar,
+      footer {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .hero {
+        min-height: 0;
+        gap: 28px;
+        padding: 26px 20px;
+        border-radius: 24px;
+      }
+
+      h1 {
+        font-size: clamp(2.2rem, 14vw, 3.35rem);
+      }
+
+      .section {
+        padding-top: 58px;
+      }
+
+      .section-head {
+        gap: 14px;
+      }
+
+      .principles,
+      .coverage,
+      .boundary,
+      .new-work,
+      .docs {
+        grid-template-columns: 1fr;
+      }
+
+      .stage h3 {
+        min-height: 0;
+      }
+
+      .checks li {
+        grid-template-columns: 28px 1fr;
+      }
+
+      .check-state {
+        grid-column: 2;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">M0</span>
+        <span>AI-DLC vNext</span>
+      </div>
+      <span class="status">人間レビュー待ち</span>
+    </div>
+
+    <section class="hero" aria-labelledby="page-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Milestone 0 Result</p>
+        <h1 id="page-title">対応ではなく、使える知識を回収する。</h1>
+        <p class="hero-lead">
+          32 Stageを10 Stageへ無理に当てはめません。必要なものを選び、不足する能力は新しく作ります。
+        </p>
+      </div>
+
+      <div class="hero-figure" role="img" aria-label="v2の32 Stageを棚卸しし、vNextの10 Stageと新規能力へ整理する図">
+        <span class="figure-title">M0で決めた考え方</span>
+        <div class="funnel">
+          <div class="funnel-row">v2 · 32 Stageと実行機構</div>
+          <span class="funnel-arrow" aria-hidden="true">↓</span>
+          <div class="funnel-row is-sort">回収 · 統合 · 分割 · 置換 · 削除</div>
+          <span class="funnel-arrow" aria-hidden="true">↓</span>
+          <div class="funnel-row is-next">vNext · 10 Stage＋新規能力</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="rule-title">
+      <div class="section-head">
+        <h2 id="rule-title">棚卸しの3原則</h2>
+        <p class="section-intro">
+          v2の形ではなく、vNextの目的を優先します。
+        </p>
+      </div>
+
+      <div class="principles">
+        <article class="principle">
+          <span class="principle-number">01</span>
+          <h3>1対1にしない</h3>
+          <p>統合、分割、削除を許可します。</p>
+        </article>
+        <article class="principle">
+          <span class="principle-number">02</span>
+          <h3>仕組みは回収する</h3>
+          <p>State、Audit、Doctor、Worktreeなどを土台にします。</p>
+        </article>
+        <article class="principle">
+          <span class="principle-number">03</span>
+          <h3>足りないものは作る</h3>
+          <p>v2にないvNextの能力を新規設計します。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="coverage-title">
+      <div class="section-head">
+        <h2 id="coverage-title">10 Stageの回収方針</h2>
+        <p class="section-intro">
+          各Stageには、回収する知識と新しく作る部分があります。
+        </p>
+      </div>
+
+      <div class="coverage">
+        <article class="stage">
+          <span class="stage-id">ST-00</span>
+          <h3>Bootstrap</h3>
+          <p>WorkspaceとState初期化を回収します。</p>
+          <span class="stage-tag">開始Contractは新規</span>
+        </article>
+        <article class="stage">
+          <span class="stage-id">ST-01</span>
+          <h3>Orient</h3>
+          <p>検出とReverse Engineeringを統合します。</p>
+          <span class="stage-tag">調査深度は新規</span>
+        </article>
+        <article class="stage">
+          <span class="stage-id">ST-02</span>
+          <h3>Frame Intent</h3>
+          <p>IntentとScopeの知識を回収します。</p>
+          <span class="stage-tag">Design Briefは新規</span>
+        </article>
+        <article class="stage">
+          <span class="stage-id">ST-03</span>
+          <h3>Requirements &amp; Constraints</h3>
+          <p>要求、NFR、制約、利用例を統合します。</p>
+          <span class="stage-tag">必要深度の判定は新規</span>
+        </article>
+        <article class="stage">
+          <span class="stage-id">ST-04</span>
+          <h3>Architecture Decision</h3>
+          <p>設計と技術判断を統合します。</p>
+          <span class="stage-tag">実行／再利用判定は新規</span>
+        </article>
+        <article class="stage">
+          <span class="stage-id">ST-05</span>
+          <h3>Build Contract</h3>
+          <p>設計、Unit、Delivery Planを回収します。</p>
+          <span class="stage-tag">Bolt Planは新規</span>
+        </article>
+        <article class="stage">
+          <span class="stage-id">ST-06</span>
+          <h3>Build &amp; Converge</h3>
+          <p>生成、test、Worktreeを回収します。</p>
+          <span class="stage-tag">Core schedulingは新規</span>
+        </article>
+        <article class="stage">
+          <span class="stage-id">ST-07</span>
+          <h3>Human Feedback &amp; Approval</h3>
+          <p>Human reviewの知識を回収します。</p>
+          <span class="stage-tag">ST-03比較規則は新規</span>
+        </article>
+        <article class="stage">
+          <span class="stage-id">ST-08</span>
+          <h3>Release</h3>
+          <p>Deploymentとrollbackを統合します。</p>
+          <span class="stage-tag">Release authorityは新規</span>
+        </article>
+        <article class="stage">
+          <span class="stage-id">ST-09</span>
+          <h3>Outcome Evaluation</h3>
+          <p>観測、性能、改善の知識を回収します。</p>
+          <span class="stage-tag">Outcome loopは新規</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="boundary-title">
+      <div class="section-head">
+        <h2 id="boundary-title">コードの扱い</h2>
+        <p class="section-intro">
+          全部を捨てず、役割ごとに扱いを変えます。
+        </p>
+      </div>
+
+      <div class="boundary" role="group" aria-label="既存コードを4種類に仕分けた図">
+        <article class="boundary-card" data-type="keep">
+          <b>原則維持</b>
+          <p>Bun、CLI、Workspace lock、Installer、Harness、配布基盤です。</p>
+          <small>Workflowの意味に依存しない土台です。</small>
+        </article>
+        <article class="boundary-card" data-type="change">
+          <b>直して使う</b>
+          <p>State、Audit、Doctor、Loader、Orchestrator、Sensorです。</p>
+          <small>実績ある機構をvNext Contractへ接続します。</small>
+        </article>
+        <article class="boundary-card" data-type="replace">
+          <b>置き換える</b>
+          <p>32 Stage、Scope Grid、Stage Protocol、Boltの意味です。</p>
+          <small>固定10 Stage、Core Route、vNext Boltへ作り替えます。</small>
+        </article>
+        <article class="boundary-card" data-type="remove">
+          <b>最後に削除</b>
+          <p>v2専用Stage、Scope、Gate、Skill、互換分岐です。</p>
+          <small>代替testが揃った単位から安全に外します。</small>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="new-title">
+      <div class="section-head">
+        <h2 id="new-title">新しく作る主な能力</h2>
+        <p class="section-intro">
+          v2に十分な対応元がないため、vNextとして設計します。
+        </p>
+      </div>
+
+      <div class="new-work">
+        <div class="new-card">
+          <strong>Core Route</strong>
+          <span>固定GraphからCoreが次のStageを決めます。</span>
+        </div>
+        <div class="new-card">
+          <strong>Stage disposition</strong>
+          <span>実行、既存再利用、該当なしを根拠付きで決めます。</span>
+        </div>
+        <div class="new-card">
+          <strong>Effective Policy</strong>
+          <span>組織・Space・TeamのMemoryと今回のリスクを統合します。</span>
+        </div>
+        <div class="new-card">
+          <strong>Design Contract</strong>
+          <span>人間の意図とAIの合格条件を一つにまとめます。</span>
+        </div>
+        <div class="new-card">
+          <strong>Bolt Plan</strong>
+          <span>AIの提案をCoreが検査し、人間が承認します。</span>
+        </div>
+        <div class="new-card">
+          <strong>Runnable Candidate</strong>
+          <span>全Boltを統合し、人間が操作できる状態にします。</span>
+        </div>
+        <div class="new-card">
+          <strong>Feedback Route</strong>
+          <span>ST-03と比較し、Coreが正しい戻り先を選びます。</span>
+        </div>
+        <div class="new-card">
+          <strong>Accepted Baseline</strong>
+          <span>人間が承認した成果物だけを正式な基準にします。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="result-title">
+      <div class="result">
+        <div>
+          <p class="eyebrow">M0 Review Gate</p>
+          <h2 id="result-title">M0の調査作業は揃いました。</h2>
+          <p>
+            人間が結果を承認すると、M1で共通Stage Contractの詳細設計を始めます。
+          </p>
+        </div>
+        <ul class="checks">
+          <li>
+            <span class="check-icon" aria-hidden="true">✓</span>
+            <span>Baseline検証</span>
+            <span class="check-state">PASS</span>
+          </li>
+          <li>
+            <span class="check-icon" aria-hidden="true">✓</span>
+            <span>回収・新規作成Map</span>
+            <span class="check-state">READY</span>
+          </li>
+          <li>
+            <span class="check-icon" aria-hidden="true">✓</span>
+            <span>実装回収・変更境界</span>
+            <span class="check-state">READY</span>
+          </li>
+          <li>
+            <span class="check-icon" aria-hidden="true">✓</span>
+            <span>進行制御原則</span>
+            <span class="check-state">READY</span>
+          </li>
+          <li class="is-wait">
+            <span class="check-icon" aria-hidden="true">◆</span>
+            <span>人間レビュー</span>
+            <span class="check-state">WAITING</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="docs-title">
+      <div class="section-head">
+        <h2 id="docs-title">M0の技術資料</h2>
+        <p class="section-intro">
+          詳細が必要な場合だけ参照できます。
+        </p>
+      </div>
+      <div class="docs">
+        <a class="doc-link" href="./aidlc-vnext-v2-baseline.md">
+          <strong>Baseline</strong>
+          <span>変更前の正常状態</span>
+        </a>
+        <a class="doc-link" href="./aidlc-vnext-v2-recovery-map.md">
+          <strong>回収Map</strong>
+          <span>32 Stageと新規能力の棚卸し</span>
+        </a>
+        <a class="doc-link" href="./aidlc-vnext-m0-boundaries.md">
+          <strong>変更境界</strong>
+          <span>CoreとHarnessの扱い</span>
+        </a>
+        <a class="doc-link" href="./aidlc-vnext-ai-control-guide.html">
+          <strong>進行制御</strong>
+          <span>AI、Core、人間の役割</span>
+        </a>
+      </div>
+    </section>
+
+    <footer>
+      <span>AI-DLC vNext · Milestone 0 Result</span>
+      <a href="./aidlc-vnext-m0-guide.html">M0の事前説明へ戻る</a>
+    </footer>
+  </main>
+</body>
+</html>

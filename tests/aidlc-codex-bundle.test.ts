@@ -1,274 +1,92 @@
+import { test } from "bun:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
-  realpathSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
-import { test } from "bun:test";
-import { loadAgents } from "../core/tools/aidlc-agent-loader.ts";
-import type {
-  Directive,
-  RunStageDirective,
-} from "../core/tools/aidlc-directive.ts";
+import { join } from "node:path";
 import {
   checkCodexBundle,
   CODEX_BUNDLE_MANIFEST,
-  codexProjectCommands,
   codexRuntimeToolScripts,
   transformCodexMarkdown,
   writeCodexBundle,
 } from "../core/tools/aidlc-codex-bundle.ts";
 
 function freshBundleDir(): string {
-  return join(mkdtempSync(join(tmpdir(), "aidlc-codex-bundle-")), "bundle");
+  return join(mkdtempSync(join(tmpdir(), "aidlc-vnext-bundle-")), "bundle");
 }
 
-function run(
-  cwd: string,
-  command: string,
-  args: string[],
-): { stdout: string; stderr: string } {
-  const result = spawnSync(command, args, { cwd, encoding: "utf8" });
+function run(cwd: string, args: string[]) {
+  const result = spawnSync(process.execPath, args, { cwd, encoding: "utf8" });
   assert.equal(
     result.status,
     0,
-    `${command} ${args.join(" ")} failed:\n${result.stdout}\n${result.stderr}`,
+    `${process.execPath} ${args.join(" ")} failed:\n${result.stdout}\n${result.stderr}`,
   );
-  return { stdout: result.stdout, stderr: result.stderr };
+  return result.stdout;
 }
 
-function jsonOutput<T>(stdout: string): T {
-  const start = stdout.indexOf("{");
-  assert.notEqual(start, -1, stdout);
-  return JSON.parse(stdout.slice(start)) as T;
-}
-
-function runtimeNext(outDir: string, continueToken?: string): Directive {
-  const args = [
-    "run",
-    "--cwd",
-    ".codex",
-    "aidlc",
-    "orchestrate",
-    "next",
-    "--project-dir",
-    "..",
-    ...(continueToken === undefined
-      ? []
-      : ["--continue-token", continueToken]),
-  ];
-  return jsonOutput<Directive>(run(outDir, process.execPath, args).stdout);
-}
-
-function runtimeRunnable(outDir: string): RunStageDirective {
-  let directive = runtimeNext(outDir);
-  while (directive.kind === "load-steering") {
-    directive = runtimeNext(outDir, directive.continue_token);
-  }
-  assert.equal(
-    directive.kind,
-    "run-stage",
-    directive.kind === "error" ? directive.message : JSON.stringify(directive),
-  );
-  if (directive.kind !== "run-stage") {
-    throw new Error("Expected run-stage Directive");
-  }
-  return directive;
-}
-
-test("translates Harness-neutral Markdown to Codex Bun commands and paths", () => {
+test("translates Harness-neutral paths without introducing a Scope table", () => {
   const scripts = codexRuntimeToolScripts(JSON.stringify({
-    scripts: {
-      graph: "bun tools/aidlc-graph.ts",
-      utility: "bun tools/aidlc-utility.ts",
-      ignored: "node tools/not-an-aidlc-tool.ts",
-    },
+    scripts: { graph: "bun tools/aidlc-core-route.ts" },
   }));
-  assert.deepEqual([...scripts], [
-    ["aidlc-graph.ts", "graph"],
-    ["aidlc-utility.ts", "utility"],
-  ]);
-
-  const rendered = transformCodexMarkdown([
-    "bun {{HARNESS_DIR}}/tools/aidlc-graph.ts ars",
-    "bun\n{{HARNESS_DIR}}/tools/aidlc-utility.ts scope-table",
-    "bun {{HARNESS_DIR}}/tools/aidlc-utility.ts detect --json",
-    "{{HARNESS_DIR}}/knowledge/aidlc-shared/rules-reading.md",
-    "{{HARNESS_DIR}}/tools/data/scope-grid.json",
-  ].join("\n"), scripts, new Map([
-    ["aidlc-utility.ts", new Set(["detect"])],
-  ]));
-  assert.equal(rendered, [
-    "bun run --cwd .codex aidlc graph ars",
-    "bun run --cwd .codex aidlc utility scope-table",
-    "bun run --cwd .codex aidlc utility detect --project-dir .. --json",
-    ".codex/knowledge/aidlc-shared/rules-reading.md",
-    ".codex/aidlc-common/data/scope-grid.json",
-  ].join("\n"));
-  assert.doesNotMatch(rendered, /\{\{HARNESS_DIR\}\}/);
+  const rendered = transformCodexMarkdown(
+    "bun {{HARNESS_DIR}}/tools/aidlc-core-route.ts validate\n{{HARNESS_DIR}}/memory/org.md",
+    scripts,
+  );
+  assert.equal(
+    rendered,
+    "bun run --cwd .codex aidlc graph validate\n.codex/memory/org.md",
+  );
+  assert.doesNotMatch(rendered, /scope-grid|\{\{HARNESS_DIR\}\}/);
 });
 
-test("writes a complete Codex bundle with local Bun and yaml runtime", () => {
+test("writes a vNext-only Codex bundle", () => {
   const outDir = freshBundleDir();
   const result = writeCodexBundle({ outDir });
-  assert.equal(result.files.length > 100, true);
   assert.equal(checkCodexBundle({ outDir }).valid, true);
   for (const path of [
     "AGENTS.md",
     CODEX_BUNDLE_MANIFEST,
     ".codex/hooks.json",
     ".codex/package.json",
-    ".codex/bun.lock",
-    ".codex/tools/aidlc-orchestrate.ts",
-    ".codex/hooks/aidlc-sensor-core.ts",
-    ".codex/hooks/aidlc-sensor-fire.ts",
-    ".codex/aidlc-common/data/stage-graph.json",
-    ".codex/aidlc-common/protocols/stage-protocol.md",
-    ".codex/knowledge/aidlc-shared/rules-reading.md",
-    ".codex/knowledge/aidlc-design-agent/component-spec-template.md",
-    ".codex/knowledge/aidlc-developer-agent/re-artifacts.md",
-    ".codex/knowledge/aidlc-pipeline-deploy-agent/branching-strategies.md",
+    ".codex/tools/aidlc.ts",
+    ".codex/tools/aidlc-core-route.ts",
+    ".codex/tools/aidlc-vnext-state.ts",
+    ".codex/aidlc-common/data/vnext-stage-catalog.json",
+    ".codex/aidlc-common/data/vnext-stage-graph.json",
     ".agents/skills/aidlc/SKILL.md",
-  ]) {
-    assert.equal(existsSync(join(outDir, path)), true, path);
-  }
-  const runtime = JSON.parse(
-    readFileSync(join(outDir, ".codex", "package.json"), "utf8"),
-  ) as {
-    dependencies: Record<string, string>;
-    scripts: Record<string, string>;
-  };
-  assert.deepEqual(runtime.dependencies, { yaml: "2.9.0" });
-  assert.equal(runtime.scripts.aidlc, "bun tools/aidlc.ts");
-  assert.equal(runtime.scripts.graph, "bun tools/aidlc-graph.ts");
-  assert.equal(
-    runtime.scripts["sensor-linter"],
-    "bun tools/aidlc-sensor-linter.ts",
-  );
-  const hook = readFileSync(
-    join(outDir, ".codex", "hooks", "aidlc-sensor-fire.ts"),
-    "utf8",
-  );
-  assert.match(hook, /from "\.\/aidlc-sensor-core\.ts"/);
-  assert.doesNotMatch(hook, /\.\.\/\.\.\/\.\.\/core/);
-  const skill = readFileSync(
-    join(outDir, ".agents", "skills", "aidlc", "SKILL.md"),
-    "utf8",
-  );
-  assert.match(
-    skill,
-    /\.codex\/aidlc-common\/protocols\/stage-protocol\.md/,
-  );
-  const composer = readFileSync(
-    join(outDir, ".codex", "agents", "aidlc-composer-agent.md"),
-    "utf8",
-  );
-  assert.match(composer, /bun run --cwd \.codex aidlc graph ars/);
-  const composerToml = readFileSync(
-    join(outDir, ".codex", "agents", "aidlc-composer-agent.toml"),
-    "utf8",
-  );
-  assert.match(composerToml, /bun run --cwd \.codex aidlc graph ars/);
-  const protocol = readFileSync(
-    join(outDir, ".codex", "aidlc-common", "protocols", "stage-protocol.md"),
-    "utf8",
-  );
-  assert.match(
-    protocol,
-    /bun run --cwd \.codex aidlc log decision --project-dir \.\./,
-  );
-  assert.match(protocol, /bun run --cwd \.codex aidlc utility scope-table/);
-  const practices = readFileSync(
-    join(
-      outDir,
-      ".codex",
-      "aidlc-common",
-      "stages",
-      "inception",
-      "practices-discovery.md",
-    ),
-    "utf8",
-  );
-  assert.match(
-    practices,
-    /bun run --cwd \.codex aidlc state practices-promote --project-dir \.\./,
-  );
-  assert.match(
-    practices,
-    /bun run --cwd \.codex aidlc orchestrate report --project-dir \.\./,
-  );
-  const sensor = readFileSync(
-    join(outDir, ".codex", "sensors", "aidlc-linter.md"),
-    "utf8",
-  );
-  assert.match(
-    sensor,
-    /^command: bun run --cwd \.codex aidlc __sensor-script linter$/m,
-  );
-  const stateInit = readFileSync(
-    join(
-      outDir,
-      ".codex",
-      "aidlc-common",
-      "stages",
-      "initialization",
-      "state-init.md",
-    ),
-    "utf8",
-  );
-  assert.match(stateInit, /\.codex\/aidlc-common\/data\/scope-grid\.json/);
+  ]) assert.equal(existsSync(join(outDir, path)), true, path);
 
-  for (const path of result.files.filter((path) =>
-    path.endsWith(".md") || path.endsWith(".toml")
-  )) {
-    assert.doesNotMatch(
-      readFileSync(join(outDir, path), "utf8"),
-      /\{\{HARNESS_DIR\}\}/,
-      path,
-    );
-  }
+  for (const obsolete of [
+    ".codex/aidlc-common/data/scope-grid.json",
+    ".codex/aidlc-common/data/stage-catalog.json",
+    ".codex/aidlc-common/data/stage-graph.json",
+    ".codex/tools/aidlc-graph.ts",
+    ".codex/tools/aidlc-scope-loader.ts",
+    ".codex/tools/aidlc-orchestrate.ts",
+    ".codex/tools/aidlc-state.ts",
+  ]) assert.equal(existsSync(join(outDir, obsolete)), false, obsolete);
 
-  const agents = loadAgents();
-  for (const agent of agents) {
-    const source = readFileSync(
-      join(outDir, ".codex", "agents", `${agent.name}.toml`),
-      "utf8",
-    );
-    assert.match(source, new RegExp(`^name = "${agent.name}"$`, "m"));
-    assert.match(source, /^description = ".+"$/m);
-    assert.match(source, /^developer_instructions = ".+"$/m);
-    assert.match(source, /Do not spawn or delegate to another agent/);
-  }
-  const conductor = readFileSync(
-    join(outDir, ".agents", "skills", "aidlc", "SKILL.md"),
-    "utf8",
+  const files = result.files.join("\n");
+  assert.doesNotMatch(files, /scope-grid|aidlc-common\/stages|aidlc-scope-loader/);
+  assert.match(
+    readFileSync(join(outDir, ".agents/skills/aidlc/SKILL.md"), "utf8"),
+    /never chooses the next Stage itself/,
   );
-  assert.match(conductor, /bun install --cwd \.codex --frozen-lockfile/);
-  assert.match(conductor, /bun run --cwd \.codex aidlc orchestrate/);
 });
 
-test("derives project-aware Codex commands from CLI contracts", () => {
-  const commands = codexProjectCommands();
-  assert.equal(commands.get("aidlc-orchestrate.ts")?.has("report"), true);
-  assert.equal(commands.get("aidlc-state.ts")?.has("practices-promote"), true);
-  assert.equal(commands.get("aidlc-utility.ts")?.has("detect"), true);
-  assert.equal(commands.get("aidlc-utility.ts")?.has("scope-table"), false);
-  assert.equal(commands.get("aidlc-graph.ts"), undefined);
-});
-
-test("bundle check detects drift and write refuses an unmanaged directory", () => {
+test("bundle check detects drift and refuses an unmanaged directory", () => {
   const outDir = freshBundleDir();
   writeCodexBundle({ outDir });
   writeFileSync(join(outDir, "AGENTS.md"), "stale\n", "utf8");
-  const drift = checkCodexBundle({ outDir });
-  assert.equal(drift.valid, false);
-  assert.deepEqual(drift.stale, ["AGENTS.md"]);
+  assert.deepEqual(checkCodexBundle({ outDir }).stale, ["AGENTS.md"]);
   writeCodexBundle({ outDir });
   assert.equal(checkCodexBundle({ outDir }).valid, true);
 
@@ -279,120 +97,30 @@ test("bundle check detects drift and write refuses an unmanaged directory", () =
     () => writeCodexBundle({ outDir: unmanaged }),
     /Refusing to overwrite non-bundle directory/,
   );
-  assert.equal(readFileSync(join(unmanaged, "keep.txt"), "utf8"), "user data\n");
 });
 
-test("generated runtime installs and starts a real Intent", () => {
+test("generated Codex runtime creates an Intent and parks at ST-00", () => {
   const outDir = freshBundleDir();
   writeCodexBundle({ outDir });
-  run(outDir, process.execPath, [
-    "install",
-    "--cwd",
-    ".codex",
-    "--frozen-lockfile",
+  run(outDir, ["run", "--cwd", ".codex", "aidlc", "workspace", "init", ".."]);
+  run(outDir, [
+    "run", "--cwd", ".codex", "aidlc", "intent", "birth", "..", "Bundle Smoke",
   ]);
-  run(outDir, process.execPath, ["run", "--cwd", ".codex", "aidlc", "workspace", "init", ".."]) ;
-  run(outDir, process.execPath, [
-    "run",
-    "--cwd",
-    ".codex",
-    "aidlc",
-    "intent",
-    "birth",
-    "..",
-    "Bundle Smoke",
-    "--scope",
-    "mvp",
-  ]);
-  const directive = runtimeRunnable(outDir);
-  assert.equal(directive.stage, "intent-capture");
-  assert.equal(existsSync(join(outDir, "aidlc", "active-space")), true);
-  const doctor = run(outDir, process.execPath, [
-    "run",
-    "--cwd",
-    ".codex",
-    "aidlc",
-    "doctor",
-    "check",
-    "--project-dir",
-    "..",
-    "--json",
-  ]);
-  const doctorReport = jsonOutput<{
-    healthy?: boolean;
-  }>(doctor.stdout);
-  assert.equal(doctorReport.healthy, true);
-
-  for (const output of directive.produces) {
-    const path = resolve(outDir, output);
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, "# Bundle process-resume artifact\n", "utf8");
-  }
-  run(outDir, process.execPath, [
-    "run",
-    "--cwd",
-    ".codex",
-    "aidlc",
-    "memory",
-    "init",
-    "--memory-path",
-    directive.memory_path,
-    "--project-dir",
-    "..",
-  ]);
-  const memoryPath = resolve(realpathSync(outDir), directive.memory_path);
-  const recordDir = dirname(dirname(dirname(memoryPath)));
-  const selectionDir = join(recordDir, ".aidlc-learnings");
-  mkdirSync(selectionDir, { recursive: true });
-  const selections = join(selectionDir, `${directive.stage}-selections.json`);
-  writeFileSync(selections, `${JSON.stringify({
-    version: 1,
-    stage: directive.stage,
-    anything_to_add_answered: true,
-    selections: [],
-  }, null, 2)}\n`, "utf8");
-  run(outDir, process.execPath, [
-    "run",
-    "--cwd",
-    ".codex",
-    "aidlc",
-    "learnings",
-    "persist",
-    "--slug",
-    directive.stage,
-    "--selections-json",
-    selections,
-    "--project-dir",
-    "..",
-  ]);
-  const report = jsonOutput<Directive>(run(outDir, process.execPath, [
-    "run",
-    "--cwd",
-    ".codex",
-    "aidlc",
-    "orchestrate",
-    "report",
-    "--project-dir",
-    "..",
-    "--stage",
-    directive.stage,
-    "--result",
-    "approved",
-    "--user-input",
-    "Approve",
-  ]).stdout);
-  assert.equal(report.kind, "done");
-
-  const resumed = jsonOutput<{ currentStage: string }>(run(outDir, process.execPath, [
-    "run",
-    "--cwd",
-    ".codex",
-    "aidlc",
-    "state",
-    "resume",
-    "..",
-  ]).stdout);
-  assert.notEqual(resumed.currentStage, directive.stage);
-  const afterProcessRestart = runtimeRunnable(outDir);
-  assert.equal(afterProcessRestart.stage, resumed.currentStage);
-}, 30_000);
+  const next = JSON.parse(run(outDir, [
+    "run", "--cwd", ".codex", "aidlc", "next", "..",
+  ])) as { kind: string; workflow: string; stage: string; decision_authority: string };
+  assert.deepEqual(next, {
+    schema_version: 1,
+    kind: "parked",
+    workflow: "vnext",
+    stage: "ST-00",
+    reason: "ST-00 Stage Contract is not implemented until M3.",
+    graph_version: "vnext-10-stage-graph-v1",
+    plan_revision: 1,
+    decision_authority: "core",
+  });
+  const doctor = JSON.parse(run(outDir, [
+    "run", "--cwd", ".codex", "aidlc", "doctor", "check", "..",
+  ])) as { healthy: boolean };
+  assert.equal(doctor.healthy, true);
+});

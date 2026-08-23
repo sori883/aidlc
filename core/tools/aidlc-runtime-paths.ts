@@ -1,7 +1,5 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { nativeCliCommand } from "./aidlc-distribution-contract.ts";
-import { CODEX_HARNESS } from "../../harness/codex/aidlc-harness.ts";
 
 const MODULE_CORE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -15,7 +13,7 @@ export function projectInstallDir(): string {
   if (explicit) return resolve(explicit);
   return isCompiledExecutable()
     ? resolve(dirname(process.execPath), "..")
-    : resolve(dirname(MODULE_CORE_DIR), CODEX_HARNESS.layout.runtimeRoot);
+    : resolve(dirname(MODULE_CORE_DIR), ".codex");
 }
 
 /** Project root that owns the project-local AI-DLC installation. */
@@ -56,5 +54,5 @@ export function runtimeCorePath(...segments: string[]): string {
 
 /** Command rendered into project-local Harness instructions. */
 export function projectBinaryCommand(): string {
-  return nativeCliCommand(CODEX_HARNESS);
+  return "./.codex/tools/aidlc";
 }

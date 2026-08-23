@@ -13,6 +13,10 @@ import { test } from "bun:test";
 import { birthIntentWithState } from "../core/tools/aidlc-intent.ts";
 import { initializeWorkspace } from "../core/tools/aidlc-workspace.ts";
 import {
+  vNextPlanPath,
+  vNextStateSummaryPath,
+} from "../core/tools/aidlc-vnext-state.ts";
+import {
   boltWorktreePath,
   createWorktree,
   discardWorktree,
@@ -45,7 +49,7 @@ function fixture(): {
   git(projectDir, "config", "user.email", "aidlc@example.test");
   git(projectDir, "config", "user.name", "AI-DLC Test");
   initializeWorkspace(projectDir);
-  const born = birthIntentWithState(projectDir, "Worktree test", "default", "mvp");
+  const born = birthIntentWithState(projectDir, "Worktree test", "default");
   writeFileSync(join(projectDir, "app.txt"), "base\n", "utf8");
   git(projectDir, "add", ".");
   git(projectDir, "commit", "-m", "initial");
@@ -56,8 +60,8 @@ function fixture(): {
   return {
     projectDir,
     auditPath: born.auditPath,
-    planPath: born.state.planPath,
-    statePath: born.state.statePath,
+    planPath: vNextPlanPath(born.recordDir),
+    statePath: vNextStateSummaryPath(born.recordDir),
   };
 }
 

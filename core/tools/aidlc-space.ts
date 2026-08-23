@@ -67,7 +67,6 @@ export function createSpace(projectDir: string, rawName: string): CreatedSpace {
   }
 
   const memoryDir = join(spaceDir, "memory");
-  mkdirSync(join(memoryDir, "phases"), { recursive: true });
   mkdirSync(join(memoryDir, "templates"), { recursive: true });
   mkdirSync(join(spaceDir, "intents"), { recursive: true });
   mkdirSync(join(spaceDir, "codekb"), { recursive: true });
@@ -87,17 +86,6 @@ export function createSpace(projectDir: string, rawName: string): CreatedSpace {
       existsSync(source) ? readFileSync(source, "utf8") : `# ${filename}\n`,
       "utf8",
     );
-  }
-  const defaultPhasesDir = join(defaultSpaceDir, "memory", "phases");
-  if (existsSync(defaultPhasesDir)) {
-    for (const entry of readdirSync(defaultPhasesDir, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
-      writeFileSync(
-        join(memoryDir, "phases", entry.name),
-        readFileSync(join(defaultPhasesDir, entry.name), "utf8"),
-        "utf8",
-      );
-    }
   }
   writeFileSync(join(memoryDir, "templates", ".gitkeep"), "", "utf8");
   writeFileSync(join(spaceDir, "codekb", ".gitkeep"), "", "utf8");
