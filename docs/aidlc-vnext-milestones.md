@@ -165,6 +165,11 @@ vNextの10 Stage、遷移、Stage disposition、Effective Policyを
 
 ### M3: Design BriefとCo-Design（ST-00〜ST-05）
 
+**進捗（2026-08-23）**
+
+- ST-00 Bootstrapは詳細設計、TDD実装、Codex／native配布、Sandbox検証まで完了
+- 次はST-01 Orientを詳細設計し、明示的承認後にST-01だけを実装する
+
 **目的**
 
 人間のDesign Briefを起点に、人間とAIが評価可能なDesign Contractを作る前半工程を実装する。

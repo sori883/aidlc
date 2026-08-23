@@ -4,6 +4,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { appendAuditEntry } from "./aidlc-audit.ts";
 import { reviseStageExecutionPlan } from "./aidlc-core-route.ts";
+import { runtimeCoreDir } from "./aidlc-runtime-paths.ts";
 import {
   parseStageDispositionProposal,
   parseVNextStageContract,
@@ -36,8 +37,9 @@ function readProposals(path: string): StageDispositionProposal[] {
 }
 
 function readContracts(directory: string | undefined): VNextStageContract[] {
-  if (directory === undefined) return [];
-  const root = resolve(directory);
+  const root = resolve(
+    directory ?? join(runtimeCoreDir(), "aidlc-common", "stages"),
+  );
   if (!existsSync(root) || !statSync(root).isDirectory()) {
     throw new Error(`Stage Contract directory is not a directory: ${root}`);
   }

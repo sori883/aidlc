@@ -208,17 +208,47 @@ function smoke(executable: string): BinaryBuildReport["gates"] {
     ["doctor", "check", projectDir],
     { cwd: projectDir, pathless: true },
   ));
-  const next = assertCommand(
-    "orchestrate",
+  const advanced = assertCommand(
+    "orchestrate-advanced",
     installedExecutable,
     ["next", projectDir],
     { cwd: projectDir, pathless: true },
   );
-  const directive = JSON.parse(next.stdout) as { kind?: string; stage?: string };
-  if (directive.kind !== "parked" || directive.stage !== "ST-00") {
-    throw new Error(`orchestrate smoke returned ${String(directive.kind)}`);
+  const advancedDirective = JSON.parse(advanced.stdout) as {
+    kind?: string;
+    completed_stage?: string;
+    stage?: string;
+  };
+  if (
+    advancedDirective.kind !== "advanced" ||
+    advancedDirective.completed_stage !== "ST-00" ||
+    advancedDirective.stage !== "ST-01"
+  ) {
+    throw new Error(
+      `orchestrate advanced smoke returned ${String(advancedDirective.kind)}`,
+    );
   }
-  gates.push(next);
+  gates.push(advanced);
+
+  const parked = assertCommand(
+    "orchestrate-parked",
+    installedExecutable,
+    ["next", projectDir],
+    { cwd: projectDir, pathless: true },
+  );
+  const parkedDirective = JSON.parse(parked.stdout) as { kind?: string; stage?: string };
+  if (parkedDirective.kind !== "parked" || parkedDirective.stage !== "ST-01") {
+    throw new Error(
+      `orchestrate parked smoke returned ${String(parkedDirective.kind)}`,
+    );
+  }
+  gates.push(parked);
+  gates.push(assertCommand(
+    "doctor-after-bootstrap",
+    installedExecutable,
+    ["doctor", "check", projectDir],
+    { cwd: projectDir, pathless: true },
+  ));
   return gates;
 }
 

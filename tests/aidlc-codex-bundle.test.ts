@@ -58,9 +58,11 @@ test("writes a vNext-only Codex bundle", () => {
     ".codex/package.json",
     ".codex/tools/aidlc.ts",
     ".codex/tools/aidlc-core-route.ts",
+    ".codex/tools/aidlc-vnext-bootstrap.ts",
     ".codex/tools/aidlc-vnext-state.ts",
     ".codex/aidlc-common/data/vnext-stage-catalog.json",
     ".codex/aidlc-common/data/vnext-stage-graph.json",
+    ".codex/aidlc-common/stages/st-00-bootstrap.json",
     ".agents/skills/aidlc/SKILL.md",
   ]) assert.equal(existsSync(join(outDir, path)), true, path);
 
@@ -75,7 +77,7 @@ test("writes a vNext-only Codex bundle", () => {
   ]) assert.equal(existsSync(join(outDir, obsolete)), false, obsolete);
 
   const files = result.files.join("\n");
-  assert.doesNotMatch(files, /scope-grid|aidlc-common\/stages|aidlc-scope-loader/);
+  assert.doesNotMatch(files, /scope-grid|aidlc-scope-loader/);
   assert.match(
     readFileSync(join(outDir, ".agents/skills/aidlc/SKILL.md"), "utf8"),
     /never chooses the next Stage itself/,
@@ -99,26 +101,24 @@ test("bundle check detects drift and refuses an unmanaged directory", () => {
   );
 });
 
-test("generated Codex runtime creates an Intent and parks at ST-00", () => {
+test("generated Codex runtime completes ST-00 and parks at ST-01", () => {
   const outDir = freshBundleDir();
   writeCodexBundle({ outDir });
   run(outDir, ["run", "--cwd", ".codex", "aidlc", "workspace", "init", ".."]);
   run(outDir, [
     "run", "--cwd", ".codex", "aidlc", "intent", "birth", "..", "Bundle Smoke",
   ]);
-  const next = JSON.parse(run(outDir, [
+  const advanced = JSON.parse(run(outDir, [
     "run", "--cwd", ".codex", "aidlc", "next", "..",
   ])) as { kind: string; workflow: string; stage: string; decision_authority: string };
-  assert.deepEqual(next, {
-    schema_version: 1,
-    kind: "parked",
-    workflow: "vnext",
-    stage: "ST-00",
-    reason: "ST-00 Stage Contract is not implemented until M3.",
-    graph_version: "vnext-10-stage-graph-v1",
-    plan_revision: 1,
-    decision_authority: "core",
-  });
+  assert.equal(advanced.kind, "advanced");
+  assert.equal(advanced.stage, "ST-01");
+  assert.equal(advanced.decision_authority, "core");
+  const parked = JSON.parse(run(outDir, [
+    "run", "--cwd", ".codex", "aidlc", "next", "..",
+  ])) as { kind: string; stage: string };
+  assert.equal(parked.kind, "parked");
+  assert.equal(parked.stage, "ST-01");
   const doctor = JSON.parse(run(outDir, [
     "run", "--cwd", ".codex", "aidlc", "doctor", "check", "..",
   ])) as { healthy: boolean };

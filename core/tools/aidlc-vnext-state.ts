@@ -322,7 +322,7 @@ export function initializeVNextIntentStateAt(
     policy_snapshot: options.policySnapshot,
     current_stage: "ST-00",
     status: "parked",
-    parked_reason: "ST-00 Stage Contract is not implemented until M3.",
+    parked_reason: "ST-00 is ready for Core Bootstrap execution.",
     created_at: now,
     updated_at: now,
   });

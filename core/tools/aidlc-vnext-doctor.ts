@@ -3,6 +3,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { loadVNextDefinitions } from "./aidlc-core-route.ts";
+import { verifyBootstrapReceiptAt } from "./aidlc-vnext-bootstrap.ts";
 import {
   activeVNextIntentRecordDir,
   readVNextPlanAt,
@@ -76,6 +77,23 @@ export function checkVNextDoctor(projectDir: string): VNextDoctorReport {
     findings.push(finding(
       "error",
       "VNEXT_CORE_STATE_INVALID",
+      error instanceof Error ? error.message : String(error),
+    ));
+  }
+  try {
+    const state = readVNextStateAt(recordDir);
+    if (state.current_stage !== "ST-00") {
+      const verified = verifyBootstrapReceiptAt(projectRoot, recordDir);
+      findings.push(finding(
+        "info",
+        "VNEXT_ST00_RECEIPT_VALID",
+        `ST-00 Bootstrap Receipt ${verified.reference.sha256} is valid.`,
+      ));
+    }
+  } catch (error) {
+    findings.push(finding(
+      "error",
+      "VNEXT_ST00_RECEIPT_INVALID",
       error instanceof Error ? error.message : String(error),
     ));
   }

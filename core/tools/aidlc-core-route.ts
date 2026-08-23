@@ -437,6 +437,9 @@ function validateProposalDecisionRule(
   contract: VNextStageContract | undefined,
 ): void {
   if (proposal.disposition === "execute") return;
+  if (proposal.stage_id === "ST-00" && proposal.disposition === "not_applicable") {
+    fail("Core decision ST-00", "ST-00 cannot be not_applicable");
+  }
   if (contract === undefined) {
     fail(
       `Core decision ${proposal.stage_id}`,

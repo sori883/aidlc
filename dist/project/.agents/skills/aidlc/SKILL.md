@@ -23,11 +23,18 @@ route. Those controls do not exist in vNext.
 
 ## Core Directive
 
-M2 can return:
+Core can return:
 
+- `advanced`: Core completed a deterministic Stage. Show the completed Stage,
+  Evidence, and new current Stage. Then run `next` once more.
 - `parked`: show the Stage ID and reason, then stop. A missing Stage Contract is
-  expected until M3; never invent the Stage's work.
+  expected for Stages that are not implemented yet; never invent their work.
 - `done`: show the reason and stop.
+
+ST-00 Bootstrap is Core-owned and automatic. It validates the active Intent,
+Plan, fixed Catalog and Graph, Effective Policy, Workspace, selected Repository
+roots, and recording paths. AI must not claim that ST-00 passed or write its
+Bootstrap Receipt itself.
 
 ## Stage Execution Plan proposals
 

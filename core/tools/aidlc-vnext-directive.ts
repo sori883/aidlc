@@ -1,5 +1,7 @@
 import {
+  parseArtifactReference,
   VNEXT_STAGE_IDS,
+  type ArtifactReference,
   type VNextStageId,
 } from "./aidlc-stage-contract.ts";
 
@@ -26,7 +28,23 @@ export interface VNextDoneDirective {
   decision_authority: "core";
 }
 
-export type VNextCoreDirective = VNextParkedDirective | VNextDoneDirective;
+export interface VNextAdvancedDirective {
+  schema_version: typeof VNEXT_DIRECTIVE_SCHEMA_VERSION;
+  kind: "advanced";
+  workflow: "vnext";
+  completed_stage: VNextStageId;
+  stage: VNextStageId;
+  reason: string;
+  evidence: ArtifactReference[];
+  graph_version: string;
+  plan_revision: number;
+  decision_authority: "core";
+}
+
+export type VNextCoreDirective =
+  | VNextParkedDirective
+  | VNextAdvancedDirective
+  | VNextDoneDirective;
 
 const COMMON_KEYS = [
   "schema_version",
@@ -94,8 +112,40 @@ export function parseVNextCoreDirective(
     rejectUnknownKeys(record, COMMON_KEYS, context);
     return { ...common, kind: "done" };
   }
+  if (record.kind === "advanced") {
+    rejectUnknownKeys(
+      record,
+      [...COMMON_KEYS, "completed_stage", "stage", "evidence"],
+      context,
+    );
+    const completedStage = asOneLine(
+      record.completed_stage,
+      `${context}.completed_stage`,
+    );
+    const stage = asOneLine(record.stage, `${context}.stage`);
+    for (const [value, field] of [
+      [completedStage, "completed_stage"],
+      [stage, "stage"],
+    ] as const) {
+      if (!(VNEXT_STAGE_IDS as readonly string[]).includes(value)) {
+        fail(`${context}.${field}`, `must be one of: ${VNEXT_STAGE_IDS.join(", ")}`);
+      }
+    }
+    if (!Array.isArray(record.evidence) || record.evidence.length === 0) {
+      fail(`${context}.evidence`, "must contain at least one Artifact reference");
+    }
+    return {
+      ...common,
+      kind: "advanced",
+      completed_stage: completedStage as VNextStageId,
+      stage: stage as VNextStageId,
+      evidence: record.evidence.map((entry, index) =>
+        parseArtifactReference(entry, `${context}.evidence[${index}]`)
+      ),
+    };
+  }
   if (record.kind !== "parked") {
-    fail(`${context}.kind`, "must be parked or done");
+    fail(`${context}.kind`, "must be parked, advanced, or done");
   }
   rejectUnknownKeys(record, [...COMMON_KEYS, "stage"], context);
   const stage = asOneLine(record.stage, `${context}.stage`);

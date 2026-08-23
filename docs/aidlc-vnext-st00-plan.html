@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>AI-DLC vNext｜ST-00 Bootstrap 実装計画</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: light-dark(#eef4f1, #0b1411);
+      --surface: light-dark(#ffffff, #17201d);
+      --soft: light-dark(#f4f8f6, #111a17);
+      --ink: light-dark(#17221e, #edf7f3);
+      --muted: light-dark(#5b6b65, #a9bab3);
+      --line: light-dark(#ccd9d4, #34463f);
+      --green: light-dark(#087c59, #62d6ae);
+      --green-soft: light-dark(#dff3eb, #153b31);
+      --blue: light-dark(#1e668d, #79bee0);
+      --blue-soft: light-dark(#e2f0f8, #17364a);
+      --amber: light-dark(#936000, #f2bf62);
+      --amber-soft: light-dark(#fff0cc, #483518);
+      --red: light-dark(#9e433a, #f08d83);
+      --red-soft: light-dark(#f9e4e1, #452723);
+      --shadow: 0 18px 48px light-dark(#46645b1a, #00000045);
+      --radius: 26px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 2%, light-dark(#dcefe7, #17352c), transparent 30rem),
+        radial-gradient(circle at 96% 18%, light-dark(#e0edf5, #172f45), transparent 32rem),
+        var(--bg);
+      line-height: 1.72;
+    }
+
+    a { color: inherit; }
+
+    .page {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 30px 0 56px;
+    }
+
+    .topbar,
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .topbar { margin-bottom: 18px; }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 850;
+    }
+
+    .brand-mark,
+    .number {
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      color: white;
+      background: var(--green);
+      font-weight: 900;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border: 1px solid var(--amber);
+      border-radius: 999px;
+      background: var(--amber-soft);
+      font-size: .82rem;
+      font-weight: 850;
+    }
+
+    .status::before {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--amber);
+      content: "";
+    }
+
+    .hero,
+    .section,
+    .approval {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--surface) 94%, transparent);
+    }
+
+    .hero {
+      padding: clamp(30px, 6vw, 66px);
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--green);
+      font-size: .78rem;
+      font-weight: 900;
+      letter-spacing: .17em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p { margin-top: 0; }
+
+    h1 {
+      max-width: 900px;
+      margin-bottom: 20px;
+      font-size: clamp(2.45rem, 7vw, 5.1rem);
+      line-height: 1.04;
+      letter-spacing: -.055em;
+    }
+
+    h2 {
+      margin-bottom: 10px;
+      font-size: clamp(1.75rem, 4.2vw, 3.05rem);
+      line-height: 1.15;
+      letter-spacing: -.043em;
+    }
+
+    h3 {
+      margin-bottom: 7px;
+      font-size: 1.08rem;
+      line-height: 1.4;
+    }
+
+    .lead,
+    .intro,
+    .check p,
+    .owner p,
+    .step p,
+    .rule span,
+    .file-group p,
+    .test span,
+    .approval p { color: var(--muted); }
+
+    .lead {
+      max-width: 800px;
+      margin-bottom: 0;
+      font-size: clamp(1rem, 2vw, 1.24rem);
+    }
+
+    .answer {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 32px;
+    }
+
+    .answer > div {
+      padding: 17px 18px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: var(--soft);
+    }
+
+    .answer span {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--muted);
+      font-size: .76rem;
+      font-weight: 800;
+    }
+
+    .answer strong { font-size: 1.03rem; }
+
+    .section {
+      margin-top: 24px;
+      padding: clamp(26px, 5vw, 50px);
+    }
+
+    .intro {
+      max-width: 760px;
+      margin-bottom: 28px;
+    }
+
+    .route {
+      display: grid;
+      grid-template-columns: 1fr auto 1.16fr auto 1fr auto 1fr;
+      align-items: stretch;
+      gap: 10px;
+    }
+
+    .route-box {
+      display: grid;
+      align-content: center;
+      min-height: 125px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--soft);
+      text-align: center;
+    }
+
+    .route-box small {
+      display: block;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .route-box strong {
+      display: block;
+      margin: 3px 0;
+      font-size: 1.05rem;
+    }
+
+    .route-box.is-core {
+      border: 2px solid var(--green);
+      background: var(--green-soft);
+    }
+
+    .route-box.is-output {
+      border-color: var(--blue);
+      background: var(--blue-soft);
+    }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 1.4rem;
+      font-weight: 900;
+    }
+
+    .note {
+      margin: 20px 0 0;
+      padding: 15px 18px;
+      border-left: 4px solid var(--green);
+      border-radius: 0 14px 14px 0;
+      background: var(--green-soft);
+      font-weight: 780;
+    }
+
+    .checks,
+    .owners,
+    .steps,
+    .files {
+      display: grid;
+      gap: 13px;
+    }
+
+    .checks { grid-template-columns: repeat(2, 1fr); }
+    .owners { grid-template-columns: repeat(3, 1fr); }
+    .steps { grid-template-columns: repeat(2, 1fr); }
+    .files { grid-template-columns: repeat(2, 1fr); }
+
+    .check,
+    .owner,
+    .step,
+    .file-group {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--soft);
+    }
+
+    .check {
+      display: flex;
+      gap: 13px;
+    }
+
+    .check p,
+    .owner p,
+    .step p,
+    .file-group p { margin-bottom: 0; }
+
+    .check.is-wide { grid-column: 1 / -1; }
+
+    .number {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      font-size: .88rem;
+    }
+
+    .owner.core { border-top: 4px solid var(--green); }
+    .owner.ai { border-top: 4px solid var(--blue); }
+    .owner.human { border-top: 4px solid var(--amber); }
+
+    .rule-list,
+    .test-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .rule,
+    .test {
+      display: grid;
+      grid-template-columns: minmax(140px, .32fr) 1fr;
+      gap: 16px;
+      align-items: start;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--soft);
+    }
+
+    .rule strong,
+    .test strong { color: var(--green); }
+    .rule.stop strong { color: var(--red); }
+
+    .receipt {
+      display: grid;
+      grid-template-columns: .85fr 1.15fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .receipt-card,
+    .receipt-fields {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--soft);
+    }
+
+    .receipt-card {
+      display: grid;
+      place-items: center;
+      min-height: 230px;
+      border: 2px solid var(--blue);
+      background: var(--blue-soft);
+      text-align: center;
+    }
+
+    .receipt-icon {
+      display: grid;
+      place-items: center;
+      width: 74px;
+      height: 74px;
+      margin: 0 auto 14px;
+      border-radius: 22px;
+      color: white;
+      background: var(--blue);
+      font-size: 2rem;
+      font-weight: 900;
+    }
+
+    .receipt-card code,
+    .file-group code {
+      overflow-wrap: anywhere;
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .field-list {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 9px;
+      margin-top: 16px;
+    }
+
+    .field-list span {
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--surface);
+      font-size: .86rem;
+      font-weight: 760;
+    }
+
+    .do-not {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .do-not div {
+      padding: 18px;
+      border: 1px solid var(--red);
+      border-radius: 16px;
+      background: var(--red-soft);
+    }
+
+    .do-not strong { display: block; margin-bottom: 4px; }
+
+    .approval {
+      margin-top: 24px;
+      padding: clamp(26px, 5vw, 48px);
+      border: 2px solid var(--amber);
+      background: var(--amber-soft);
+    }
+
+    .approval-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .approval-grid div {
+      padding: 15px 17px;
+      border: 1px solid color-mix(in srgb, var(--amber) 55%, var(--line));
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--surface) 78%, transparent);
+      font-weight: 760;
+    }
+
+    footer {
+      margin-top: 22px;
+      padding: 0 4px;
+      color: var(--muted);
+      font-size: .82rem;
+    }
+
+    @media (max-width: 900px) {
+      .route {
+        grid-template-columns: 1fr;
+      }
+
+      .arrow { transform: rotate(90deg); }
+      .answer,
+      .owners,
+      .do-not { grid-template-columns: 1fr; }
+      .receipt { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 680px) {
+      .page { width: min(100% - 24px, 1120px); padding-top: 16px; }
+      .topbar { align-items: flex-start; }
+      .status { padding: 7px 10px; font-size: .72rem; }
+      .hero,
+      .section,
+      .approval { border-radius: 21px; }
+      .checks,
+      .steps,
+      .files,
+      .approval-grid,
+      .field-list { grid-template-columns: 1fr; }
+      .check.is-wide { grid-column: auto; }
+      .rule,
+      .test { grid-template-columns: 1fr; gap: 4px; }
+      footer { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">A</span><span>AI-DLC vNext</span></div>
+      <span class="status">承認済み・実装完了</span>
+    </header>
+
+    <section class="hero">
+      <p class="eyebrow">Stage 00 implementation plan</p>
+      <h1>ST-00は、作業前の安全点検です。</h1>
+      <p class="lead">AIが目的や設計を考えるStageではありません。Coreが「正しいIntent・正しい計画・正しいルールで始められるか」を機械的に確認します。</p>
+
+      <div class="answer" aria-label="ST-00の設計方針">
+        <div><span>実行する人</span><strong>Coreが自動実行</strong></div>
+        <div><span>通常の人間承認</span><strong>不要</strong></div>
+        <div><span>正常時の次</span><strong>固定GraphでST-01</strong></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Whole flow</p>
+      <h2>どこに入る工程か</h2>
+      <p class="intro">Intent作成時にPlanとPolicyを用意します。ST-00は、その内容を信用せずにもう一度検査します。</p>
+
+      <div class="route" role="img" aria-label="Intent作成からST-00の機械検査、Bootstrap Receipt、ST-01へ進む流れ">
+        <div class="route-box"><small>準備済み</small><strong>Intent・Plan・Policy</strong><small>まだ作業は始めない</small></div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="route-box is-core"><small>ST-00</small><strong>Coreが機械検査</strong><small>不一致なら停止</small></div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="route-box is-output"><small>証拠</small><strong>Bootstrap Receipt</strong><small>検査結果を保存</small></div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="route-box"><small>固定Graph</small><strong>ST-01 Orient</strong><small>状況把握へ</small></div>
+      </div>
+
+      <p class="note">AIは行き先を書きません。ST-00からST-01への遷移は、M2で固定したGraphをCoreが決めます。</p>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Five checks</p>
+      <h2>ST-00で確認する5項目</h2>
+      <p class="intro">事業内容や画面は調べません。実行の土台だけを確認します。</p>
+
+      <div class="checks">
+        <article class="check">
+          <span class="number">1</span>
+          <div><h3>Intent</h3><p>有効なvNext Intentが1つだけ選ばれているかを確認します。</p></div>
+        </article>
+        <article class="check">
+          <span class="number">2</span>
+          <div><h3>Plan</h3><p>Planが固定10 Stageを持ち、現在地がST-00かを確認します。</p></div>
+        </article>
+        <article class="check">
+          <span class="number">3</span>
+          <div><h3>Catalog・Graph</h3><p>Runtimeの版と、State・Planに記録された版が一致するかを確認します。</p></div>
+        </article>
+        <article class="check">
+          <span class="number">4</span>
+          <div><h3>Effective Policy</h3><p>組織・Team・Project規則のsnapshotが実在し、SHA-256が一致するかを確認します。</p></div>
+        </article>
+        <article class="check is-wide">
+          <span class="number">5</span>
+          <div><h3>Workspace・Repository・記録先</h3><p>選択したSpaceとRepositoryを読めるか、Codex Harnessで動いているか、Coreがlock・Artifact・Auditを安全に記録できるかを確認します。</p></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Responsibility</p>
+      <h2>誰が何をするか</h2>
+      <p class="intro">ST-00の合否をAIへ任せません。曖昧な例外だけを人間へ返します。</p>
+
+      <div class="owners">
+        <article class="owner core"><h3>Core</h3><p>検査します。証拠を保存します。固定Graphで遷移します。</p></article>
+        <article class="owner ai"><h3>AI</h3><p>停止理由を短く説明できます。合格を偽装したり遷移を書いたりはできません。</p></article>
+        <article class="owner human"><h3>人間</h3><p>Repositoryの選択が曖昧な場合や、Policy例外が必要な場合だけ判断します。</p></article>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Disposition rules</p>
+      <h2>execute・reuse・not_applicable</h2>
+      <p class="intro">小さな文字修正でもST-00は通ります。ただし機械検査だけなので、通常はすぐ終わります。</p>
+
+      <div class="rule-list">
+        <div class="rule"><strong>execute</strong><span>初回の標準です。Coreが5項目を検査し、新しいReceiptを作ります。</span></div>
+        <div class="rule"><strong>reuse</strong><span>同じIntentのReceiptだけ再利用できます。Plan、Policy、Catalog、Graph、実行環境の指紋がすべて一致する場合に限ります。</span></div>
+        <div class="rule stop"><strong>not_applicable</strong><span>許可しません。どのIntentにも開始前点検が必要です。AIが提案してもCoreが拒否します。</span></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Output</p>
+      <h2>残す成果物は1つです。</h2>
+      <p class="intro">結果はBootstrap Receiptとして保存します。これは「検査した」という口頭報告ではなく、後から検証できる証明書です。</p>
+
+      <div class="receipt">
+        <div class="receipt-card">
+          <div>
+            <span class="receipt-icon">✓</span>
+            <h3>bootstrap-receipt</h3>
+            <code>bootstrap-receipt-r1.json</code>
+          </div>
+        </div>
+        <div class="receipt-fields">
+          <h3>証明書に入れる情報</h3>
+          <div class="field-list">
+            <span>Intent ID</span>
+            <span>Space</span>
+            <span>Harness = Codex</span>
+            <span>Catalog / Graph版</span>
+            <span>Plan revision</span>
+            <span>PolicyのSHA-256</span>
+            <span>各checkの結果</span>
+            <span>作成日時</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Fail closed</p>
+      <h2>問題があれば、ST-00で止まります。</h2>
+      <p class="intro">一部だけ合格として先へ進めません。StateはST-00に残ります。</p>
+
+      <div class="rule-list">
+        <div class="rule stop"><strong>壊れた記録</strong><span>Plan、State、Policy、Catalog、Graphのどれかが欠落または不一致。</span></div>
+        <div class="rule stop"><strong>不明な対象</strong><span>SpaceやRepositoryを一意に決められない、または対象を読めない。</span></div>
+        <div class="rule stop"><strong>安全に保存できない</strong><span>Workspace lock、Receipt、Auditの記録に失敗。</span></div>
+      </div>
+
+      <p class="note">停止時は、Coreが「どの確認に失敗したか」を返します。AIは修正候補を説明できますが、勝手に例外扱いにはしません。</p>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Out of scope</p>
+      <h2>ST-00ではやらないこと</h2>
+      <p class="intro">後続Stageとの境界を固定します。</p>
+
+      <div class="do-not">
+        <div><strong>状況の把握</strong><span>ST-01で行います。</span></div>
+        <div><strong>目的の整理</strong><span>ST-02で行います。</span></div>
+        <div><strong>設計・実装</strong><span>ST-03以降で行います。</span></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Implementation order</p>
+      <h2>承認後の実装順</h2>
+      <p class="intro">ST-00だけを作ります。ST-01の中身は作りません。</p>
+
+      <div class="steps">
+        <article class="step"><span class="number">1</span><h3>Contract</h3><p>ST-00の入力、出力、完了条件、停止条件を機械可読にします。</p></article>
+        <article class="step"><span class="number">2</span><h3>Receipt</h3><p>Bootstrap Receiptの型、厳格なvalidator、SHA-256参照を作ります。</p></article>
+        <article class="step"><span class="number">3</span><h3>Core executor</h3><p>lock内で5項目を検査し、失敗時は何も遷移させない処理を作ります。</p></article>
+        <article class="step"><span class="number">4</span><h3>State・Audit・Route</h3><p>成功時だけSTAGE_COMPLETEDを記録し、固定GraphでST-01へ進めます。</p></article>
+        <article class="step"><span class="number">5</span><h3>Codex表示</h3><p>合格、停止理由、次のStageを初心者向けの短文で表示します。</p></article>
+        <article class="step"><span class="number">6</span><h3>Test</h3><p>unit、改ざん、再開、失敗、E2EをBunで確認します。</p></article>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Expected code changes</p>
+      <h2>変更予定の場所</h2>
+      <p class="intro">これは承認時の変更予定です。実装結果は <a href="aidlc-vnext-st00-result.html">ST-00実装結果</a> に記録しました。</p>
+
+      <div class="files">
+        <article class="file-group"><h3>新規</h3><p><code>core/aidlc-common/stages/st-00-bootstrap.json</code><br><code>core/tools/aidlc-vnext-bootstrap.ts</code><br><code>tests/aidlc-vnext-bootstrap.test.ts</code></p></article>
+        <article class="file-group"><h3>接続</h3><p>Directive、Orchestrator、State、Audit、CLI、Codex Skill、配布物を最小限更新します。</p></article>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Test acceptance</p>
+      <h2>完成とみなす条件</h2>
+      <p class="intro">正常に動くことだけでなく、壊れた状態で進まないことも確認します。</p>
+
+      <div class="test-list">
+        <div class="test"><strong>正常系</strong><span>ST-00がReceiptを作り、Core RouteでST-01へ進む。</span></div>
+        <div class="test"><strong>改ざん</strong><span>Policy、Plan、Graph、Receiptの変更を検出してST-00に留まる。</span></div>
+        <div class="test"><strong>再開</strong><span>途中で中断しても、同じ処理を二重に壊さず再開できる。</span></div>
+        <div class="test"><strong>権限境界</strong><span>AIが合格、not_applicable、遷移を直接記録できない。</span></div>
+        <div class="test"><strong>E2E</strong><span><code>ai-dlc-cycle/07.ai-dlc-make-test3</code>でST-01 parkedまで確認する。</span></div>
+        <div class="test"><strong>全体回帰</strong><span><code>bun run release:check</code>が成功する。</span></div>
+      </div>
+    </section>
+
+    <section class="approval">
+      <p class="eyebrow">Decision requested</p>
+      <h2>この設計は承認・実装済みです。</h2>
+      <p>次の2点を固定し、ST-00だけをTypeScriptとBunで実装しました。</p>
+      <div class="approval-grid">
+        <div>1. ST-00はCoreが自動実行し、通常は人間承認を求めない。</div>
+        <div>2. not_applicableは禁止し、成功時だけST-01へ進む。</div>
+      </div>
+    </section>
+
+    <footer>
+      <span>AI-DLC vNext / ST-00 Bootstrap</span>
+      <span>Plan prepared 2026-08-23</span>
+    </footer>
+  </main>
+</body>
+</html>

@@ -56,18 +56,26 @@ test("birth creates one vNext Intent with Core-owned State, Plan, and Policy", (
   assert.match(audit, /Effective Policy Snapshot Created/);
   assert.match(audit, /Stage Execution Plan Created/);
   assert.match(audit, /Core Route Decision/);
-  assert.match(audit, /Core Route Blocked/);
+  assert.doesNotMatch(audit, /Core Route Blocked/);
+  assert.equal(state.parked_reason, "ST-00 is ready for Core Bootstrap execution.");
 });
 
-test("next is decided by Core and parks at ST-00 until M3 implements its content", () => {
+test("next lets Core complete ST-00 and then parks at unimplemented ST-01", () => {
   const { projectDir } = fixture();
-  const directive = resolveVNextDirective(projectDir);
-  assert.deepEqual(directive, {
+  const advanced = resolveVNextDirective(projectDir);
+  assert.equal(advanced.kind, "advanced");
+  assert.equal(advanced.workflow, "vnext");
+  assert.equal(advanced.decision_authority, "core");
+  assert.equal("completed_stage" in advanced && advanced.completed_stage, "ST-00");
+  assert.equal("stage" in advanced && advanced.stage, "ST-01");
+
+  const parked = resolveVNextDirective(projectDir);
+  assert.deepEqual(parked, {
     schema_version: 1,
     kind: "parked",
     workflow: "vnext",
-    stage: "ST-00",
-    reason: "ST-00 Stage Contract is not implemented until M3.",
+    stage: "ST-01",
+    reason: "ST-01 Stage Contract is not implemented yet.",
     graph_version: "vnext-10-stage-graph-v1",
     plan_revision: 1,
     decision_authority: "core",

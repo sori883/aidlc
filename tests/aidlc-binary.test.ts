@@ -29,7 +29,7 @@ test("builds and smoke-gates a Harness-neutral project-local native binary", () 
   assert.equal(report.target, "native");
   assert.equal(report.version, AIDLC_VERSION);
   assert.equal(report.runtime_smoke, true);
-  assert.equal(report.gates.length, 12);
+  assert.equal(report.gates.length, 14);
   assert.equal(report.gates.every((gate) => gate.ok), true);
 
   const project = resolve(NATIVE_DIR, "project-layout");

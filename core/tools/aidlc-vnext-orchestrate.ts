@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { loadVNextDefinitions } from "./aidlc-core-route.ts";
+import { executeBootstrap } from "./aidlc-vnext-bootstrap.ts";
 import {
   parseVNextCoreDirective,
   VNEXT_DIRECTIVE_SCHEMA_VERSION,
@@ -33,6 +34,21 @@ export function resolveVNextDirective(projectDir: string): VNextCoreDirective {
       reason: "All fixed vNext Stages are complete.",
       graph_version: state.graph_version,
       plan_revision: state.plan_revision,
+      decision_authority: "core",
+    });
+  }
+  if (state.current_stage === "ST-00") {
+    const completed = executeBootstrap(projectDir);
+    return parseVNextCoreDirective({
+      schema_version: VNEXT_DIRECTIVE_SCHEMA_VERSION,
+      kind: "advanced",
+      workflow: "vnext",
+      completed_stage: "ST-00",
+      stage: completed.state.current_stage,
+      reason: "ST-00 Bootstrap completed; Core advanced to ST-01.",
+      evidence: [completed.reference],
+      graph_version: completed.state.graph_version,
+      plan_revision: completed.state.plan_revision,
       decision_authority: "core",
     });
   }

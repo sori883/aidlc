@@ -345,10 +345,6 @@ export function birthIntentWithState(
       Graph: initialized.state.graph_version,
       "Decision Authority": "core",
     });
-    appendAuditEntry(projectRoot, born.recordDir, "ROUTE_BLOCKED", {
-      Stage: initialized.state.current_stage,
-      Reason: initialized.state.parked_reason ?? "Stage shell is unavailable",
-    });
     return {
       ...born,
       state: initialized.state,

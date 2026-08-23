@@ -7,6 +7,7 @@
     ".codex/aidlc-common/data/runtime-shared-resources.json",
     ".codex/aidlc-common/data/vnext-stage-catalog.json",
     ".codex/aidlc-common/data/vnext-stage-graph.json",
+    ".codex/aidlc-common/stages/st-00-bootstrap.json",
     ".codex/hooks.json",
     ".codex/memory/org.md",
     ".codex/memory/project.md",
