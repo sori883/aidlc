@@ -165,10 +165,11 @@ vNextの10 Stage、遷移、Stage disposition、Effective Policyを
 
 ### M3: Design BriefとCo-Design（ST-00〜ST-05）
 
-**進捗（2026-08-23）**
+**進捗（2026-08-24）**
 
 - ST-00 Bootstrapは詳細設計、TDD実装、Codex／native配布、Sandbox検証まで完了
-- 次はST-01 Orientを詳細設計し、明示的承認後にST-01だけを実装する
+- ST-01 Orientは詳細設計、TDD実装、Codex／native配布、Sandbox検証まで完了
+- 次はST-02 Frame Intentを詳細設計し、明示的承認後にST-02だけを実装する
 
 **目的**
 
@@ -348,11 +349,11 @@ M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7
 - Workflow選択分岐を追加せず、vNextの単一経路へ段階的に置き換える
 - 未追跡の`.vscode/`と`docs/aidlc-vnext-visual-guide.html`は、別途明示されるまでcommit対象にしない
 
-## 8. 最初に着手する作業
+## 8. 次に着手する作業
 
-M0として、次の順に進める。
+M3のST-02として、次の順に進める。
 
-1. v2 Baseline testを実行する
-2. 32 Stageから10 Stageへの移行Mapを作成する
-3. 回収するLoader、State、Plan、Doctorと、置き換えるWorkflow定義の境界を列挙する
-4. M1の共通ContractとCore権限の実装計画をレビューし、承認後にCore変更へ着手する
+1. ST-01のCurrent ContextとSystem Map固定revisionを入力として確認する
+2. Frame Intentの目的、対象、成功条件、未知事項、人間確認境界を詳細設計する
+3. 初心者向けHTMLでST-02の処理と非対象をレビュー可能にする
+4. 明示的承認後にST-02だけをTDD実装する

@@ -5,7 +5,7 @@
 AI-DLC vNextの検討を別のエージェントへ引き継ぐ。
 
 現時点では、vNextの思想、全体フロー、固定10 StageのID、名前、Graph、共通Contract、
-Core RouteとST-00 Bootstrapが実装済みである。ST-01〜ST-09の詳細設計は完成していない。
+Core Route、ST-00 Bootstrap、ST-01 Orientが実装済みである。ST-02〜ST-09の詳細設計は完成していない。
 マイルストーンや可視化に書かれた短い説明を未設計Stageの本文として実装してはならない。
 
 各Stageの目的、入力、出力、完了条件、AIの停止条件、人間の判断境界を、
@@ -36,11 +36,12 @@ Core RouteとST-00 Bootstrapが実装済みである。ST-01〜ST-09の詳細設
 | Branch | `codex/aidlc-vnext` |
 | Base | `origin/main` |
 | Base commit | `cb4f0db61fca711c3b49251370568f3013148f41` |
-| 実装状況 | M0、M1、M2完了。M3のST-00 Bootstrap完了 |
-| 次の作業 | M3のST-01 Orientを詳細設計し、承認後に1 Stageだけ実装する |
+| 実装状況 | M0、M1、M2完了。M3のST-00 BootstrapとST-01 Orient完了 |
+| 次の作業 | M3のST-02 Frame Intentを詳細設計し、承認後に1 Stageだけ実装する |
 
-M0〜M2はcommit `c9e259a`として`origin/codex/aidlc-vnext`へpush済みである。
-作業ツリーにはST-00の実装、test、文書、生成配布物と、ユーザー所有の`.vscode/`、
+M0〜M2はcommit `c9e259a`、ST-00はcommit `714d5bb`として
+`origin/codex/aidlc-vnext`へpush済みである。
+作業ツリーにはST-01の実装、test、文書、生成配布物と、ユーザー所有の`.vscode/`、
 `docs/aidlc-vnext-visual-guide.html`がある。一括削除や無関係な上書きをしないこと。
 
 M1では、固定10 Stage ID、共通Stage Contract、Artifact Reference、AI Proposal、
@@ -50,8 +51,14 @@ M2では、固定Catalog／Graph、Effective Policy snapshot、Core Plan revisio
 vNext State／Audit／Directive／Doctor／Intentを接続した。旧32 Stage、Scope Grid、
 9 Scopeと旧Stage本文はRuntime、Codex配布、native配布、CLIから外した。
 M3の最初の実装としてST-00 Bootstrapを追加した。`next`はCoreだけで5項目を検査し、
-canonical Bootstrap Receiptを保存して固定GraphでST-01へ進む。ST-01本文は未実装のため、
-次の`next`はST-01で`parked`を返す。
+canonical Bootstrap Receiptを保存して固定GraphでST-01へ進む。
+
+ST-01 Orientは二段階で動く。CoreがDesign Brief、Bootstrap Receipt、選択Repositoryから
+Workspace ProfileとOrient Work Requestを作り、`next`は`work` Directiveを返す。AIは
+System Map PatchとCurrent Context候補だけを提案する。Coreはschema、未知field、秘密情報、
+ID、relation、Evidence path／SHA-256、Repository境界、accepted baseline、base revisionを
+検証し、合格時だけ共有CodeKBのimmutable System Map revision、`baseline.json`、Intent配下の
+`current-context.json`を保存して固定GraphでST-02へ進む。System Map HTMLは標準生成しない。
 
 承認済みM0として`bun run release:check`を実行し、
 version、typecheck、32 Stage Graph、46文書のRuntime Contract、45ファイル243 testが
@@ -71,6 +78,13 @@ REDを確認し、その後Contract、Receipt、Core executor、`advanced` Direc
 Codex Harness、native配布を実装した。`bun run release:check`は24ファイル107 testが
 すべて成功した。指定サンドボックスではPlan revision 2を維持したまま
 `ST-00 advanced → ST-01 parked → Doctor healthy`を確認した。
+
+承認済みST-01としてTDDを実施した。未実装moduleのREDから始め、ST-01 Contract、
+Design Brief永続化、Workspace Profile、`work` Directive、System Map／Patch／baseline／
+Current Context contract、厳格validator、immutable revision、resume／Doctor検証、Codex／
+native配布を実装した。`bun run release:check`は25ファイル117 testがすべて成功した。
+指定サンドボックスでは新しい試験Intentで
+`ST-00 advanced → ST-01 work → Doctor healthy`を確認し、最後に元のactive Intentへ戻した。
 
 ## 4. 参照資料
 
@@ -103,6 +117,10 @@ Codex Harness、native配布を実装した。`bun run release:check`は24ファ
   - 承認済みST-00詳細設計とTDD実装計画
 - `docs/aidlc-vnext-st00-result.html`
   - ST-00実装、Core境界、Receipt、試験結果の初心者向け図解
+- `docs/aidlc-vnext-st01-plan.html`
+  - 承認済みST-01詳細設計。累積観測Map、CodeKB配置、固定Current Context、JSON-only方針
+- `docs/aidlc-vnext-st01-result.html`
+  - ST-01実装、validator、保存先、試験結果の初心者向け図解
 - `docs/aidlc-vnext-visual-guide.html`
   - 未追跡ファイル。所有者とcommit可否を確認するまで変更しない
 - `docs/aidlc-v2-harness-architecture.md`
@@ -116,7 +134,10 @@ Codex Harness、native配布を実装した。`bun run release:check`は24ファ
 - `core/tools/aidlc-vnext-state.ts`
 - `core/tools/aidlc-vnext-orchestrate.ts`
 - `core/tools/aidlc-vnext-bootstrap.ts`
+- `core/tools/aidlc-vnext-orient-contract.ts`
+- `core/tools/aidlc-vnext-orient.ts`
 - `core/aidlc-common/stages/st-00-bootstrap.json`
+- `core/aidlc-common/stages/st-01-orient.json`
 - `harness/codex/skills/aidlc/SKILL.md`
 
 ### リポジトリ外の設計可視化
@@ -224,7 +245,7 @@ AIが情報を持っていないことではなく、価値判断、権限、不
 
 次はまだ確定していない。該当マイルストーンの実装前に、ユーザーと決めること。
 
-1. ST-01〜ST-09の責務境界と、隣接Stageへ渡すArtifact
+1. ST-02〜ST-09の責務境界と、隣接Stageへ渡すArtifact
 2. Design BriefとDesign Contractの必須項目
 3. Co-Design完了時の「確認」と「Approval」の意味
 4. AI内部loopの評価器、改善停滞、試行回数、時間、費用の停止条件
@@ -254,26 +275,26 @@ Stageごとに、最低限次をユーザーと確認する。名前と一行説
 
 1. ルート`AGENTS.md`を読み、実装前承認とBun／TypeScript要件に従う
 2. `work/`はユーザーの明示指示がない限り読まない
-3. マイルストーンを完成仕様として扱わず、次にST-01の詳細設計計画を提示する
+3. マイルストーンを完成仕様として扱わず、次にST-02の詳細設計計画を提示する
 4. 一度に10 Stageを設計せず、一つのStageまたは一つの横断Contractずつ進める
-5. M1共通Contract、M2 Core Route、ST-00 Bootstrapを前提にし、ST-01から順に目的、入出力、
+5. M1共通Contract、M2 Core Route、ST-00 Bootstrap、ST-01 Orientを前提にし、ST-02から順に目的、入出力、
    完了条件、人間境界をユーザーと確定する
 7. 各設計を`docs/`へ保存し、ユーザーの明示的承認後にTypeScript実装へ進む
 8. 実装中もStageごとに結果とtestを説明する
 
 ## 9. 次に提案する設計セッション
 
-次のエージェントは、いきなりST-01の実装を始めないこと。まず次をユーザーへ提示する。
+次のエージェントは、いきなりST-02の実装を始めないこと。まず次をユーザーへ提示する。
 
-**テーマ: ST-01 Orientの詳細設計**
+**テーマ: ST-02 Frame Intentの詳細設計**
 
-- ST-00のBootstrap Receiptから何を受け取るか
-- Greenfield／BrownfieldでCurrentをどこまで調べるか
-- 選択Repository、構成、既存機能、変更対象をどう記録するか
-- ST-02へ渡すCurrent Context Artifactと完了条件
+- ST-01のCurrent Contextと固定System Map revisionから何を受け取るか
+- Design Briefを目的、対象、成功条件へどう具体化するか
+- 小さな変更を重くせず、曖昧な依頼だけを人間へ確認する境界
+- ST-03へ渡すFrame Intent Artifactと完了条件
 - 推測せず人間へ確認する条件
 - State／Audit EventとCodex表示
 - unit、contract、resume、failure、E2E test
 
-設計を初心者向けHTMLで説明し、ユーザーの明示的承認後にST-01だけを実装する。
+設計を初心者向けHTMLで説明し、ユーザーの明示的承認後にST-02だけを実装する。
 AIは行き先を決めず、M2の固定GraphとCore Directiveを使う。

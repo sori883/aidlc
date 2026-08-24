@@ -80,7 +80,7 @@ test("Core executes ST-00, persists one Receipt, and advances to ST-01", () => {
   const state = readVNextStateAt(born.recordDir);
   assert.equal(state.current_stage, "ST-01");
   assert.equal(state.status, "parked");
-  assert.match(state.parked_reason ?? "", /ST-01 Stage Contract is not implemented/);
+  assert.equal(state.parked_reason, "ST-01 Orient is ready for Core preparation.");
 
   const events = readOrderedAuditEntries(born.recordDir);
   assert.equal(events.filter((entry) => entry.event === "STAGE_STARTED").length, 1);

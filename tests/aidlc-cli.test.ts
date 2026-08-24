@@ -28,6 +28,11 @@ test("integrated CLI exposes only vNext workflow routes", () => {
     args: ["next", "."],
   });
   assert.equal(ROUTES.some((route) => route.noun === "plan"), true);
+  assert.deepEqual(resolveAction(["orient", "complete", ".", "proposal.json"]), {
+    type: "delegate",
+    tool: "aidlc-vnext-orient.ts",
+    args: ["complete", ".", "proposal.json"],
+  });
   assert.equal(ROUTES.some((route) => route.noun === "state"), true);
   assert.equal(ROUTES.some((route) => route.noun === "scope"), false);
   assert.equal(ROUTES.some((route) => route.noun === "bolt"), false);

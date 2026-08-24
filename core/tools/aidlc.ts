@@ -22,6 +22,7 @@ export const ROUTES: readonly Route[] = [
   { noun: "graph", tool: "aidlc-core-route.ts", commands: ["show", "catalog", "validate"], summary: "inspect the fixed vNext Catalog and Graph" },
   { noun: "intent", tool: "aidlc-intent.ts", commands: ["birth", "list", "switch"], summary: "create and select Intents" },
   { noun: "orchestrate", tool: "aidlc-vnext-orchestrate.ts", commands: ["next"], summary: "resolve the next Core-owned vNext action" },
+  { noun: "orient", tool: "aidlc-vnext-orient.ts", commands: ["prepare", "complete"], summary: "prepare and validate ST-01 Orient work" },
   { noun: "plan", tool: "aidlc-vnext-plan.ts", commands: ["show", "revise"], summary: "inspect or revise the Core-owned Stage Execution Plan" },
   { noun: "space", tool: "aidlc-space.ts", commands: ["create", "list", "switch"], summary: "create and select Spaces" },
   { noun: "state", tool: "aidlc-vnext-state.ts", commands: ["show", "resume", "check"], summary: "inspect the Core-owned vNext State" },
@@ -114,6 +115,7 @@ async function loadDelegate(tool: string): Promise<DelegateModule | null> {
     case "aidlc-core-route.ts": return import("./aidlc-core-route.ts");
     case "aidlc-intent.ts": return import("./aidlc-intent.ts");
     case "aidlc-vnext-orchestrate.ts": return import("./aidlc-vnext-orchestrate.ts");
+    case "aidlc-vnext-orient.ts": return import("./aidlc-vnext-orient.ts");
     case "aidlc-vnext-plan.ts": return import("./aidlc-vnext-plan.ts");
     case "aidlc-space.ts": return import("./aidlc-space.ts");
     case "aidlc-vnext-state.ts": return import("./aidlc-vnext-state.ts");

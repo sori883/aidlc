@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>AI-DLC vNext｜M3 次の一手 ST-01 Orient</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: light-dark(#eef4f1, #0b1411);
+      --surface: light-dark(#ffffff, #17201d);
+      --soft: light-dark(#f4f8f6, #111a17);
+      --ink: light-dark(#17221e, #edf7f3);
+      --muted: light-dark(#5b6b65, #a9bab3);
+      --line: light-dark(#ccd9d4, #34463f);
+      --green: light-dark(#087c59, #62d6ae);
+      --green-soft: light-dark(#dff3eb, #153b31);
+      --blue: light-dark(#1e668d, #79bee0);
+      --blue-soft: light-dark(#e2f0f8, #17364a);
+      --amber: light-dark(#936000, #f2bf62);
+      --amber-soft: light-dark(#fff0cc, #483518);
+      --red: light-dark(#9e433a, #f08d83);
+      --red-soft: light-dark(#f9e4e1, #452723);
+      --shadow: 0 18px 48px light-dark(#46645b1a, #00000045);
+      --radius: 26px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 2%, light-dark(#dcefe7, #17352c), transparent 30rem),
+        radial-gradient(circle at 96% 18%, light-dark(#e0edf5, #172f45), transparent 32rem),
+        var(--bg);
+      line-height: 1.72;
+    }
+
+    a { color: inherit; }
+
+    .page {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 30px 0 56px;
+    }
+
+    .topbar,
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .topbar { margin-bottom: 18px; }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 850;
+    }
+
+    .brand-mark,
+    .number {
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      color: white;
+      background: var(--green);
+      font-weight: 900;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border: 1px solid var(--amber);
+      border-radius: 999px;
+      background: var(--amber-soft);
+      font-size: .82rem;
+      font-weight: 850;
+    }
+
+    .status::before {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--amber);
+      content: "";
+    }
+
+    .hero,
+    .section,
+    .approval {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--surface) 94%, transparent);
+    }
+
+    .hero {
+      padding: clamp(30px, 6vw, 66px);
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--green);
+      font-size: .78rem;
+      font-weight: 900;
+      letter-spacing: .17em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p { margin-top: 0; }
+
+    h1 {
+      max-width: 900px;
+      margin-bottom: 20px;
+      font-size: clamp(2.45rem, 7vw, 5.1rem);
+      line-height: 1.04;
+      letter-spacing: -.055em;
+    }
+
+    h2 {
+      margin-bottom: 10px;
+      font-size: clamp(1.75rem, 4.2vw, 3.05rem);
+      line-height: 1.15;
+      letter-spacing: -.043em;
+    }
+
+    h3 { margin-bottom: 7px; font-size: 1.08rem; line-height: 1.4; }
+
+    .lead,
+    .intro,
+    .stage p,
+    .layer p,
+    .card p,
+    .owner p,
+    .rule span,
+    .step p,
+    .approval p { color: var(--muted); }
+
+    .lead {
+      max-width: 820px;
+      margin-bottom: 0;
+      font-size: clamp(1rem, 2vw, 1.24rem);
+    }
+
+    .answer {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 32px;
+    }
+
+    .answer > div {
+      padding: 17px 18px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: var(--soft);
+    }
+
+    .answer span {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--muted);
+      font-size: .76rem;
+      font-weight: 800;
+    }
+
+    .section {
+      margin-top: 24px;
+      padding: clamp(26px, 5vw, 50px);
+    }
+
+    .intro { max-width: 800px; margin-bottom: 28px; }
+
+    .m3-line {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+    }
+
+    .stage {
+      min-height: 118px;
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--soft);
+    }
+
+    .stage b { display: block; color: var(--muted); font-size: .78rem; }
+    .stage strong { display: block; margin: 3px 0; }
+    .stage p { margin-bottom: 0; font-size: .82rem; line-height: 1.5; }
+    .stage.done { border-color: var(--green); background: var(--green-soft); }
+    .stage.now { border: 2px solid var(--blue); background: var(--blue-soft); }
+
+    .route {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1.25fr auto 1fr;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .route-box {
+      display: grid;
+      align-content: center;
+      min-height: 135px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--soft);
+      text-align: center;
+    }
+
+    .route-box small { color: var(--muted); font-weight: 800; }
+    .route-box strong { margin: 3px 0; font-size: 1.02rem; }
+    .route-box.core { border-color: var(--green); background: var(--green-soft); }
+    .route-box.ai { border-color: var(--blue); background: var(--blue-soft); }
+    .route-box.map { border-color: var(--amber); background: var(--amber-soft); }
+
+    .map-check {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .map-check > div {
+      padding: 15px 17px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--soft);
+    }
+
+    .map-check strong { display: block; color: var(--amber); }
+    .map-check span { color: var(--muted); font-size: .9rem; }
+
+    .lifecycle {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 9px;
+    }
+
+    .life-step {
+      min-height: 150px;
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--soft);
+    }
+
+    .life-step b {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--green);
+      font-size: .8rem;
+    }
+
+    .life-step p { margin: 7px 0 0; color: var(--muted); font-size: .86rem; }
+
+    .path-tree {
+      margin: 18px 0 0;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: var(--soft);
+      color: var(--ink);
+      font: 750 .88rem/1.75 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .status-card {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--soft);
+    }
+
+    .status-card strong { display: block; margin-bottom: 4px; }
+    .status-card span { color: var(--muted); font-size: .9rem; }
+    .status-card.fresh { border-top: 4px solid var(--green); }
+    .status-card.stale { border-top: 4px solid var(--amber); }
+    .status-card.unknown { border-top: 4px solid var(--red); }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 1.4rem;
+      font-weight: 900;
+    }
+
+    .note,
+    .warning {
+      margin: 20px 0 0;
+      padding: 15px 18px;
+      border-left: 4px solid var(--green);
+      border-radius: 0 14px 14px 0;
+      background: var(--green-soft);
+      font-weight: 760;
+    }
+
+    .warning { border-left-color: var(--amber); background: var(--amber-soft); }
+
+    .layers,
+    .grid,
+    .owners,
+    .steps,
+    .outputs {
+      display: grid;
+      gap: 13px;
+    }
+
+    .layers { grid-template-columns: repeat(2, 1fr); }
+    .outputs { grid-template-columns: repeat(3, 1fr); }
+    .grid,
+    .steps { grid-template-columns: repeat(2, 1fr); }
+    .owners { grid-template-columns: repeat(3, 1fr); }
+
+    .layer,
+    .card,
+    .owner,
+    .step,
+    .output {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--soft);
+    }
+
+    .layer.core { border-top: 4px solid var(--green); }
+    .layer.ai { border-top: 4px solid var(--blue); }
+    .owner.core { border-top: 4px solid var(--green); }
+    .owner.ai { border-top: 4px solid var(--blue); }
+    .owner.human { border-top: 4px solid var(--amber); }
+
+    .layer p,
+    .card p,
+    .owner p,
+    .step p { margin-bottom: 0; }
+
+    .card {
+      display: flex;
+      gap: 13px;
+    }
+
+    .card.wide { grid-column: 1 / -1; }
+    .number { width: 34px; height: 34px; border-radius: 10px; font-size: .88rem; }
+
+    .output {
+      min-height: 200px;
+      border: 2px solid var(--line);
+    }
+
+    .output.core { border-color: var(--green); background: var(--green-soft); }
+    .output.ai { border-color: var(--blue); background: var(--blue-soft); }
+    .output.map { border-color: var(--amber); background: var(--amber-soft); }
+
+    .output code {
+      display: inline-block;
+      margin-bottom: 12px;
+      color: var(--blue);
+      font-weight: 850;
+      overflow-wrap: anywhere;
+    }
+
+    .output ul,
+    .do-not ul { margin: 0; padding-left: 1.25rem; }
+
+    .rule-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .rule {
+      display: grid;
+      grid-template-columns: minmax(150px, .3fr) 1fr;
+      gap: 16px;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--soft);
+    }
+
+    .rule strong { color: var(--green); }
+    .rule.stop strong { color: var(--red); }
+
+    .do-not {
+      padding: 22px;
+      border: 1px solid var(--red);
+      border-radius: 18px;
+      background: var(--red-soft);
+    }
+
+    .do-not strong { display: block; margin-bottom: 8px; }
+
+    .approval {
+      margin-top: 24px;
+      padding: clamp(26px, 5vw, 48px);
+      border: 2px solid var(--amber);
+      background: var(--amber-soft);
+    }
+
+    .approval-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .approval-grid div {
+      padding: 15px 17px;
+      border: 1px solid color-mix(in srgb, var(--amber) 55%, var(--line));
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--surface) 78%, transparent);
+      font-weight: 760;
+    }
+
+    footer {
+      margin-top: 22px;
+      padding: 0 4px;
+      color: var(--muted);
+      font-size: .82rem;
+    }
+
+    @media (max-width: 920px) {
+      .m3-line { grid-template-columns: repeat(3, 1fr); }
+      .route { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); }
+      .answer,
+      .owners,
+      .lifecycle { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 680px) {
+      .page { width: min(100% - 24px, 1120px); padding-top: 16px; }
+      .topbar { align-items: flex-start; }
+      .status { padding: 7px 10px; font-size: .72rem; }
+      .hero,
+      .section,
+      .approval { border-radius: 21px; }
+      .m3-line,
+      .layers,
+      .map-check,
+      .status-grid,
+      .grid,
+      .steps,
+      .outputs,
+      .approval-grid { grid-template-columns: 1fr; }
+      .card.wide { grid-column: auto; }
+      .rule { grid-template-columns: 1fr; gap: 4px; }
+      footer { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">A</span><span>AI-DLC vNext</span></div>
+      <span class="status">レビュー待ち・実装未着手</span>
+    </header>
+
+    <section class="hero">
+      <p class="eyebrow">Milestone 3 / next stage</p>
+      <h1>次は、ST-01で「今」を把握します。</h1>
+      <p class="lead">ST-01 Orientは、承認済みのコードを基準に、今回必要な現在の事実を確認するStageです。観測していない範囲を、分かったふりはしません。</p>
+
+      <div class="answer" aria-label="ST-01の設計方針">
+        <div><span>共有するもの</span><strong>累積型System Map</strong></div>
+        <div><span>Intentに残すもの</span><strong>固定revisionのCurrent Context</strong></div>
+        <div><span>正常時の次</span><strong>固定GraphでST-02</strong></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">M3 map</p>
+      <h2>M3を6つ同時には作りません。</h2>
+      <p class="intro">M3はST-00〜ST-05を含みます。ST-00は完了しました。今回はST-01だけを設計します。</p>
+
+      <div class="m3-line" aria-label="M3のST-00からST-05までの進捗">
+        <div class="stage done"><b>ST-00</b><strong>Bootstrap</strong><p>完了</p></div>
+        <div class="stage now"><b>ST-01</b><strong>Orient</strong><p>今回の対象</p></div>
+        <div class="stage"><b>ST-02</b><strong>Frame Intent</strong><p>目的と成功</p></div>
+        <div class="stage"><b>ST-03</b><strong>Requirements</strong><p>要求と制約</p></div>
+        <div class="stage"><b>ST-04</b><strong>Architecture</strong><p>構成判断</p></div>
+        <div class="stage"><b>ST-05</b><strong>Build Contract</strong><p>合格条件とBolt</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Whole flow</p>
+      <h2>ST-01の流れ</h2>
+      <p class="intro">まず基準にするコードを固定します。次にSystem Mapの必要部分だけを確認し、そのrevisionを使ってCurrent Contextを作ります。</p>
+
+      <div class="route" role="img" aria-label="Bootstrap ReceiptとDesign Briefからbaselineを固定し、System Mapを確認してからCurrent Contextを作る流れ">
+        <div class="route-box"><small>入力</small><strong>Receipt＋Design Brief</strong><small>対象と依頼を固定</small></div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="route-box core"><small>Core</small><strong>baselineを固定</strong><small>Repositoryごとのsnapshot</small></div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="route-box map"><small>共有CodeKB</small><strong>System Mapを確認</strong><small>作成・再利用・Patch候補</small></div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="route-box ai"><small>今回のIntent</small><strong>Current Context</strong><small>Map revisionを固定参照</small></div>
+      </div>
+
+      <div class="map-check" aria-label="System Mapがない場合とある場合の処理">
+        <div><strong>System Mapがない</strong><span>固定した既存baselineから、最初のimmutable revisionを作ります。</span></div>
+        <div><strong>System Mapがある</strong><span>今回に関係するEvidenceだけを現在snapshotと比較します。</span></div>
+        <div><strong>Evidenceが同じ</strong><span>既存revisionをそのまま再利用します。</span></div>
+        <div><strong>Evidenceが違う</strong><span>影響箇所をstaleにし、Patch候補を作ります。未承認変更は自動昇格しません。</span></div>
+      </div>
+
+      <p class="note">ST-01で共有revisionへ確定できるのは、初回importと、同じcode baselineに対する観測範囲の追加だけです。コード内容を変えるPatch候補はST-07の承認を待ちます。</p>
+
+      <p class="warning">現在はIntent名しか永続化していません。ST-01を実装するときは、元の依頼を短文のDesign BriefとしてIntentへ保存し、再開後も同じ調査範囲を使えるようにします。</p>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Two layers</p>
+      <h2>確認はCoreとAIで分担します。</h2>
+      <p class="intro">機械で比較できる事実と、構成の意味を読む作業を混ぜません。</p>
+
+      <div class="layers">
+        <article class="layer core">
+          <h3>1. Coreの検出と鮮度確認</h3>
+          <p>Repository、commit、dirty状態、submodule、設定、外部情報をsource snapshotとして記録します。各Evidenceの変更を機械比較します。</p>
+        </article>
+        <article class="layer ai">
+          <h3>2. AIの構成理解と対象調査</h3>
+          <p>Design Briefに必要な範囲だけを調べます。System Mapの追加・修正はPatch候補として出し、Current Contextへ今回の事実と対象外をまとめます。</p>
+        </article>
+      </div>
+
+      <p class="note">AIは調査の深さを選べます。ただし、対象Repository、使用できるStage、次の行き先は選べません。</p>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">No fixed slices</p>
+      <h2>固定の切り口は使いません。</h2>
+      <p class="intro">以前ご懸念いただいた、作業順や不要な実装を固定してしまう問題を避けます。</p>
+
+      <div class="do-not">
+        <strong>ST-01で固定しないもの</strong>
+        <ul>
+          <li>画面、ユーザー行動、リスクという固定分類</li>
+          <li>フロントエンド、バックエンドという固定実装順</li>
+          <li>技術レイヤーごとの作業スライス</li>
+          <li>最初からProject全体を完全に調べること</li>
+          <li>未観測部分をAIの推測で埋めること</li>
+        </ul>
+      </div>
+
+      <p class="note">System Mapは完成済みの設計図ではありません。Intentごとの観測結果をEvidence付きで蓄積する共有図です。実装順を決めるのはST-05のBolt Planです。</p>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Cumulative system map</p>
+      <h2>System Mapは、観測範囲を積み上げます。</h2>
+      <p class="intro">小さなIntentで全Projectを読みません。分かった場所、分からない場所、古い可能性がある場所を区別します。</p>
+
+      <div class="grid">
+        <article class="card"><span class="number">1</span><div><h3>観測済み</h3><p>Evidenceで確認できたComponent、Resource、接続。</p></div></article>
+        <article class="card"><span class="number">2</span><div><h3>未観測</h3><p>存在する可能性はあるが、まだ調査していない範囲。</p></div></article>
+        <article class="card"><span class="number">3</span><div><h3>古い可能性</h3><p>参照Evidenceが変わり、再確認が必要な範囲。</p></div></article>
+        <article class="card"><span class="number">4</span><div><h3>確認時点</h3><p>いつ、どのRepository revisionを確認したか。</p></div></article>
+        <article class="card"><span class="number">5</span><div><h3>複数Provider</h3><p>AWS、Azure、Vercelなどを共通categoryとcapabilityで表現。</p></div></article>
+        <article class="card"><span class="number">6</span><div><h3>必要時だけ図解</h3><p>人間から指示されたときだけ、指定revisionのJSONからHTMLを都度生成。</p></div></article>
+      </div>
+
+      <pre class="path-tree" aria-label="異なるクラウドを同じ粒度で表す例">Frontend ─配置─▶ web-hosting       ─提供─▶ Vercel Project
+API      ─配置─▶ container-compute ─提供─▶ Azure Container Apps
+Worker   ─配置─▶ function-compute  ─提供─▶ AWS Lambda
+Database ─分類─▶ relational-db     ─提供─▶ Azure PostgreSQL</pre>
+
+      <p class="note">標準成果物はJSONだけです。HTMLは正本でも標準保存物でもありません。人間から依頼された場合だけ、coverage、freshness、unknownを読める表示として都度生成します。</p>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Meaning of current</p>
+      <h2>3種類の「現在」を混ぜません。</h2>
+      <p class="intro">共有Map、作業中コード、Production実態は、それぞれ別物です。</p>
+
+      <div class="status-grid">
+        <article class="status-card fresh"><strong>System Map</strong><span>ST-07で承認されたcode baselineの現在像。初回だけimported baselineから作成。</span></article>
+        <article class="status-card stale"><strong>Intentの作業中差分</strong><span>dirty working treeやST-06の変更候補。承認前は共有Mapへ混ぜない。</span></article>
+        <article class="status-card unknown"><strong>Deployment Map</strong><span>実際にProductionで動いている構成。ST-08以降で別に扱う。</span></article>
+      </div>
+
+      <div class="lifecycle" aria-label="System Mapと各Stageの関係">
+        <article class="life-step"><b>ST-01</b><strong>Orient</strong><p>既存baselineを観測。初回Map作成と不足範囲の確認。</p></article>
+        <article class="life-step"><b>ST-04</b><strong>Architecture</strong><p>将来構成を別Artifactとして決定。Currentへ混ぜない。</p></article>
+        <article class="life-step"><b>ST-06</b><strong>Build</strong><p>実装結果からSystem Map Patch候補を生成。</p></article>
+        <article class="life-step"><b>ST-07</b><strong>Approval</strong><p>承認後だけ新しい共有revisionへ昇格。</p></article>
+        <article class="life-step"><b>ST-08</b><strong>Release</strong><p>Productionの実状態はDeployment Mapへ記録。</p></article>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Storage</p>
+      <h2>System MapはCodeKBに置きます。</h2>
+      <p class="intro">Repository詳細をEvidenceとして使い、複数Repositoryを横断するSystem Mapを共有の集約Mapにします。</p>
+
+      <pre class="path-tree" aria-label="System MapとCurrent Contextの配置">aidlc/spaces/&lt;space&gt;/
+├── codekb/
+│   ├── repositories/
+│   │   ├── &lt;frontend-repo&gt;/
+│   │   └── &lt;backend-repo&gt;/
+│   └── system-map/
+│       ├── baseline.json          ← 最新承認revisionへのポインタ
+│       └── revisions/
+│           └── 000001/
+│               └── system-map.json
+└── intents/
+    └── &lt;intent&gt;/
+        └── artifacts/
+            ├── workspace-profile.json
+            └── current-context.json</pre>
+
+      <p class="note"><code>baseline.json</code>はMap本体ではありません。revision、path、SHA-256だけを指します。過去revisionは上書きしません。HTML表示はこの保存領域へ自動生成しません。</p>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Freshness</p>
+      <h2>Map全体を1個のfingerprintで判断しません。</h2>
+      <p class="intro">情報源ごとのsnapshotと、各要素が使ったEvidenceを結びます。</p>
+
+      <div class="status-grid">
+        <article class="status-card fresh"><strong>fresh</strong><span>参照Evidenceとsource snapshotが現在も一致しています。</span></article>
+        <article class="status-card stale"><strong>stale</strong><span>Evidenceが変わりました。依存するentity・relationだけ再調査します。</span></article>
+        <article class="status-card unknown"><strong>unknown</strong><span>外部APIなどを確認できません。推測でfreshにはしません。</span></article>
+      </div>
+
+      <div class="grid" style="margin-top:13px">
+        <article class="card"><span class="number">1</span><div><h3>source snapshots</h3><p>Repositoryごとのcommit・dirty状態・submodule。外部情報にはobserved_atと期限。</p></div></article>
+        <article class="card"><span class="number">2</span><div><h3>evidence refs</h3><p>各entity・relationが参照するfile、path、SHA-256。</p></div></article>
+        <article class="card"><span class="number">3</span><div><h3>影響範囲</h3><p>変わったEvidenceを参照する要素だけをstaleにする。</p></div></article>
+        <article class="card"><span class="number">4</span><div><h3>競合防止</h3><p>Patchのbase_revisionが現行と違う場合、自動上書きせず再評価する。</p></div></article>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">What to capture</p>
+      <h2>Current Contextに残す事実</h2>
+      <p class="intro">Current ContextはIntent配下に置きます。使用したSystem Map revisionを固定し、後から共有Mapが変わっても過去の根拠を変えません。</p>
+
+      <div class="grid">
+        <article class="card"><span class="number">1</span><div><h3>Map固定参照</h3><p>使用したrevision、path、SHA-256。</p></div></article>
+        <article class="card"><span class="number">2</span><div><h3>使用した要素</h3><p>切り出したentity IDとrelation ID。</p></div></article>
+        <article class="card"><span class="number">3</span><div><h3>今回の追加事実</h3><p>Design Briefに必要で、新しく確認した現在の振る舞い。</p></div></article>
+        <article class="card"><span class="number">4</span><div><h3>調査対象外</h3><p>今回読まなかったRepository、機能、外部system。</p></div></article>
+        <article class="card"><span class="number">5</span><div><h3>Intent固有情報</h3><p>作業中差分など、共有System Mapへ昇格しない情報。</p></div></article>
+        <article class="card"><span class="number">6</span><div><h3>未知と不足</h3><p>確認できなかったこと。推測で埋めません。</p></div></article>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Outputs</p>
+      <h2>成果物は3組です。</h2>
+      <p class="intro">機械検出、共有の全体図、Intent固有の現状を分離します。</p>
+
+      <div class="outputs">
+        <article class="output core">
+          <h3>Workspace Profile</h3>
+          <code>workspace-profile.json</code>
+          <ul>
+            <li>Coreが作成</li>
+            <li>Repositoryとtoolchainの事実</li>
+            <li>source snapshotを記録</li>
+          </ul>
+        </article>
+        <article class="output map">
+          <h3>System Map</h3>
+          <code>system-map.json</code>
+          <ul>
+            <li>CodeKBでimmutable revision管理</li>
+            <li>coverage・freshness・Evidence</li>
+            <li>標準ではJSONだけを保存</li>
+            <li>初回または同一code baselineの観測補完</li>
+          </ul>
+        </article>
+        <article class="output ai">
+          <h3>Current Context</h3>
+          <code>current-context.json</code>
+          <ul>
+            <li>Intent配下に保存</li>
+            <li>Map revisionとSHA-256を固定</li>
+            <li>対象外とIntent固有情報を明示</li>
+          </ul>
+        </article>
+      </div>
+      <p class="note"><code>schema_version</code>と<code>revision</code>は別fieldです。ファイル名の<code>r1</code>で両方を表しません。</p>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Strict contract</p>
+      <h2>JSONにするだけでは安全になりません。</h2>
+      <p class="intro">Coreが厳格なContractを検証し、合格したPatchだけを新revisionへ昇格します。</p>
+
+      <div class="grid">
+        <article class="card"><span class="number">1</span><div><h3>Schema</h3><p>未知fieldを拒否。schema_versionとrevisionを分離。</p></div></article>
+        <article class="card"><span class="number">2</span><div><h3>IDと参照</h3><p>entity IDの重複と、存在しないentityへのrelationを拒否。</p></div></article>
+        <article class="card"><span class="number">3</span><div><h3>Relation</h3><p>種別をenum化し、自由な関係名を許可しない。</p></div></article>
+        <article class="card"><span class="number">4</span><div><h3>Evidence</h3><p>path・SHA-256を必須化し、Repository境界外を拒否。</p></div></article>
+        <article class="card"><span class="number">5</span><div><h3>時制</h3><p>Current、planned、working差分の混在を拒否。</p></div></article>
+        <article class="card"><span class="number">6</span><div><h3>安全</h3><p>秘密情報を保存しない。依頼によりHTMLを生成する場合は必ずescape。</p></div></article>
+      </div>
+
+      <p class="note">Patchは<code>base_revision</code>を持ちます。別Intentが先に更新していた場合、自動上書きせず新しいbaselineで再評価します。</p>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Responsibility</p>
+      <h2>誰が何を決めるか</h2>
+      <p class="intro">ST-01の完了はAIの自己申告では決まりません。</p>
+
+      <div class="owners">
+        <article class="owner core"><h3>Core</h3><p>baselineとsnapshotを固定し、Schema・Evidence・競合を検証して、固定Graphで遷移します。</p></article>
+        <article class="owner ai"><h3>AI</h3><p>必要範囲を観測し、Map Patch候補とIntent固有のCurrent Contextを作ります。</p></article>
+        <article class="owner human"><h3>人間</h3><p>HTML図を読みます。初回baseline、対象、確認不能な外部情報、承認を判断します。</p></article>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Disposition rules</p>
+      <h2>execute・reuse・not_applicable</h2>
+      <p class="intro">小さな変更では調査を小さくします。Stageそのものを重くしません。</p>
+
+      <div class="rule-list">
+        <div class="rule"><strong>execute</strong><span>初回Mapを作る、必要Evidenceがstale、またはCurrent Contextを新しく作る場合。</span></div>
+        <div class="rule"><strong>reuse</strong><span>必要なentity・relationのEvidenceがfreshで、既存Contextの調査範囲も一致する場合。</span></div>
+        <div class="rule"><strong>not_applicable</strong><span>通常は使いません。Greenfieldでも「観測済み構成なし」という最小revisionを記録します。</span></div>
+      </div>
+
+      <p class="note">文字変更の例では、対象fileと現在の文字、その参照関係だけを確認します。Project全体の解析は行いません。</p>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Stop conditions</p>
+      <h2>推測が必要なら停止します。</h2>
+      <p class="intro">分からないままCurrent Contextを完成扱いにしません。</p>
+
+      <div class="rule-list">
+        <div class="rule stop"><strong>対象が曖昧</strong><span>複数Repositoryのどれを調べるかDesign Briefから決められない。</span></div>
+        <div class="rule stop"><strong>Evidence不足</strong><span>重要な主張にfile、manifest、command結果などの根拠がない。</span></div>
+        <div class="rule stop"><strong>baseline不明</strong><span>dirty working treeしかなく、共有Mapの基準にする承認済みcodeを固定できない。</span></div>
+        <div class="rule stop"><strong>Access不可</strong><span>必要なRepository、submodule、外部情報を読めない。</span></div>
+        <div class="rule stop"><strong>鮮度を確認不能</strong><span>必要な外部APIや設定の根拠を確認できず、該当要素をfreshと証明できない。</span></div>
+        <div class="rule stop"><strong>revision競合</strong><span>Patch作成中に別Intentがbaselineを更新した。</span></div>
+        <div class="rule stop"><strong>Brief不足</strong><span>調査範囲を絞れず、Project全体を読むしかなくなる。</span></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">Boundary</p>
+      <h2>ST-01では決めないこと</h2>
+      <p class="intro">CurrentとFutureを混ぜないための境界です。</p>
+
+      <div class="do-not">
+        <ul>
+          <li>目的、優先順位、成功基準はST-02</li>
+          <li>機能要求、NFR、制約はST-03</li>
+          <li>採用する将来ArchitectureはST-04。System Mapへ混ぜない</li>
+          <li>実装順、依存DAG、Bolt PlanはST-05</li>
+          <li>Application codeの変更とMap Patch候補はST-06</li>
+          <li>変更後Mapの共有baseline昇格はST-07</li>
+          <li>Productionの実状態はST-08のDeployment Map</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">TDD implementation</p>
+      <h2>承認後の実装順</h2>
+      <p class="intro">ST-00と同じく、失敗するテストを先に書きます。ST-02には着手しません。</p>
+
+      <div class="steps">
+        <article class="step"><span class="number">1</span><h3>RED</h3><p>stale誤再利用、revision競合、壊れたrelation、未承認codeの自動昇格を先に失敗させます。</p></article>
+        <article class="step"><span class="number">2</span><h3>Contract</h3><p>Workspace Profile、System Map、Patch、baseline pointer、Current Contextのschemaを作ります。</p></article>
+        <article class="step"><span class="number">3</span><h3>Source scan</h3><p>Repository・外部情報ごとのsnapshotを作り、Evidence単位でfreshnessを判定します。</p></article>
+        <article class="step"><span class="number">4</span><h3>Map revision</h3><p>初回Mapと同一baselineの観測補完だけを確定し、コード変更Patchは承認待ちにします。</p></article>
+        <article class="step"><span class="number">5</span><h3>Context・Verifier</h3><p>Intent配下のContextへrevisionとSHA-256を固定し、合格時だけST-02へ進めます。</p></article>
+        <article class="step"><span class="number">6</span><h3>GREEN・回帰</h3><p>unit、resume、failure、Codex、native、Sandbox、release:checkを確認します。</p></article>
+      </div>
+    </section>
+
+    <section class="approval">
+      <p class="eyebrow">Decision requested</p>
+      <h2>実装前に確認する8点</h2>
+      <p>次を承認いただいたら、ST-01だけをTDDで実装します。</p>
+      <div class="approval-grid">
+        <div>1. 元の依頼を短いDesign BriefとしてIntentへ保存する。</div>
+        <div>2. System MapをCodeKB内の累積型・観測Mapとする。</div>
+        <div>3. 初回はimported baseline、以後は承認済みbaselineを共有する。</div>
+        <div>4. source snapshotとEvidence単位でfreshnessを判定する。</div>
+        <div>5. immutable revisionとbaseline.json pointerを使用する。</div>
+        <div>6. Current ContextはIntent配下でMap revisionを固定参照する。</div>
+        <div>7. working、planned、Productionを共有System Mapへ混ぜない。</div>
+        <div>8. System MapはJSONだけを標準保存し、HTMLは人間の指示時だけ安全に都度生成する。</div>
+      </div>
+    </section>
+
+    <footer>
+      <span>AI-DLC vNext / M3 / ST-01 Orient</span>
+      <span>Plan revised 2026-08-24</span>
+    </footer>
+  </main>
+</body>
+</html>

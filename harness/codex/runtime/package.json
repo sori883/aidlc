@@ -10,6 +10,7 @@
     "graph": "bun tools/aidlc-core-route.ts",
     "intent": "bun tools/aidlc-intent.ts",
     "orchestrate": "bun tools/aidlc-vnext-orchestrate.ts",
+    "orient": "bun tools/aidlc-vnext-orient.ts",
     "plan": "bun tools/aidlc-vnext-plan.ts",
     "space": "bun tools/aidlc-space.ts",
     "state": "bun tools/aidlc-vnext-state.ts",

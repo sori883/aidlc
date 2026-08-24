@@ -60,7 +60,7 @@ test("birth creates one vNext Intent with Core-owned State, Plan, and Policy", (
   assert.equal(state.parked_reason, "ST-00 is ready for Core Bootstrap execution.");
 });
 
-test("next lets Core complete ST-00 and then parks at unimplemented ST-01", () => {
+test("next lets Core complete ST-00 and then issues the fixed ST-01 work request", () => {
   const { projectDir } = fixture();
   const advanced = resolveVNextDirective(projectDir);
   assert.equal(advanced.kind, "advanced");
@@ -69,17 +69,11 @@ test("next lets Core complete ST-00 and then parks at unimplemented ST-01", () =
   assert.equal("completed_stage" in advanced && advanced.completed_stage, "ST-00");
   assert.equal("stage" in advanced && advanced.stage, "ST-01");
 
-  const parked = resolveVNextDirective(projectDir);
-  assert.deepEqual(parked, {
-    schema_version: 1,
-    kind: "parked",
-    workflow: "vnext",
-    stage: "ST-01",
-    reason: "ST-01 Stage Contract is not implemented yet.",
-    graph_version: "vnext-10-stage-graph-v1",
-    plan_revision: 1,
-    decision_authority: "core",
-  });
+  const work = resolveVNextDirective(projectDir);
+  assert.equal(work.kind, "work");
+  assert.equal("stage" in work && work.stage, "ST-01");
+  assert.equal("request" in work && work.request.artifact, "orient-work-request");
+  assert.equal(work.decision_authority, "core");
 });
 
 test("Core revises an AI execute proposal without accepting a route instruction", () => {

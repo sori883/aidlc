@@ -28,6 +28,10 @@ import {
   type VNextIntentState,
 } from "./aidlc-vnext-state.ts";
 import type { StageExecutionPlan } from "./aidlc-stage-contract.ts";
+import {
+  parseDesignBrief,
+  type DesignBrief,
+} from "./aidlc-vnext-orient-contract.ts";
 
 const ACTIVE_INTENT_POINTER = "active-intent";
 export { slugify } from "./aidlc-workspace.ts";
@@ -53,6 +57,7 @@ export interface BornIntentWithState extends BornIntent {
   plan: StageExecutionPlan;
   policyPath: string;
   auditPath: string;
+  designBriefPath: string;
 }
 
 export interface IntentInfo extends Omit<IntentRegistryEntry, "dirName"> {
@@ -287,6 +292,9 @@ export function birthIntentWithState(
   space = activeSpace(projectDir),
   repos?: string[],
 ): BornIntentWithState {
+  if (label.trim() === "" || label !== label.trim() || /[\r\n\0]/.test(label)) {
+    throw new Error("Intent label must be a non-empty single-line Design Brief");
+  }
   const projectRoot = resolve(projectDir);
   const definitions = loadVNextDefinitions();
   return withWorkspaceLock(projectRoot, () => {
@@ -306,6 +314,12 @@ export function birthIntentWithState(
       Request: request,
       Details: "vNext Intent record and artifact directories ensured",
     });
+    const designBriefPath = writeDesignBriefAt(
+      born.recordDir,
+      born.uuid,
+      label,
+      startedAt,
+    );
     const policy = writeEffectivePolicySnapshot(
       projectRoot,
       born.recordDir,
@@ -351,8 +365,32 @@ export function birthIntentWithState(
       plan,
       policyPath: policy.path,
       auditPath,
+      designBriefPath,
     };
   });
+}
+
+export function designBriefPath(recordDir: string): string {
+  return join(resolve(recordDir), "artifacts", "design-brief.json");
+}
+
+export function writeDesignBriefAt(
+  recordDir: string,
+  intentId: string,
+  statement: string,
+  createdAt: string,
+): string {
+  const brief: DesignBrief = parseDesignBrief({
+    schema_version: 1,
+    artifact: "design-brief",
+    version: 1,
+    intent_id: intentId,
+    statement,
+    created_at: createdAt,
+  });
+  const path = designBriefPath(recordDir);
+  writeFileAtomic(path, `${JSON.stringify(brief, null, 2)}\n`);
+  return path;
 }
 
 /** Ensure the lazy per-Intent and Space-shared directories created at Birth. */

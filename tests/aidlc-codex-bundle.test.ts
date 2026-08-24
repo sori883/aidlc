@@ -59,10 +59,13 @@ test("writes a vNext-only Codex bundle", () => {
     ".codex/tools/aidlc.ts",
     ".codex/tools/aidlc-core-route.ts",
     ".codex/tools/aidlc-vnext-bootstrap.ts",
+    ".codex/tools/aidlc-vnext-orient-contract.ts",
+    ".codex/tools/aidlc-vnext-orient.ts",
     ".codex/tools/aidlc-vnext-state.ts",
     ".codex/aidlc-common/data/vnext-stage-catalog.json",
     ".codex/aidlc-common/data/vnext-stage-graph.json",
     ".codex/aidlc-common/stages/st-00-bootstrap.json",
+    ".codex/aidlc-common/stages/st-01-orient.json",
     ".agents/skills/aidlc/SKILL.md",
   ]) assert.equal(existsSync(join(outDir, path)), true, path);
 
@@ -101,7 +104,7 @@ test("bundle check detects drift and refuses an unmanaged directory", () => {
   );
 });
 
-test("generated Codex runtime completes ST-00 and parks at ST-01", () => {
+test("generated Codex runtime completes ST-00 and prepares ST-01 work", () => {
   const outDir = freshBundleDir();
   writeCodexBundle({ outDir });
   run(outDir, ["run", "--cwd", ".codex", "aidlc", "workspace", "init", ".."]);
@@ -114,11 +117,12 @@ test("generated Codex runtime completes ST-00 and parks at ST-01", () => {
   assert.equal(advanced.kind, "advanced");
   assert.equal(advanced.stage, "ST-01");
   assert.equal(advanced.decision_authority, "core");
-  const parked = JSON.parse(run(outDir, [
+  const work = JSON.parse(run(outDir, [
     "run", "--cwd", ".codex", "aidlc", "next", "..",
-  ])) as { kind: string; stage: string };
-  assert.equal(parked.kind, "parked");
-  assert.equal(parked.stage, "ST-01");
+  ])) as { kind: string; stage: string; request: { artifact: string } };
+  assert.equal(work.kind, "work");
+  assert.equal(work.stage, "ST-01");
+  assert.equal(work.request.artifact, "orient-work-request");
   const doctor = JSON.parse(run(outDir, [
     "run", "--cwd", ".codex", "aidlc", "doctor", "check", "..",
   ])) as { healthy: boolean };

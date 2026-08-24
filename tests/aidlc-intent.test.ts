@@ -27,6 +27,14 @@ test("birth creates and selects a vNext Intent without Scope or work type", () =
   assert.equal(born.state.workflow, "vnext");
   assert.equal(born.state.current_stage, "ST-00");
   assert.equal(born.plan.stage_decisions.length, 10);
+  assert.deepEqual(JSON.parse(readFileSync(born.designBriefPath, "utf8")), {
+    schema_version: 1,
+    artifact: "design-brief",
+    version: 1,
+    intent_id: born.uuid,
+    statement: "Payment API",
+    created_at: born.state.created_at,
+  });
   assert.deepEqual(readIntentRegistry(projectDir), [{
     uuid: born.uuid,
     slug: "payment-api",
@@ -56,6 +64,10 @@ test("switches by a unique slug and rejects unknown or reserved names", () => {
   assert.equal(switchIntent(projectDir, "payment-api").dirName, payment.dirName);
   assert.throws(() => switchIntent(projectDir, "missing"), /Unknown intent/);
   assert.throws(() => birthIntentWithState(projectDir, "switch"), /reserved name/);
+  assert.throws(
+    () => birthIntentWithState(projectDir, "  padded brief  "),
+    /single-line Design Brief/,
+  );
 });
 
 test("slugify keeps stable safe names", () => {

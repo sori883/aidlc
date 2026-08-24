@@ -41,8 +41,21 @@ export interface VNextAdvancedDirective {
   decision_authority: "core";
 }
 
+export interface VNextWorkDirective {
+  schema_version: typeof VNEXT_DIRECTIVE_SCHEMA_VERSION;
+  kind: "work";
+  workflow: "vnext";
+  stage: VNextStageId;
+  reason: string;
+  request: ArtifactReference;
+  graph_version: string;
+  plan_revision: number;
+  decision_authority: "core";
+}
+
 export type VNextCoreDirective =
   | VNextParkedDirective
+  | VNextWorkDirective
   | VNextAdvancedDirective
   | VNextDoneDirective;
 
@@ -144,8 +157,21 @@ export function parseVNextCoreDirective(
       ),
     };
   }
+  if (record.kind === "work") {
+    rejectUnknownKeys(record, [...COMMON_KEYS, "stage", "request"], context);
+    const stage = asOneLine(record.stage, `${context}.stage`);
+    if (!(VNEXT_STAGE_IDS as readonly string[]).includes(stage)) {
+      fail(`${context}.stage`, `must be one of: ${VNEXT_STAGE_IDS.join(", ")}`);
+    }
+    return {
+      ...common,
+      kind: "work",
+      stage: stage as VNextStageId,
+      request: parseArtifactReference(record.request, `${context}.request`),
+    };
+  }
   if (record.kind !== "parked") {
-    fail(`${context}.kind`, "must be parked, advanced, or done");
+    fail(`${context}.kind`, "must be parked, work, advanced, or done");
   }
   rejectUnknownKeys(record, [...COMMON_KEYS, "stage"], context);
   const stage = asOneLine(record.stage, `${context}.stage`);

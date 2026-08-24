@@ -230,19 +230,26 @@ function smoke(executable: string): BinaryBuildReport["gates"] {
   }
   gates.push(advanced);
 
-  const parked = assertCommand(
-    "orchestrate-parked",
+  const work = assertCommand(
+    "orchestrate-work",
     installedExecutable,
     ["next", projectDir],
     { cwd: projectDir, pathless: true },
   );
-  const parkedDirective = JSON.parse(parked.stdout) as { kind?: string; stage?: string };
-  if (parkedDirective.kind !== "parked" || parkedDirective.stage !== "ST-01") {
+  const workDirective = JSON.parse(work.stdout) as {
+    kind?: string;
+    stage?: string;
+    request?: { artifact?: string };
+  };
+  if (
+    workDirective.kind !== "work" || workDirective.stage !== "ST-01" ||
+    workDirective.request?.artifact !== "orient-work-request"
+  ) {
     throw new Error(
-      `orchestrate parked smoke returned ${String(parkedDirective.kind)}`,
+      `orchestrate work smoke returned ${String(workDirective.kind)}`,
     );
   }
-  gates.push(parked);
+  gates.push(work);
   gates.push(assertCommand(
     "doctor-after-bootstrap",
     installedExecutable,

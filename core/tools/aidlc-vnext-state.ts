@@ -18,6 +18,13 @@ import {
   type VNextStageId,
 } from "./aidlc-stage-contract.ts";
 import { verifyProjectArtifactReference } from "./aidlc-effective-policy.ts";
+import {
+  parseCurrentContext,
+  parseOrientWorkRequest,
+  parseSystemMap,
+  parseSystemMapBaseline,
+  parseWorkspaceProfile,
+} from "./aidlc-vnext-orient-contract.ts";
 
 export const VNEXT_STATE_SCHEMA_VERSION = 1 as const;
 export const VNEXT_STATE_STATUSES = ["parked", "ready", "completed"] as const;
@@ -346,6 +353,102 @@ export function validateVNextIntentAt(projectDir: string, recordDir: string): vo
     fail("vNext State", "Effective Policy reference does not match Plan");
   }
   verifyProjectArtifactReference(projectDir, state.policy_snapshot);
+  validateOrientArtifactsAt(projectDir, recordDir, state);
+}
+
+function readJsonArtifact(path: string, context: string): unknown {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    fail(context, `cannot read ${path}: ${detail}`);
+  }
+}
+
+/** Verify ST-01 artifacts whenever they exist or a later Stage depends on them. */
+export function validateOrientArtifactsAt(
+  projectDir: string,
+  recordDir: string,
+  stateValue?: VNextIntentState,
+): void {
+  const state = stateValue ?? readVNextStateAt(recordDir);
+  if (state.current_stage === "ST-00") return;
+  const artifactsDir = join(resolve(recordDir), "artifacts");
+  const profilePath = join(artifactsDir, "workspace-profile.json");
+  const requestPath = join(artifactsDir, "orient-work-request.json");
+  const contextPath = join(artifactsDir, "current-context.json");
+  const hasPreparedArtifacts = existsSync(profilePath) || existsSync(requestPath);
+  if (hasPreparedArtifacts) {
+    if (!existsSync(profilePath) || !existsSync(requestPath)) {
+      fail("ST-01 Orient", "Workspace Profile and Work Request must exist together");
+    }
+    const profile = parseWorkspaceProfile(
+      readJsonArtifact(profilePath, "ST-01 Orient"),
+      profilePath,
+    );
+    const request = parseOrientWorkRequest(
+      readJsonArtifact(requestPath, "ST-01 Orient"),
+      requestPath,
+    );
+    if (profile.intent_id !== state.intent_id || request.intent_id !== state.intent_id) {
+      fail("ST-01 Orient", "prepared Artifact Intent does not match State");
+    }
+    verifyProjectArtifactReference(projectDir, request.design_brief_ref);
+    verifyProjectArtifactReference(projectDir, request.bootstrap_receipt_ref);
+    verifyProjectArtifactReference(projectDir, request.workspace_profile_ref);
+    if (request.system_map_baseline_ref !== undefined) {
+      verifyProjectArtifactReference(projectDir, request.system_map_baseline_ref);
+    }
+  }
+  const stageIndex = VNEXT_STAGE_IDS.indexOf(state.current_stage);
+  if (stageIndex < VNEXT_STAGE_IDS.indexOf("ST-02")) return;
+  if (!existsSync(contextPath)) {
+    fail("ST-01 Orient", "Current Context is required after ST-01 completion");
+  }
+  const context = parseCurrentContext(
+    readJsonArtifact(contextPath, "ST-01 Orient"),
+    contextPath,
+  );
+  if (context.intent_id !== state.intent_id) {
+    fail("ST-01 Orient", "Current Context Intent does not match State");
+  }
+  for (const reference of [
+    context.design_brief_ref,
+    context.workspace_profile_ref,
+    context.system_map_ref,
+  ]) verifyProjectArtifactReference(projectDir, reference);
+  const mapPath = resolve(projectDir, context.system_map_ref.source_of_truth);
+  const map = parseSystemMap(readJsonArtifact(mapPath, "ST-01 Orient"), mapPath);
+  if (map.revision !== context.system_map_revision) {
+    fail("ST-01 Orient", "Current Context revision does not match its System Map");
+  }
+  const entityIds = new Set(map.entities.map((entry) => entry.entity_id));
+  const relationIds = new Set(map.relations.map((entry) => entry.relation_id));
+  for (const id of context.entity_ids) {
+    if (!entityIds.has(id)) fail("ST-01 Orient", `Current Context entity is missing: ${id}`);
+  }
+  for (const id of context.relation_ids) {
+    if (!relationIds.has(id)) fail("ST-01 Orient", `Current Context relation is missing: ${id}`);
+  }
+  const baselinePath = join(
+    workspaceRoot(projectDir),
+    "spaces",
+    activeSpace(projectDir),
+    "codekb",
+    "system-map",
+    "baseline.json",
+  );
+  const baseline = parseSystemMapBaseline(
+    readJsonArtifact(baselinePath, "ST-01 Orient"),
+    baselinePath,
+  );
+  const baselineReference = parseArtifactReference({
+    artifact: "system-map",
+    version: 1,
+    source_of_truth: baseline.source_of_truth,
+    sha256: baseline.sha256,
+  });
+  verifyProjectArtifactReference(projectDir, baselineReference);
 }
 
 export function resumeVNextIntent(projectDir: string): {

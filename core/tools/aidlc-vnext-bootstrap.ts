@@ -671,7 +671,7 @@ function executeBootstrapLocked(
     ...state,
     current_stage: nextStage,
     status: "parked" as const,
-    parked_reason: "ST-01 Stage Contract is not implemented yet.",
+    parked_reason: "ST-01 Orient is ready for Core preparation.",
     updated_at: options.createdAt ?? new Date().toISOString(),
   };
   writeVNextStateAt(recordDir, advanced, plan);
