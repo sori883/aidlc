@@ -38,7 +38,7 @@ v2の32 Stageに含まれる知識、Artifact、Verifier、実行機構を棚卸
 |---|---|---|---|
 | ST-00 Bootstrap | 0.1〜0.3、1.5 | Workspace、検出、State初期化、実行能力 | 権限、予算、再開位置をまとめた開始Contract |
 | ST-01 Orient | 0.2、1.2、2.1、2.2 | Brownfield解析、外部調査、既存Practices | Intentに必要な深さだけ調べるCurrent／System Map |
-| ST-02 Frame Intent | 1.1、1.4 | Intent、目的、Scope、成功基準 | Design BriefとWorkspace Contextの事実、許容リスク、Alignment判断 |
+| ST-02 Define Intent | 1.1、1.4 | Intent、目的、Scope、成功基準 | Design BriefとWorkspace Contextの事実、許容リスク、Alignment判断 |
 | ST-03 Requirements & Constraints | 1.2、1.3、1.6、2.2〜2.5、3.2 | 要求、NFR、制約、Mockup、利用例 | 変更に必要な深さ、未確定事項、機械検証可能な期待結果 |
 | ST-04 Architecture Decision | 1.3、2.6、3.3、3.4 | 設計Driver、Application／NFR／Infra設計 | 選択肢、Evidence、可逆性、Human escalation |
 | ST-05 Build Contract | 1.4〜1.7、2.4〜2.8、3.1、3.3、3.4 | User Story、設計、Unit、Delivery Plan | 統合Design Contract、合格条件、Bolt Plan、Build authority |
@@ -61,7 +61,7 @@ v2の32 Stageに含まれる知識、Artifact、Verifier、実行機構を棚卸
 
 | v2 | vNextでの候補 | 判断 | 回収内容 |
 |---|---|---|---|
-| 1.1 Intent Capture & Framing | ST-02 | 統合 | 目的、Stakeholder、質問の知識をFrame Intentへ統合する |
+| 1.1 Intent Capture & Framing | ST-02 | 統合 | 目的、Stakeholder、質問の知識をIntent Definitionへ統合する |
 | 1.2 Market Research | ST-01、ST-03 | 分割＋独立Stage削除 | 外部CurrentはST-01、制約EvidenceはST-03で必要時だけ扱う |
 | 1.3 Feasibility & Constraints | ST-03、ST-04 | 分割 | 制約はST-03、技術判断とEvidenceはST-04へ分ける |
 | 1.4 Scope Definition | ST-02、ST-05 | 分割 | Intentの範囲はST-02、Build／Boltの範囲はST-05へ分ける |

@@ -52,6 +52,21 @@ alone writes the immutable shared JSON System Map revision, `baseline.json`,
 the Intent-local `current-context.json`, Audit, State, and the fixed ST-01 to
 ST-02 route. Do not generate System Map HTML unless a human explicitly asks.
 
+ST-02 Define Intent is also a two-part Stage. Core prepares
+`define-intent-work-request.json`. AI then proposes only the Intent purpose,
+expected outcomes, in-scope work, exclusions, success signals, and known
+unknowns. If a value judgment, priority choice, or ambiguous goal cannot be
+resolved from the human request, ask the human before submitting the proposal.
+Do not add detailed requirements, architecture, Bolt planning, implementation,
+or route instructions. Submit the proposal with:
+
+`bun run --cwd .codex aidlc define-intent complete . <proposal.json>`
+
+Core alone writes `intent-definition.json`, pins the Design Brief and Current
+Context digests, records Audit and State, and advances through the fixed ST-02
+to ST-03 edge. ST-02 cannot be `not_applicable`; a small change receives a
+small Intent Definition instead of skipping the Stage.
+
 ## Stage Execution Plan proposals
 
 AI may write a proposal JSON array and ask Core to evaluate it with:

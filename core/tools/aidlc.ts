@@ -19,6 +19,7 @@ export type Action =
 
 export const ROUTES: readonly Route[] = [
   { noun: "doctor", tool: "aidlc-vnext-doctor.ts", commands: ["check", "repair"], summary: "diagnose and repair vNext Core state" },
+  { noun: "define-intent", tool: "aidlc-vnext-define-intent.ts", commands: ["prepare", "complete"], summary: "prepare and validate ST-02 Define Intent work" },
   { noun: "graph", tool: "aidlc-core-route.ts", commands: ["show", "catalog", "validate"], summary: "inspect the fixed vNext Catalog and Graph" },
   { noun: "intent", tool: "aidlc-intent.ts", commands: ["birth", "list", "switch"], summary: "create and select Intents" },
   { noun: "orchestrate", tool: "aidlc-vnext-orchestrate.ts", commands: ["next"], summary: "resolve the next Core-owned vNext action" },
@@ -112,6 +113,7 @@ type DelegateModule = {
 async function loadDelegate(tool: string): Promise<DelegateModule | null> {
   switch (tool) {
     case "aidlc-vnext-doctor.ts": return import("./aidlc-vnext-doctor.ts");
+    case "aidlc-vnext-define-intent.ts": return import("./aidlc-vnext-define-intent.ts");
     case "aidlc-core-route.ts": return import("./aidlc-core-route.ts");
     case "aidlc-intent.ts": return import("./aidlc-intent.ts");
     case "aidlc-vnext-orchestrate.ts": return import("./aidlc-vnext-orchestrate.ts");

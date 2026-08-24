@@ -59,6 +59,8 @@ test("writes a vNext-only Codex bundle", () => {
     ".codex/tools/aidlc.ts",
     ".codex/tools/aidlc-core-route.ts",
     ".codex/tools/aidlc-vnext-bootstrap.ts",
+    ".codex/tools/aidlc-vnext-define-intent-contract.ts",
+    ".codex/tools/aidlc-vnext-define-intent.ts",
     ".codex/tools/aidlc-vnext-orient-contract.ts",
     ".codex/tools/aidlc-vnext-orient.ts",
     ".codex/tools/aidlc-vnext-state.ts",
@@ -66,6 +68,7 @@ test("writes a vNext-only Codex bundle", () => {
     ".codex/aidlc-common/data/vnext-stage-graph.json",
     ".codex/aidlc-common/stages/st-00-bootstrap.json",
     ".codex/aidlc-common/stages/st-01-orient.json",
+    ".codex/aidlc-common/stages/st-02-define-intent.json",
     ".agents/skills/aidlc/SKILL.md",
   ]) assert.equal(existsSync(join(outDir, path)), true, path);
 

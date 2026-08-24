@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-DLC vNext｜ST-02 Define Intent 実装計画</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172036;
+      --muted: #5d687d;
+      --line: #dbe3ef;
+      --paper: #fff;
+      --soft: #f5f8fc;
+      --blue: #2563eb;
+      --blue-soft: #eaf1ff;
+      --green: #16845b;
+      --green-soft: #e7f7ef;
+      --amber: #9a5b08;
+      --amber-soft: #fff4d9;
+      --purple: #7047bb;
+      --purple-soft: #f2ecff;
+      --shadow: 0 18px 46px rgba(27, 45, 79, .09);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: linear-gradient(180deg, #edf4ff 0, #f8fafc 430px, #f8fafc 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+      line-height: 1.75;
+    }
+    main { width: min(1080px, calc(100% - 32px)); margin: auto; padding: 42px 0 80px; }
+    header, section {
+      margin-bottom: 24px;
+      padding: clamp(22px, 4vw, 42px);
+      border: 1px solid rgba(219, 227, 239, .95);
+      border-radius: 24px;
+      background: rgba(255, 255, 255, .97);
+      box-shadow: var(--shadow);
+    }
+    .eyebrow { margin: 0 0 8px; color: var(--blue); font-size: 13px; font-weight: 800; letter-spacing: .12em; }
+    h1 { margin: 0; font-size: clamp(31px, 5vw, 55px); line-height: 1.2; letter-spacing: -.03em; }
+    h2 { margin: 0 0 8px; font-size: clamp(23px, 3vw, 34px); line-height: 1.35; }
+    h3 { margin: 0 0 5px; font-size: 17px; }
+    p { margin: 0; }
+    .lead { margin-top: 18px; max-width: 850px; color: var(--muted); font-size: 18px; }
+    .answer {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-top: 26px;
+    }
+    .answer div { padding: 18px; border-radius: 16px; background: var(--soft); }
+    .answer span { display: block; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .answer strong { display: block; margin-top: 4px; font-size: 19px; }
+    .intro { margin-bottom: 22px; color: var(--muted); }
+    .stages {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 9px;
+    }
+    .stage { min-height: 118px; padding: 15px; border: 1px solid var(--line); border-radius: 15px; background: var(--soft); }
+    .stage b { color: var(--blue); font-size: 12px; }
+    .stage strong { display: block; margin-top: 7px; font-size: 15px; line-height: 1.35; }
+    .stage p { margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .stage.done { background: var(--green-soft); border-color: #b5dfcb; }
+    .stage.now { background: var(--blue); color: white; border-color: var(--blue); transform: translateY(-5px); }
+    .stage.now b, .stage.now p { color: #dce8ff; }
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr 40px 1fr 40px 1fr;
+      align-items: stretch;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .node { padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--soft); }
+    .node small { display: inline-block; padding: 2px 9px; border-radius: 999px; color: var(--blue); background: var(--blue-soft); font-weight: 800; }
+    .node strong { display: block; margin: 12px 0 5px; font-size: 19px; }
+    .node p { color: var(--muted); font-size: 14px; }
+    .node.ai { background: var(--amber-soft); border-color: #efd18b; }
+    .node.core { background: var(--green-soft); border-color: #b5dfcb; }
+    .arrow { display: grid; place-items: center; color: var(--blue); font-size: 27px; font-weight: 900; }
+    .frame {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .card { padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--soft); }
+    .card b { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 50%; color: white; background: var(--blue); font-size: 13px; }
+    .card h3 { margin-top: 11px; }
+    .card p { color: var(--muted); font-size: 14px; }
+    .boundary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .boundary article { padding: 20px; border-radius: 18px; }
+    .boundary .yes { background: var(--green-soft); border: 1px solid #b5dfcb; }
+    .boundary .no { background: var(--purple-soft); border: 1px solid #d4c4f3; }
+    ul { margin: 9px 0 0; padding-left: 20px; color: var(--muted); }
+    .example {
+      display: grid;
+      grid-template-columns: 1fr 54px 1.4fr;
+      gap: 14px;
+      align-items: center;
+      margin-top: 18px;
+    }
+    .request, .short-frame { padding: 20px; border-radius: 18px; }
+    .request { background: var(--amber-soft); border: 1px solid #efd18b; }
+    .short-frame { background: var(--green-soft); border: 1px solid #b5dfcb; }
+    .short-frame dl { display: grid; grid-template-columns: 92px 1fr; gap: 6px 12px; margin: 10px 0 0; font-size: 14px; }
+    .short-frame dt { color: var(--green); font-weight: 800; }
+    .short-frame dd { margin: 0; color: var(--muted); }
+    .decision { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 18px; }
+    .decision article { padding: 19px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); }
+    .decision span { display: inline-grid; place-items: center; width: 27px; height: 27px; border-radius: 50%; color: white; background: var(--purple); font-size: 12px; font-weight: 800; }
+    .decision strong { display: block; margin-top: 9px; }
+    .decision p { margin-top: 5px; color: var(--muted); font-size: 14px; }
+    .proposal { margin-top: 18px; padding: 18px; border-left: 5px solid var(--blue); border-radius: 12px; background: var(--blue-soft); }
+    .tdd { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 18px; }
+    .tdd article { padding: 17px; border-radius: 15px; background: var(--soft); }
+    .tdd b { color: var(--blue); }
+    .tdd strong { display: block; margin-top: 5px; }
+    .tdd p { margin-top: 5px; color: var(--muted); font-size: 13px; }
+    .approval { color: white; background: linear-gradient(135deg, #17315c, #265aaa); }
+    .approval p { color: #dce8ff; }
+    .approval ol { margin: 17px 0 0; padding-left: 22px; }
+    footer { text-align: center; color: var(--muted); font-size: 13px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .stages { grid-template-columns: repeat(3, 1fr); }
+      .frame, .tdd { grid-template-columns: 1fr 1fr; }
+      .flow { grid-template-columns: 1fr; }
+      .flow .arrow { min-height: 25px; transform: rotate(90deg); }
+    }
+    @media (max-width: 650px) {
+      main { width: min(100% - 18px, 1080px); padding-top: 18px; }
+      header, section { border-radius: 18px; }
+      .answer, .stages, .frame, .boundary, .decision, .tdd, .example { grid-template-columns: 1fr; }
+      .example .arrow { transform: rotate(90deg); }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M3 / NEXT STAGE</p>
+    <h1>次は、ST-02で「今回の成功」を揃えます。</h1>
+    <p class="lead">ST-01で現在の事実は固定できました。ST-02 Define Intentでは、依頼を勝手に膨らませず、今回達成する目的・対象・成功の見方を短く揃えます。</p>
+    <div class="answer">
+      <div><span>現在のマイルストーン</span><strong>M3を継続</strong></div>
+      <div><span>次の実装単位</span><strong>ST-02だけ</strong></div>
+      <div><span>この資料の状態</span><strong>承認済み設計</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>M3は、設計を作る前半工程です。</h2>
+    <p class="intro">新しいM4へ進むのではありません。M3の中を1 Stageずつ進めます。</p>
+    <div class="stages" aria-label="M3のST-00からST-05">
+      <article class="stage done"><b>ST-00</b><strong>Bootstrap</strong><p>実行基盤を確認。完了。</p></article>
+      <article class="stage done"><b>ST-01</b><strong>Orient</strong><p>現在の事実を固定。完了。</p></article>
+      <article class="stage now"><b>ST-02</b><strong>Define Intent</strong><p>今回の成功を揃える。</p></article>
+      <article class="stage"><b>ST-03</b><strong>Requirements</strong><p>要求と制約を詳しくする。</p></article>
+      <article class="stage"><b>ST-04</b><strong>Architecture</strong><p>将来の構成を決める。</p></article>
+      <article class="stage"><b>ST-05</b><strong>Build Contract</strong><p>実装の合格条件を作る。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>ST-02は、依頼を「作業の枠」にします。</h2>
+    <p class="intro">詳細要求や設計を作るStageではありません。まず話の範囲を揃えます。</p>
+    <div class="flow" role="img" aria-label="Design BriefとCurrent ContextからAIがIntent Definition候補を作りCoreが検査する流れ">
+      <article class="node"><small>入力</small><strong>依頼＋現在の事実</strong><p>Design Brief、Current Context、固定System Map revision、Effective Policy。</p></article>
+      <div class="arrow">→</div>
+      <article class="node ai"><small>AI</small><strong>定義候補を作る</strong><p>目的、対象、成功の見方、対象外、未知事項を短く整理します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node core"><small>CORE</small><strong>検査して固定する</strong><p>根拠、矛盾、勝手な範囲拡張を検査し、固定GraphでST-03へ進みます。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>整理するのは、6つです。</h2>
+    <div class="frame">
+      <article class="card"><b>1</b><h3>目的</h3><p>なぜ今回の変更が必要なのか。</p></article>
+      <article class="card"><b>2</b><h3>期待する結果</h3><p>終わったとき、何が良くなるのか。</p></article>
+      <article class="card"><b>3</b><h3>対象</h3><p>今回触る機能・利用者・範囲。</p></article>
+      <article class="card"><b>4</b><h3>対象外</h3><p>今回は変えないもの。</p></article>
+      <article class="card"><b>5</b><h3>成功の見方</h3><p>人間が成功を確認できる短い基準。</p></article>
+      <article class="card"><b>6</b><h3>未知事項</h3><p>ST-03で調べること、人間へ聞くこと。</p></article>
+    </div>
+    <div class="proposal"><strong>保存仕様:</strong> Intent配下の<code>artifacts/intent-definition.json</code>を正本にし、Design BriefとST-01 Current Contextのpath・SHA-256を固定参照します。標準ではHTMLを生成しません。</div>
+  </section>
+
+  <section>
+    <h2>ST-02で、詳しい設計はしません。</h2>
+    <div class="boundary">
+      <article class="yes"><h3>ST-02で決める</h3><ul><li>今回の目的</li><li>対象と対象外</li><li>成功の見方</li><li>次に調べる未知事項</li></ul></article>
+      <article class="no"><h3>後のStageで決める</h3><ul><li>詳しい機能要求・NFRはST-03</li><li>将来ArchitectureはST-04</li><li>実装順とBolt PlanはST-05</li><li>コード変更はST-06</li></ul></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>小さな変更は、短く通過できます。</h2>
+    <p class="intro">文字をAからBへ変えるだけなら、長い資料や不要な質問は作りません。</p>
+    <div class="example">
+      <div class="request"><h3>依頼</h3><p>「ログイン画面の『送信』を『ログイン』へ変えて」</p></div>
+      <div class="arrow">→</div>
+      <div class="short-frame"><h3>短いIntent Definition</h3><dl><dt>目的</dt><dd>操作の意味を分かりやすくする</dd><dt>対象</dt><dd>ログイン画面のボタン表示</dd><dt>対象外</dt><dd>認証処理と画面構成</dd><dt>成功</dt><dd>表示が「ログイン」になり、既存動作が変わらない</dd></dl></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>人間へ聞くのは、価値判断が必要なときです。</h2>
+    <div class="boundary">
+      <article class="yes"><h3>AIとCoreだけで進める例</h3><ul><li>依頼と現状が一致している</li><li>対象が一意に分かる</li><li>成功の見方を依頼から導ける</li><li>未知事項をST-03へ安全に渡せる</li></ul></article>
+      <article class="no"><h3>人間へ確認する例</h3><ul><li>目的が二つに解釈できる</li><li>どの利用者を優先するか不明</li><li>対象外にすると期待と食い違う</li><li>成功の意味が価値判断になる</li></ul></article>
+    </div>
+    <div class="proposal">提案方針: ST-02に毎回の人間Approvalは置きません。判断できない価値の問題がある場合だけ停止します。</div>
+  </section>
+
+  <section>
+    <h2>AI-DLC vNextの実装仕様として、4点を固定します。</h2>
+    <p class="intro">これはAI-DLCを利用するたびに人間へ設定を求める4項目ではありません。今回、Runtimeが守る内部ルールとして決める内容です。</p>
+    <div class="decision">
+      <article><span>1</span><strong>定義の項目</strong><p>目的、期待結果、対象、対象外、成功の見方、未知事項で構成する。</p></article>
+      <article><span>2</span><strong>人間確認の境界</strong><p>毎回承認ではなく、価値判断・矛盾・範囲不明の場合だけ止めるか。</p></article>
+      <article><span>3</span><strong>Stage disposition</strong><p>ST-02は全Intentで必要とし、<code>execute</code>または根拠付き<code>reuse</code>だけにするか。</p></article>
+      <article><span>4</span><strong>正本と固定参照</strong><p>Intent配下のJSONを正本にし、Design BriefとCurrent ContextのSHA-256を固定するか。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>承認済みの範囲を、TDDでST-02だけ実装します。</h2>
+    <div class="tdd">
+      <article><b>RED</b><strong>失敗する契約テスト</strong><p>勝手な範囲拡張、未知field、AIの遷移指定を拒否。</p></article>
+      <article><b>GREEN</b><strong>Contractとvalidator</strong><p>Intent Definition Proposalと正本Artifactを厳格に検査。</p></article>
+      <article><b>CORE</b><strong>保存と固定遷移</strong><p>合格時だけJSONを保存してST-03へ進む。</p></article>
+      <article><b>VERIFY</b><strong>回帰とsandbox</strong><p>resume、Doctor、Codex、native配布を確認。</p></article>
+    </div>
+  </section>
+
+  <section class="approval">
+    <h2>この設計は承認済みです。</h2>
+    <p>名称は、既存のIntent記録と混同しないようStageを「Define Intent」、成果物を「Intent Definition」としました。実装と試験結果は別の結果HTMLに記録します。</p>
+    <ol><li>6項目のIntent Definition</li><li>例外時だけ人間へ確認</li><li>ST-02はexecute／reuseのみ</li><li>Intent配下JSONと入力SHA-256固定</li></ol>
+  </section>
+
+  <footer>AI-DLC vNext / M3 / ST-02 Define Intent approved plan / 2026-08-24</footer>
+</main>
+</body>
+</html>

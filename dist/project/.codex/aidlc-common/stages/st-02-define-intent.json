@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "stage_id": "ST-02",
+  "name": "Define Intent",
+  "purpose": "Turn the Design Brief and the pinned current facts into a bounded, testable definition of what this Intent must achieve without performing requirements, architecture, or build planning work.",
+  "inputs": [
+    { "artifact": "design-brief", "required": true },
+    { "artifact": "current-context", "required": true },
+    { "artifact": "effective-policy", "required": true }
+  ],
+  "outputs": ["intent-definition"],
+  "completion_criteria": [
+    "The Intent purpose, expected outcomes, in-scope work, out-of-scope work, success signals, and known unknowns are explicit and internally consistent.",
+    "The canonical Intent Definition pins the Design Brief and ST-01 Current Context by project-relative path and SHA-256.",
+    "The definition contains no route instruction, architecture choice, requirements detail, implementation plan, secret-bearing field, or unverified Core authority.",
+    "Core records ST-02 completion and advances only through the fixed ST-02 to ST-03 Graph edge."
+  ],
+  "stop_conditions": [
+    "The Design Brief, Current Context, Effective Policy, Work Request, Plan, or Core State is missing, malformed, tampered, or inconsistent.",
+    "The proposed scope overlaps its exclusions, required outcomes or success signals are empty, or the proposal expands into a later Stage.",
+    "A value judgment, priority choice, or ambiguity cannot be resolved from the supplied human request and pinned current facts.",
+    "Core cannot acquire the Workspace lock or persist canonical JSON, Audit, and State records."
+  ],
+  "human_decisions": ["value_judgment", "exception"],
+  "verifiers": ["intent-definition-validator"]
+}

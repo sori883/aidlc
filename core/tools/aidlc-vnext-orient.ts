@@ -832,7 +832,7 @@ function completeOrientLocked(
     ...state,
     current_stage: "ST-02",
     status: "parked",
-    parked_reason: "ST-02 Stage Contract is not implemented yet.",
+    parked_reason: "ST-02 Define Intent is ready for Core preparation.",
     updated_at: completedAt,
   };
   writeVNextStateAt(recordDir, advanced, plan);

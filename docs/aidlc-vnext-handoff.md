@@ -5,7 +5,8 @@
 AI-DLC vNextの検討を別のエージェントへ引き継ぐ。
 
 現時点では、vNextの思想、全体フロー、固定10 StageのID、名前、Graph、共通Contract、
-Core Route、ST-00 Bootstrap、ST-01 Orientが実装済みである。ST-02〜ST-09の詳細設計は完成していない。
+Core Route、ST-00 Bootstrap、ST-01 Orient、ST-02 Define Intentが実装済みである。
+ST-03〜ST-09の詳細設計は完成していない。
 マイルストーンや可視化に書かれた短い説明を未設計Stageの本文として実装してはならない。
 
 各Stageの目的、入力、出力、完了条件、AIの停止条件、人間の判断境界を、
@@ -36,12 +37,12 @@ Core Route、ST-00 Bootstrap、ST-01 Orientが実装済みである。ST-02〜ST
 | Branch | `codex/aidlc-vnext` |
 | Base | `origin/main` |
 | Base commit | `cb4f0db61fca711c3b49251370568f3013148f41` |
-| 実装状況 | M0、M1、M2完了。M3のST-00 BootstrapとST-01 Orient完了 |
-| 次の作業 | M3のST-02 Frame Intentを詳細設計し、承認後に1 Stageだけ実装する |
+| 実装状況 | M0、M1、M2完了。M3のST-00 Bootstrap、ST-01 Orient、ST-02 Define Intent完了 |
+| 次の作業 | M3のST-03 Requirements & Constraintsを詳細設計し、承認後に1 Stageだけ実装する |
 
-M0〜M2はcommit `c9e259a`、ST-00はcommit `714d5bb`として
-`origin/codex/aidlc-vnext`へpush済みである。
-作業ツリーにはST-01の実装、test、文書、生成配布物と、ユーザー所有の`.vscode/`、
+M0〜M2はcommit `c9e259a`、ST-00はcommit `714d5bb`、ST-01はcommit `5a0ee9c`として
+`origin/codex/aidlc-vnext`へpush済みである。ST-02はこの文書を含む最新commitで実装済みである。
+作業ツリーにはユーザー所有の`.vscode/`、生成確認用`dist/codex/`、
 `docs/aidlc-vnext-visual-guide.html`がある。一括削除や無関係な上書きをしないこと。
 
 M1では、固定10 Stage ID、共通Stage Contract、Artifact Reference、AI Proposal、
@@ -59,6 +60,13 @@ System Map PatchとCurrent Context候補だけを提案する。Coreはschema、
 ID、relation、Evidence path／SHA-256、Repository境界、accepted baseline、base revisionを
 検証し、合格時だけ共有CodeKBのimmutable System Map revision、`baseline.json`、Intent配下の
 `current-context.json`を保存して固定GraphでST-02へ進む。System Map HTMLは標準生成しない。
+
+ST-02 Define Intentも二段階で動く。CoreがDesign Brief、Current Context、Effective Policyの
+pathとSHA-256を固定した`define-intent-work-request.json`を作り、AIは目的、期待結果、対象、
+対象外、成功の見方、未知事項だけを`intent-definition-proposal`として提案する。Coreは
+未知field、秘密情報、範囲重複、入力hash、後続Stageの設計・遷移指定を拒否し、合格時だけ
+Intent配下へcanonical `intent-definition.json`を保存して固定GraphでST-03へ進む。
+標準HTMLは生成しない。価値判断が未解決ならAIが提案前に人間へ確認し、AIはRouteを選ばない。
 
 承認済みM0として`bun run release:check`を実行し、
 version、typecheck、32 Stage Graph、46文書のRuntime Contract、45ファイル243 testが
@@ -85,6 +93,14 @@ Current Context contract、厳格validator、immutable revision、resume／Docto
 native配布を実装した。`bun run release:check`は25ファイル117 testがすべて成功した。
 指定サンドボックスでは新しい試験Intentで
 `ST-00 advanced → ST-01 work → Doctor healthy`を確認し、最後に元のactive Intentへ戻した。
+
+承認済みST-02としてTDDを実施した。未実装moduleと中断復旧failureのREDから始め、
+ST-02 Contract、Define Intent Work Request、Intent Definition Proposal／正本contract、
+厳格validator、固定ST-03遷移、resume／Doctor検証、中断後の冪等再開、Codex／native配布を
+実装した。`bun run release:check`は26ファイル125 testがすべて成功した。
+指定サンドボックスへ生成済みCodex bundleを配置し、`intent-definition.json`だけが保存され、
+`ST-03 parked → Doctor healthy`となることを確認した。active Intentは試験用ST-03のままでよいと
+ユーザーから許可されている。
 
 ## 4. 参照資料
 
@@ -121,6 +137,10 @@ native配布を実装した。`bun run release:check`は25ファイル117 test�
   - 承認済みST-01詳細設計。累積観測Map、CodeKB配置、固定Current Context、JSON-only方針
 - `docs/aidlc-vnext-st01-result.html`
   - ST-01実装、validator、保存先、試験結果の初心者向け図解
+- `docs/aidlc-vnext-st02-plan.html`
+  - 承認済みST-02詳細設計。Define Intentの責務、人間確認境界、JSON-only方針
+- `docs/aidlc-vnext-st02-result.html`
+  - ST-02実装、厳格validator、固定遷移、中断復旧、試験結果の初心者向け図解
 - `docs/aidlc-vnext-visual-guide.html`
   - 未追跡ファイル。所有者とcommit可否を確認するまで変更しない
 - `docs/aidlc-v2-harness-architecture.md`
@@ -136,8 +156,11 @@ native配布を実装した。`bun run release:check`は25ファイル117 test�
 - `core/tools/aidlc-vnext-bootstrap.ts`
 - `core/tools/aidlc-vnext-orient-contract.ts`
 - `core/tools/aidlc-vnext-orient.ts`
+- `core/tools/aidlc-vnext-define-intent-contract.ts`
+- `core/tools/aidlc-vnext-define-intent.ts`
 - `core/aidlc-common/stages/st-00-bootstrap.json`
 - `core/aidlc-common/stages/st-01-orient.json`
+- `core/aidlc-common/stages/st-02-define-intent.json`
 - `harness/codex/skills/aidlc/SKILL.md`
 
 ### リポジトリ外の設計可視化
@@ -163,7 +186,7 @@ native配布を実装した。`bun run release:check`は25ファイル117 test�
 
 - ST-00 Bootstrap
 - ST-01 Orient
-- ST-02 Frame Intent
+- ST-02 Define Intent
 - ST-03 Requirements & Constraints
 - ST-04 Architecture Decision
 - ST-05 Build Contract
@@ -245,7 +268,7 @@ AIが情報を持っていないことではなく、価値判断、権限、不
 
 次はまだ確定していない。該当マイルストーンの実装前に、ユーザーと決めること。
 
-1. ST-02〜ST-09の責務境界と、隣接Stageへ渡すArtifact
+1. ST-03〜ST-09の責務境界と、隣接Stageへ渡すArtifact
 2. Design BriefとDesign Contractの必須項目
 3. Co-Design完了時の「確認」と「Approval」の意味
 4. AI内部loopの評価器、改善停滞、試行回数、時間、費用の停止条件
@@ -275,26 +298,26 @@ Stageごとに、最低限次をユーザーと確認する。名前と一行説
 
 1. ルート`AGENTS.md`を読み、実装前承認とBun／TypeScript要件に従う
 2. `work/`はユーザーの明示指示がない限り読まない
-3. マイルストーンを完成仕様として扱わず、次にST-02の詳細設計計画を提示する
+3. マイルストーンを完成仕様として扱わず、次にST-03の詳細設計計画を提示する
 4. 一度に10 Stageを設計せず、一つのStageまたは一つの横断Contractずつ進める
-5. M1共通Contract、M2 Core Route、ST-00 Bootstrap、ST-01 Orientを前提にし、ST-02から順に目的、入出力、
+5. M1共通Contract、M2 Core Route、ST-00 Bootstrap、ST-01 Orient、ST-02 Define Intentを前提にし、ST-03から順に目的、入出力、
    完了条件、人間境界をユーザーと確定する
 7. 各設計を`docs/`へ保存し、ユーザーの明示的承認後にTypeScript実装へ進む
 8. 実装中もStageごとに結果とtestを説明する
 
 ## 9. 次に提案する設計セッション
 
-次のエージェントは、いきなりST-02の実装を始めないこと。まず次をユーザーへ提示する。
+次のエージェントは、いきなりST-03の実装を始めないこと。まず次をユーザーへ提示する。
 
-**テーマ: ST-02 Frame Intentの詳細設計**
+**テーマ: ST-03 Requirements & Constraintsの詳細設計**
 
-- ST-01のCurrent Contextと固定System Map revisionから何を受け取るか
-- Design Briefを目的、対象、成功条件へどう具体化するか
-- 小さな変更を重くせず、曖昧な依頼だけを人間へ確認する境界
-- ST-03へ渡すFrame Intent Artifactと完了条件
+- ST-02のIntent Definitionと固定入力参照から何を受け取るか
+- 機能要求、非機能要求、制約、受入条件候補、未確定事項をどう分けるか
+- 小さな変更を重くせず、必要な要求だけを短く確定する境界
+- ST-04へ渡すRequirements Artifactと完了条件
 - 推測せず人間へ確認する条件
 - State／Audit EventとCodex表示
 - unit、contract、resume、failure、E2E test
 
-設計を初心者向けHTMLで説明し、ユーザーの明示的承認後にST-02だけを実装する。
+設計を初心者向けHTMLで説明し、ユーザーの明示的承認後にST-03だけを実装する。
 AIは行き先を決めず、M2の固定GraphとCore Directiveを使う。

@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-DLC vNext｜ST-02 Define Intent 実装結果</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #617087;
+      --line: #dce4ef;
+      --paper: #fff;
+      --soft: #f5f8fc;
+      --blue: #2563eb;
+      --blue-soft: #eaf1ff;
+      --green: #147a55;
+      --green-soft: #e5f7ee;
+      --amber: #956006;
+      --amber-soft: #fff4d8;
+      --purple: #7048b8;
+      --purple-soft: #f1ebff;
+      --red-soft: #fff0ee;
+      --shadow: 0 18px 46px rgba(30, 48, 78, .09);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: linear-gradient(180deg, #eef5ff 0, #f8fafc 430px, #f8fafc 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+      line-height: 1.72;
+    }
+    main { width: min(1080px, calc(100% - 32px)); margin: auto; padding: 40px 0 74px; }
+    header, section {
+      margin-bottom: 24px;
+      padding: clamp(22px, 4vw, 42px);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: rgba(255, 255, 255, .98);
+      box-shadow: var(--shadow);
+    }
+    .eyebrow { margin: 0 0 8px; color: var(--blue); font-size: 13px; font-weight: 900; letter-spacing: .12em; }
+    h1 { margin: 0; font-size: clamp(31px, 5vw, 54px); line-height: 1.18; letter-spacing: -.03em; }
+    h2 { margin: 0 0 8px; font-size: clamp(23px, 3vw, 34px); line-height: 1.35; }
+    h3 { margin: 0 0 6px; font-size: 17px; }
+    p { margin: 0; }
+    .lead { max-width: 840px; margin-top: 17px; color: var(--muted); font-size: 18px; }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; margin-top: 26px; }
+    .metric { padding: 18px; border-radius: 16px; background: var(--soft); }
+    .metric span { display: block; color: var(--muted); font-size: 12px; font-weight: 800; }
+    .metric strong { display: block; margin-top: 4px; font-size: 20px; }
+    .success { color: var(--green); }
+    .intro { margin-bottom: 19px; color: var(--muted); }
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr 36px 1fr 36px 1fr 36px 1fr;
+      align-items: stretch;
+      gap: 8px;
+      margin-top: 20px;
+    }
+    .node { padding: 18px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); }
+    .node small { color: var(--blue); font-weight: 900; }
+    .node strong { display: block; margin: 9px 0 4px; font-size: 17px; }
+    .node p { color: var(--muted); font-size: 13px; }
+    .node.ai { background: var(--amber-soft); border-color: #edd18d; }
+    .node.core { background: var(--green-soft); border-color: #b7dfcc; }
+    .node.next { color: white; background: var(--blue); border-color: var(--blue); }
+    .node.next small, .node.next p { color: #dce8ff; }
+    .arrow { display: grid; place-items: center; color: var(--blue); font-size: 24px; font-weight: 900; }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+    .card { padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--soft); }
+    .card b { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: white; background: var(--blue); font-size: 13px; }
+    .card h3 { margin-top: 10px; }
+    .card p { color: var(--muted); font-size: 14px; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+    .panel { padding: 21px; border-radius: 18px; }
+    .panel.ai { background: var(--amber-soft); border: 1px solid #edd18d; }
+    .panel.core { background: var(--green-soft); border: 1px solid #b7dfcc; }
+    .panel.stop { background: var(--red-soft); border: 1px solid #efc4bd; }
+    .panel.next { background: var(--purple-soft); border: 1px solid #d4c5f0; }
+    ul { margin: 9px 0 0; padding-left: 20px; color: var(--muted); }
+    .rules { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 18px; }
+    .rule { padding: 19px; border-left: 5px solid var(--blue); border-radius: 13px; background: var(--blue-soft); }
+    .rule strong { display: block; }
+    .rule p { margin-top: 4px; color: var(--muted); font-size: 14px; }
+    .filebox { margin-top: 18px; padding: 20px; border-radius: 16px; background: #172033; color: #edf3ff; }
+    .filebox code { display: block; overflow-wrap: anywhere; color: #bcd1ff; }
+    .checks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+    .check { padding: 19px; border: 1px solid #b7dfcc; border-radius: 17px; background: var(--green-soft); }
+    .check span { color: var(--green); font-size: 12px; font-weight: 900; }
+    .check strong { display: block; margin-top: 5px; }
+    .check p { margin-top: 4px; color: var(--muted); font-size: 14px; }
+    .next-step { color: white; background: linear-gradient(135deg, #17315c, #285eae); }
+    .next-step p { color: #dce8ff; }
+    .next-step .flow { grid-template-columns: 1fr 40px 1fr; }
+    .next-step .node { color: var(--ink); background: white; }
+    footer { text-align: center; color: var(--muted); font-size: 13px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .metrics, .cards, .checks { grid-template-columns: repeat(2, 1fr); }
+      .flow { grid-template-columns: 1fr; }
+      .arrow { min-height: 22px; transform: rotate(90deg); }
+    }
+    @media (max-width: 650px) {
+      main { width: min(100% - 18px, 1080px); padding-top: 18px; }
+      header, section { border-radius: 18px; }
+      .metrics, .cards, .split, .rules, .checks { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M3 / ST-02 RESULT</p>
+    <h1>「何を成功にするか」を、安全に固定できました。</h1>
+    <p class="lead">ST-02 Define Intentを実装しました。AIは内容を提案できます。保存と次のStageはCoreだけが決めます。</p>
+    <div class="metrics">
+      <div class="metric"><span>実装Stage</span><strong>ST-02だけ</strong></div>
+      <div class="metric"><span>全体試験</span><strong class="success">125 / 125</strong></div>
+      <div class="metric"><span>試験プロジェクト</span><strong class="success">Doctor healthy</strong></div>
+      <div class="metric"><span>次の固定Stage</span><strong>ST-03</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>名前は「Define Intent」にしました。</h2>
+    <p class="intro">単に「Intent」とすると、すでに存在する依頼の記録と区別しにくいためです。</p>
+    <div class="split">
+      <article class="panel ai"><h3>Stageの名前</h3><p><strong>Define Intent</strong><br>依頼の目的と成功を定義する動作です。</p></article>
+      <article class="panel core"><h3>保存する成果物</h3><p><strong>Intent Definition</strong><br>定義した内容そのものです。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>実際の流れは、4手です。</h2>
+    <div class="flow" role="img" aria-label="Coreが入力を固定しAIが提案しCoreが検査保存してST-03へ進む流れ">
+      <article class="node core"><small>1 / CORE</small><strong>入力を固定</strong><p>依頼、現在の事実、PolicyのpathとSHA-256を固定します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node ai"><small>2 / AI</small><strong>内容を提案</strong><p>目的、対象、成功の見方など6項目だけを提案します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node core"><small>3 / CORE</small><strong>検査して保存</strong><p>不正なfield、矛盾、改ざんを拒否し、JSONを保存します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node next"><small>4 / FIXED GRAPH</small><strong>ST-03へ進む</strong><p>AIが行き先を指定することはできません。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>保存する内容は、6項目です。</h2>
+    <div class="cards">
+      <article class="card"><b>1</b><h3>目的</h3><p>なぜ今回の変更を行うか。</p></article>
+      <article class="card"><b>2</b><h3>期待する結果</h3><p>終わると何が良くなるか。</p></article>
+      <article class="card"><b>3</b><h3>対象</h3><p>今回扱う範囲。</p></article>
+      <article class="card"><b>4</b><h3>対象外</h3><p>今回は変えない範囲。</p></article>
+      <article class="card"><b>5</b><h3>成功の見方</h3><p>成功を確認する短い基準。</p></article>
+      <article class="card"><b>6</b><h3>未知事項</h3><p>次のStageで詳しくすること。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>4点は、利用者向け設定ではありません。</h2>
+    <p class="intro">AI-DLC vNextを作る今回の実装で、Runtimeが守る規則として固定しました。</p>
+    <div class="rules">
+      <article class="rule"><strong>1. 項目を固定</strong><p>上の6項目以外を勝手に混ぜません。</p></article>
+      <article class="rule"><strong>2. 人間確認を限定</strong><p>価値判断や優先順位が不明なときだけ、提案前に止まります。</p></article>
+      <article class="rule"><strong>3. 省略させない</strong><p>すべてのIntentに短い定義が必要です。小さな変更は短文で通れます。</p></article>
+      <article class="rule"><strong>4. 根拠を固定</strong><p>Design Brief、Current Context、Effective PolicyのSHA-256を保存します。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>AIとCoreの権限を分けました。</h2>
+    <div class="split">
+      <article class="panel ai"><h3>AIができること</h3><ul><li>6項目の候補を作る</li><li>小さな変更を短く表す</li><li>価値判断が必要なら人間へ聞く</li></ul></article>
+      <article class="panel core"><h3>Coreだけができること</h3><ul><li>入力の正本とhashを固定する</li><li>提案を厳格に検査する</li><li>正本JSONとAuditを保存する</li><li>固定GraphでST-03へ進める</li></ul></article>
+      <article class="panel stop"><h3>拒否するもの</h3><ul><li>AIによる次Stageの指定</li><li>未知fieldと秘密情報field</li><li>対象と対象外の重複</li><li>ST-04の構成やST-05の実装計画</li></ul></article>
+      <article class="panel next"><h3>中断にも対応</h3><ul><li>JSON保存後に停止しても再開可能</li><li>同じ正本を上書きしない</li><li>改ざん時はresumeとDoctorが停止</li></ul></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>標準成果物はJSONだけです。</h2>
+    <p class="intro">人間が見たいと指示したときだけ、別途HTMLを作ります。</p>
+    <div class="filebox">
+      <code>aidlc/spaces/&lt;space&gt;/intents/&lt;intent&gt;/artifacts/define-intent-work-request.json</code>
+      <code>aidlc/spaces/&lt;space&gt;/intents/&lt;intent&gt;/artifacts/intent-definition.json</code>
+    </div>
+  </section>
+
+  <section>
+    <h2>TDDと実プロジェクトで確認しました。</h2>
+    <div class="checks">
+      <article class="check"><span>RED → GREEN</span><strong>ST-02専用 8件</strong><p>厳格schema、固定遷移、改ざん、中断復旧を確認しました。</p></article>
+      <article class="check"><span>REGRESSION</span><strong>全体 125件</strong><p>26 testファイルが成功し、失敗は0件でした。</p></article>
+      <article class="check"><span>SANDBOX</span><strong>ST-03 parked</strong><p>指定のテスト3でJSON保存、Doctor healthy、HTMLなしを確認しました。</p></article>
+    </div>
+    <div class="filebox">
+      <code>/Users/const/sori883/ai-dlc-cycle/07.ai-dlc-make-test3/aidlc/spaces/default/intents/260824-st01-sandbox-verificatio/artifacts/intent-definition.json</code>
+    </div>
+  </section>
+
+  <section class="next-step">
+    <h2>次は、ST-03の設計です。</h2>
+    <p>ST-02は「何を成功にするか」を短く固定しました。ST-03では、その成功に必要な要求と制約を具体化します。実装は、設計HTMLを確認して承認いただいた後です。</p>
+    <div class="flow" role="img" aria-label="ST-02のIntent DefinitionをST-03の要求と制約へ渡す流れ">
+      <article class="node"><small>完了</small><strong>ST-02 Intent Definition</strong><p>目的、範囲、成功の見方。</p></article>
+      <div class="arrow">→</div>
+      <article class="node"><small>次の設計</small><strong>ST-03 Requirements &amp; Constraints</strong><p>必要な動き、守る条件、未確定事項。</p></article>
+    </div>
+  </section>
+
+  <footer>AI-DLC vNext / M3 / ST-02 Define Intent result / 2026-08-24</footer>
+</main>
+</body>
+</html>

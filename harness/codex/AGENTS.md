@@ -7,5 +7,5 @@ Audit. Never edit their JSON or Markdown files directly. AI may propose
 `execute`, `reuse`, or `not_applicable`; it may not propose a destination Stage
 or claim Core authority.
 
-M2 ships only the Stage shells and routes. When `aidlc next` returns `parked`,
-stop. Do not invent the Stage body; it will be introduced from M3 onward.
+ST-00 through ST-02 have implemented Stage Contracts. When `aidlc next` returns
+`parked` for a later Stage, stop. Do not invent an unimplemented Stage body.

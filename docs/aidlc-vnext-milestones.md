@@ -16,7 +16,7 @@ vNextとして再定義する。完成形ではv2 Workflowを残さず、vNext�
 - vNextは次の10 Stageで構成する
   - ST-00 Bootstrap
   - ST-01 Orient
-  - ST-02 Frame Intent
+  - ST-02 Define Intent
   - ST-03 Requirements & Constraints
   - ST-04 Architecture Decision
   - ST-05 Build Contract
@@ -169,7 +169,8 @@ vNextの10 Stage、遷移、Stage disposition、Effective Policyを
 
 - ST-00 Bootstrapは詳細設計、TDD実装、Codex／native配布、Sandbox検証まで完了
 - ST-01 Orientは詳細設計、TDD実装、Codex／native配布、Sandbox検証まで完了
-- 次はST-02 Frame Intentを詳細設計し、明示的承認後にST-02だけを実装する
+- ST-02 Define Intentは詳細設計が承認され、TDD実装と配布・回帰検証を実施した
+- 次はST-03 Requirements & Constraintsを詳細設計し、明示的承認後にST-03だけを実装する
 
 **目的**
 
@@ -351,9 +352,9 @@ M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7
 
 ## 8. 次に着手する作業
 
-M3のST-02として、次の順に進める。
+M3のST-03として、次の順に進める。
 
-1. ST-01のCurrent ContextとSystem Map固定revisionを入力として確認する
-2. Frame Intentの目的、対象、成功条件、未知事項、人間確認境界を詳細設計する
-3. 初心者向けHTMLでST-02の処理と非対象をレビュー可能にする
-4. 明示的承認後にST-02だけをTDD実装する
+1. ST-02のIntent Definitionと固定済み入力参照を確認する
+2. 機能要求、非機能要求、制約、未確定事項の責務境界を詳細設計する
+3. 初心者向けHTMLでST-03の処理と非対象をレビュー可能にする
+4. 明示的承認後にST-03だけをTDD実装する

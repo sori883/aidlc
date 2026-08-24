@@ -4,7 +4,7 @@
   "stages": [
     { "stage_id": "ST-00", "name": "Bootstrap" },
     { "stage_id": "ST-01", "name": "Orient" },
-    { "stage_id": "ST-02", "name": "Frame Intent" },
+    { "stage_id": "ST-02", "name": "Define Intent" },
     { "stage_id": "ST-03", "name": "Requirements & Constraints" },
     { "stage_id": "ST-04", "name": "Architecture Decision" },
     { "stage_id": "ST-05", "name": "Build Contract" },

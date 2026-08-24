@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -18,6 +18,11 @@ import {
   type VNextStageId,
 } from "./aidlc-stage-contract.ts";
 import { verifyProjectArtifactReference } from "./aidlc-effective-policy.ts";
+import { readOrderedAuditEntries } from "./aidlc-audit.ts";
+import {
+  parseDefineIntentWorkRequest,
+  parseIntentDefinition,
+} from "./aidlc-vnext-define-intent-contract.ts";
 import {
   parseCurrentContext,
   parseOrientWorkRequest,
@@ -354,6 +359,7 @@ export function validateVNextIntentAt(projectDir: string, recordDir: string): vo
   }
   verifyProjectArtifactReference(projectDir, state.policy_snapshot);
   validateOrientArtifactsAt(projectDir, recordDir, state);
+  validateDefineIntentArtifactsAt(projectDir, recordDir, state);
 }
 
 function readJsonArtifact(path: string, context: string): unknown {
@@ -449,6 +455,72 @@ export function validateOrientArtifactsAt(
     sha256: baseline.sha256,
   });
   verifyProjectArtifactReference(projectDir, baselineReference);
+}
+
+/** Verify ST-02 inputs and its canonical Intent Definition after completion. */
+export function validateDefineIntentArtifactsAt(
+  projectDir: string,
+  recordDir: string,
+  stateValue?: VNextIntentState,
+): void {
+  const state = stateValue ?? readVNextStateAt(recordDir);
+  const stageIndex = VNEXT_STAGE_IDS.indexOf(state.current_stage);
+  if (stageIndex < VNEXT_STAGE_IDS.indexOf("ST-02")) return;
+  const artifactsDir = join(resolve(recordDir), "artifacts");
+  const requestPath = join(artifactsDir, "define-intent-work-request.json");
+  const definitionPath = join(artifactsDir, "intent-definition.json");
+  const hasRequest = existsSync(requestPath);
+  if (hasRequest) {
+    const request = parseDefineIntentWorkRequest(
+      readJsonArtifact(requestPath, "ST-02 Define Intent"),
+      requestPath,
+    );
+    if (request.intent_id !== state.intent_id) {
+      fail("ST-02 Define Intent", "Work Request Intent does not match State");
+    }
+    for (const reference of [
+      request.design_brief_ref,
+      request.current_context_ref,
+      request.effective_policy_ref,
+    ]) verifyProjectArtifactReference(projectDir, reference);
+  }
+  if (stageIndex < VNEXT_STAGE_IDS.indexOf("ST-03")) return;
+  if (!hasRequest || !existsSync(definitionPath)) {
+    fail("ST-02 Define Intent", "Work Request and Intent Definition are required after ST-02 completion");
+  }
+  const content = readFileSync(definitionPath, "utf8");
+  const definition = parseIntentDefinition(
+    readJsonArtifact(definitionPath, "ST-02 Define Intent"),
+    definitionPath,
+  );
+  if (content !== `${JSON.stringify(definition, null, 2)}\n`) {
+    fail("ST-02 Define Intent", "Intent Definition is not canonical");
+  }
+  if (definition.intent_id !== state.intent_id) {
+    fail("ST-02 Define Intent", "Intent Definition Intent does not match State");
+  }
+  for (const reference of [
+    definition.design_brief_ref,
+    definition.current_context_ref,
+    definition.effective_policy_ref,
+  ]) verifyProjectArtifactReference(projectDir, reference);
+  const request = parseDefineIntentWorkRequest(
+    readJsonArtifact(requestPath, "ST-02 Define Intent"),
+    requestPath,
+  );
+  if (
+    JSON.stringify(definition.design_brief_ref) !== JSON.stringify(request.design_brief_ref) ||
+    JSON.stringify(definition.current_context_ref) !== JSON.stringify(request.current_context_ref) ||
+    JSON.stringify(definition.effective_policy_ref) !== JSON.stringify(request.effective_policy_ref)
+  ) fail("ST-02 Define Intent", "Intent Definition inputs do not match its Work Request");
+  const recordedDigest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
+  const completed = readOrderedAuditEntries(recordDir).some((entry) =>
+    entry.event === "STAGE_COMPLETED" && entry.fields.Stage === "ST-02" &&
+    entry.fields["Intent Definition SHA-256"] === recordedDigest
+  );
+  if (!completed) {
+    fail("ST-02 Define Intent", "Audit does not pin the canonical Intent Definition SHA-256");
+  }
 }
 
 export function resumeVNextIntent(projectDir: string): {

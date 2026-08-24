@@ -69,6 +69,8 @@ const ACTIVE_TOOL_FILES = [
   "aidlc-core-route.ts",
   "aidlc-effective-policy.ts",
   "aidlc-vnext-bootstrap.ts",
+  "aidlc-vnext-define-intent-contract.ts",
+  "aidlc-vnext-define-intent.ts",
   "aidlc-vnext-orient-contract.ts",
   "aidlc-vnext-orient.ts",
   "aidlc-vnext-state.ts",
