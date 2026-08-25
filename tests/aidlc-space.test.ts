@@ -17,7 +17,7 @@ import {
   initializeWorkspace,
 } from "../core/tools/aidlc-workspace.ts";
 
-test("creates a vNext Space with only the three policy Memory layers", () => {
+test("creates a vNext Space with Markdown and machine Policy Memory layers", () => {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-space-"));
   initializeWorkspace(projectDir);
   const result = createSpace(projectDir, "Team A");
@@ -31,6 +31,19 @@ test("creates a vNext Space with only the three policy Memory layers", () => {
       "utf8",
     ),
   );
+  assert.equal(
+    readFileSync(join(result.spaceDir, "memory", "org-policy.json"), "utf8"),
+    readFileSync(
+      join(projectDir, "aidlc", "spaces", "default", "memory", "org-policy.json"),
+      "utf8",
+    ),
+  );
+  for (const filename of ["team-policy.json", "project-policy.json"]) {
+    assert.equal(
+      readFileSync(join(result.spaceDir, "memory", filename), "utf8"),
+      readFileSync(join("core", "memory", filename), "utf8"),
+    );
+  }
   assert.equal(
     readFileSync(join(result.spaceDir, "memory", "team.md"), "utf8"),
     readFileSync(

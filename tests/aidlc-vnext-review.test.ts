@@ -85,6 +85,8 @@ test("review contracts reject unknown fields, AI decisions, and incomplete appro
     intent_id: "intent-001",
     review_manifest_ref: ref("review-manifest", "manifest"),
     runnable_candidate_ref: ref("runnable-candidate", "candidate"),
+    gate_requirement_set_ref: ref("human-gate-requirements", "gate-requirements"),
+    policy_acknowledgements: [],
     decision: "approve-runnable-candidate",
     human_check_results: [{ verifier_id: "VER-H01", result: "passed", note: "確認した。" }],
     feedback_items: [],

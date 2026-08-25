@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI-DLC vNext｜M6 実装結果</title>
+  <style>
+    :root{--ink:#172033;--muted:#607086;--line:#dce4ef;--blue:#2563eb;--green:#147a55;--green-soft:#e6f7ef;--amber:#9a5b00;--amber-soft:#fff4d8;--red:#b33a2b;--red-soft:#fff0ee;--purple:#6d3bc1;--purple-soft:#f1ebff;--soft:#f4f7fb;--shadow:0 18px 46px rgba(30,48,78,.09)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(180deg,#edf5ff 0,#f8fafc 430px);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.72}main{width:min(1100px,calc(100% - 30px));margin:auto;padding:38px 0 70px}header,section{margin-bottom:22px;padding:clamp(22px,4vw,40px);border:1px solid var(--line);border-radius:23px;background:#fff;box-shadow:var(--shadow)}.eyebrow{margin:0 0 8px;color:var(--blue);font-size:13px;font-weight:900;letter-spacing:.12em}h1{margin:0;font-size:clamp(31px,5vw,52px);line-height:1.18}h2{margin:0 0 8px;font-size:clamp(23px,3vw,33px)}h3{margin:0 0 5px;font-size:18px}p{margin:0}.lead,.card p,.check p,.node p,.metric small{color:var(--muted)}.lead{max-width:910px;margin-top:15px;font-size:18px}.metrics,.cards,.checks{display:grid;gap:12px;margin-top:20px}.metrics{grid-template-columns:repeat(4,1fr)}.cards,.checks{grid-template-columns:repeat(3,1fr)}.metric,.card,.check{padding:18px;border-radius:17px}.metric{background:var(--soft)}.metric span,.check span{display:block;color:var(--muted);font-size:12px;font-weight:900}.metric strong,.check strong{display:block;margin-top:4px;font-size:18px}.metric small{display:block;margin-top:3px}.flow{display:grid;grid-template-columns:1fr 32px 1fr 32px 1fr 32px 1fr;gap:8px;margin-top:19px}.node{padding:17px;border:1px solid var(--line);border-radius:16px;background:var(--soft)}.node small{color:var(--blue);font-weight:900}.node strong{display:block;margin:8px 0 4px}.node.human{background:var(--amber-soft);border-color:#ecd18e}.node.core{background:var(--green-soft);border-color:#b8dfcd}.node.end{color:#fff;background:var(--blue);border-color:var(--blue)}.node.end small,.node.end p{color:#dce8ff}.arrow{display:grid;place-items:center;color:var(--blue);font-size:23px;font-weight:900}.card{border:1px solid var(--line);background:var(--soft)}.card.green{background:var(--green-soft);border-color:#b8dfcd}.card.amber{background:var(--amber-soft);border-color:#ecd18e}.card.red{background:var(--red-soft);border-color:#efc4bd}.card.purple{background:var(--purple-soft);border-color:#d4c5ef}.card b{display:inline-block;margin-bottom:7px;padding:3px 9px;border-radius:999px;background:#fff;font-size:12px}.note{margin-top:15px;padding:15px 18px;border-left:5px solid var(--blue);border-radius:12px;background:#eaf1ff}.note.warn{border-left-color:var(--amber);background:var(--amber-soft)}.filebox{margin-top:17px;padding:19px;border-radius:16px;background:#172033;color:#edf3ff;overflow:auto}.filebox code{display:block;overflow-wrap:anywhere;color:#c1d3ff}.check{border:1px solid #b8dfcd;background:var(--green-soft)}.check span{color:var(--green)}.terminal{color:#fff;background:linear-gradient(135deg,#17315c,#285eae)}.terminal p{color:#dce8ff}footer{text-align:center;color:var(--muted);font-size:13px}@media(max-width:880px){.metrics,.cards,.checks{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{min-height:20px;transform:rotate(90deg)}}@media(max-width:620px){main{width:min(100% - 18px,1100px);padding-top:18px}header,section{border-radius:18px}.metrics,.cards,.checks{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M6 RESULT</p>
+    <h1>固定10 Stageを、配布物から最後まで安全に動かせます。</h1>
+    <p class="lead">Codex、Core、人間の役割を接続しました。AIは決められたStageの中で提案し、Coreが検査し、必要な場所だけ人間が判断します。</p>
+    <div class="metrics">
+      <div class="metric"><span>全テスト</span><strong>209件成功</strong></div>
+      <div class="metric"><span>代表E2E</span><strong>4種類成功</strong></div>
+      <div class="metric"><span>固定Stage</span><strong>10個のまま</strong></div>
+      <div class="metric"><span>native build</span><strong>14 Gate成功</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>実行の流れは変わりません。</h2>
+    <div class="flow" role="img" aria-label="人間の依頼をCodex、Core、必要な人間確認、Outcomeへ流す図">
+      <article class="node"><small>1 / HUMAN</small><strong>目的を伝える</strong><p>Design Briefと既知リスクを確認します。</p></article><div class="arrow">→</div>
+      <article class="node"><small>2 / CODEX</small><strong>Stage内で提案</strong><p>CoreのWork Requestだけを実行します。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>3 / CORE</small><strong>検査して遷移</strong><p>固定Graph、Evidence、Policyを検証します。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>4 / OUTCOME</small><strong>結果で終了</strong><p>約束と事実を比較して完了します。</p></article>
+    </div>
+    <div class="note">AIは次のStageを発明できません。実行、再利用、非該当の提案も、Coreが固定Catalogと正本JSONで検査します。</div>
+  </section>
+
+  <section>
+    <h2>Project規則と今回のリスクを、確認表へ変えます。</h2>
+    <div class="flow" role="img" aria-label="Memory PolicyとIntent RiskからHuman Gate確認表を作る図">
+      <article class="node"><small>MEMORY</small><strong>機械Policy</strong><p>Org、Team、Projectの規則を足します。</p></article><div class="arrow">＋</div>
+      <article class="node"><small>INTENT</small><strong>Risk Register</strong><p>activeな今回のリスクを読みます。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>CORE</small><strong>確認表を固定</strong><p>PolicyとRiskのSHA-256を保存します。</p></article><div class="arrow">→</div>
+      <article class="node human"><small>HUMAN</small><strong>全項目へ回答</strong><p>回答漏れと古い承認を拒否します。</p></article>
+    </div>
+    <div class="cards">
+      <article class="card green"><b>ADDITIVE</b><h3>規則は追加だけ</h3><p>ProjectからOrgの規則を消せません。</p></article>
+      <article class="card red"><b>AI CANNOT</b><h3>AIはリスクを軽くできない</h3><p>追加と重大化だけを提案できます。</p></article>
+      <article class="card amber"><b>EXACT GATE</b><h3>古い表を使えない</h3><p>Risk更新後は新しい確認が必要です。</p></article>
+      <article class="card purple"><b>ST-04</b><h3>Architectureも接続</h3><p>必要時だけ提案SHAへ人間承認を固定します。</p></article>
+      <article class="card green"><b>ST-05 / 07</b><h3>BuildとCandidate</h3><p>既存の承認操作へ追加確認を載せます。</p></article>
+      <article class="card amber"><b>ST-08 / 09</b><h3>ReleaseとOutcome</h3><p>外部作用と最終判断へ規則を反映します。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>4つの仕事で、最初から最後まで試しました。</h2>
+    <div class="cards">
+      <article class="card green"><b>A / SMALL</b><h3>小さな文字変更</h3><p>重い設計を増やさず、根拠付きで通過しました。</p></article>
+      <article class="card green"><b>B / DEPENDENCY</b><h3>依存する複数Repository</h3><p>順序を守って製造し、一つのCandidateへ統合しました。</p></article>
+      <article class="card green"><b>C / NO BUILD</b><h3>実装を伴わないIntent</h3><p>BuildとReleaseの非該当を検証し、Outcomeまで進みました。</p></article>
+      <article class="card green"><b>D / FAILURE</b><h3>Release失敗と復旧</h3><p>途中失敗を検知し、先に行った作用を逆順で戻しました。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>人間に見せる指示も固定しました。</h2>
+    <div class="filebox">
+      <code>work → AIが今回行う作業</code>
+      <code>question → 人間へ確認する短い質問</code>
+      <code>progress → 実行中の状況</code>
+      <code>approval → 正確な成果物への承認</code>
+      <code>decision → 固定候補から選ぶ判断</code>
+      <code>done → Outcomeを固定した終了</code>
+    </div>
+    <div class="note">自由な遷移先やAI権限を混ぜたDirectiveは拒否します。人間向けHTMLは判断境界だけで生成し、System Mapなどは指示時だけHTML化します。</div>
+  </section>
+
+  <section>
+    <h2>配布と速度も確認しました。</h2>
+    <div class="checks">
+      <article class="check"><span>TYPE</span><strong>TypeScript成功</strong><p>全CoreとHarnessを型検査しました。</p></article>
+      <article class="check"><span>GRAPH</span><strong>固定10 Stage成功</strong><p>余分なStageとedgeがないことを確認しました。</p></article>
+      <article class="check"><span>TEST</span><strong>209件成功</strong><p>Runtime、E2E、改ざん、復旧を含みます。</p></article>
+      <article class="check"><span>BUNDLE</span><strong>Codex同期</strong><p>65ファイルのBundle差分がありません。</p></article>
+      <article class="check"><span>INSTALL</span><strong>Project配布成功</strong><p>BunやNodeなしのInstaller経路も通りました。</p></article>
+      <article class="check"><span>NATIVE</span><strong>binary成功</strong><p>14個のbuild gateを通過しました。</p></article>
+      <article class="check"><span>PERFORMANCE</span><strong>hangなし</strong><p>無関係な1500ファイルを含むProjectで計測しました。</p></article>
+      <article class="check"><span>SANDBOX</span><strong>実Projectで起動</strong><p>ST-00からST-01、再開、Doctor healthyを確認しました。</p></article>
+    </div>
+    <div class="metrics">
+      <div class="metric"><span>Intent開始</span><strong>約2.6 ms</strong><small>開発機での計測値</small></div>
+      <div class="metric"><span>ST-00 next</span><strong>約2.1 ms</strong><small>開発機での計測値</small></div>
+      <div class="metric"><span>ST-01 next</span><strong>約40.5 ms</strong><small>1500無関係fileを含む</small></div>
+      <div class="metric"><span>Doctor</span><strong>約0.8 ms</strong><small>開発機での計測値</small></div>
+    </div>
+    <div class="note warn">この値は商用SLAではありません。M6ではtimeout、hang、明らかな退行を検知する基準として保存します。</div>
+  </section>
+
+  <section class="terminal">
+    <h2>M6は完了です。次はM7です。</h2>
+    <p>M7では、残ったv2 Workflow資産を確認して削除し、README、Release Notes、version、最終配布物をvNext単一Workflowとして仕上げます。</p>
+  </section>
+  <footer>AI-DLC vNext / M6 Codex Harness &amp; End-to-End result / 2026-08-25</footer>
+</main></body>
+</html>

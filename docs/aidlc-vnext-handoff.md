@@ -8,7 +8,8 @@ AI-DLC vNextの検討を別のエージェントへ引き継ぐ。
 Core Route、ST-00 Bootstrap、ST-01 Orient、ST-02 Define Intent、
 ST-03 Requirements & Constraints、ST-04 Architecture Decision、
 ST-05 Build Contract、ST-06 Build & Converge、ST-07 Human Feedback & Approval、
-ST-08 Release、終端ST-09 Outcome Evaluationまで実装済みである。
+ST-08 Release、終端ST-09 Outcome Evaluation、M6のCodex Harness、Policy／Risk／
+Human Gate、代表End-to-End、配布前Quality Gateまで実装済みである。
 
 各Stageの目的、入力、出力、完了条件、AIの停止条件、人間の判断境界を、
 ユーザーと一つずつ共同設計し、明示的な承認後に実装すること。
@@ -38,14 +39,14 @@ ST-08 Release、終端ST-09 Outcome Evaluationまで実装済みである。
 | Branch | `codex/aidlc-vnext` |
 | Base | `origin/main` |
 | Base commit | `cb4f0db61fca711c3b49251370568f3013148f41` |
-| 実装状況 | M0〜M5の固定10 Stage本文を実装・検証済み |
-| 次の作業 | M6全体計画は承認済み。`docs/aidlc-vnext-m6-policy-gates-plan.html`をレビューし、明示承認後にM6をTDD実装する |
+| 実装状況 | M0〜M6を実装・検証済み。固定10 Stage、Codex、Policy／Risk Gate、代表E2E、配布物が接続済み |
+| 次の作業 | M7のv2 Workflow残存資産削除とvNext単一Releaseを、実装前HTMLから設計する |
 
 M0〜M2はcommit `c9e259a`、ST-00はcommit `714d5bb`、ST-01はcommit `5a0ee9c`、
-ST-02はcommit `98b8c41`として`origin/codex/aidlc-vnext`へpush済みである。
-ST-03、ST-04、ST-05、ST-06、ST-07、ST-08、ST-09は作業ツリーで実装・検証済みだが、まだcommit／pushしていない。
-作業ツリーにはユーザー所有の`.vscode/`、生成確認用`dist/codex/`、
-`docs/aidlc-vnext-visual-guide.html`がある。一括削除や無関係な上書きをしないこと。
+ST-02はcommit `98b8c41`、ST-03〜ST-09はcommit `e9865a0`として
+`origin/codex/aidlc-vnext`へpush済みである。M6ではCodex Bundleと`dist/project`を
+正式な生成物として更新した。作業ツリーにあるユーザー所有の`.vscode/`と
+`docs/aidlc-vnext-visual-guide.html`はM6のcommit対象に含めない。一括削除や無関係な上書きをしないこと。
 
 M1では、固定10 Stage ID、共通Stage Contract、Artifact Reference、AI Proposal、
 Core Stage Decision、Stage Execution Planの型とfail-closed validatorを作成した。
@@ -175,6 +176,19 @@ Evidence、4値のOutcome Evaluation、JSON正本から生成するescaped HTML�
 33ファイル193 testがすべて成功し、Codex bundleと`dist/project`も同期済みである。指定Sandboxでは
 ST-09 Work Request revision 1を生成し、Doctor healthyを確認した。active IntentはST-09でEvidence提案待ちである。
 
+承認済みM6としてTDDを実施した。Org／Team／Project Memoryへ厳格な機械Policy JSONを追加し、
+追加和だけでEffective Policyへ固定した。Intent Risk Registerはimmutable revisionで保存し、AIは
+リスクの追加・重大化だけ、人間は理由とEvidence付きで軽減・解消できる。CoreはPolicyと現在の
+active RiskからGate Requirement Setを生成し、ST-04、ST-05、ST-07、ST-08、ST-09の既存人間境界へ
+接続した。全確認項目への回答、Proposal／Candidate／Release／OutcomeとGateのSHA-256固定、Risk更新後の
+古い承認拒否を実装した。Codex Skillは6種類のCore Directive、Risk操作、Policy追加確認へ対応した。
+小さな変更、依存する複数Repository、実装なし、Release失敗とrollbackの4代表E2Eを追加した。
+`bun run release:check`は37ファイル209 testが成功し、固定Graph、Codex Bundle、`dist/project`、
+Bun／Node不要Installer、native binaryの14 Gateも成功した。1500個の無関係fileを含むProjectでは、
+開発機上でIntent開始約2.6ms、ST-00 next約2.1ms、ST-01 next約40.5ms、Doctor約0.8msを計測した。
+指定Sandboxでは生成済みProject配布物とnative binaryからST-00→ST-01、再開、Doctor healthyを確認した。
+M6結果は`docs/aidlc-vnext-m6-result.html`、運用手順は`docs/aidlc-vnext-operations.md`へ記録した。
+
 ## 4. 参照資料
 
 ### リポジトリ内
@@ -242,6 +256,14 @@ ST-09 Work Request revision 1を生成し、Doctor healthyを確認した。acti
   - 承認済みST-09実装前設計。成功条件とOutcomeの比較、観測待ち、人間判断、Intent完了条件
 - `docs/aidlc-vnext-st09-result.html`
   - ST-09実装、Outcome評価、観測待ち、人間判断、Intent終端、試験結果の初心者向け図解
+- `docs/aidlc-vnext-m6-plan.html`
+  - 承認済みM6全体計画。代表E2E、Directive UX、性能計測、配布前Quality Gate
+- `docs/aidlc-vnext-m6-policy-gates-plan.html`
+  - 承認済みPolicy／Risk／Human Gate詳細設計
+- `docs/aidlc-vnext-operations.md`
+  - vNext Intentの開始、再開、Risk、承認、Doctor、Quality Gateの運用手順
+- `docs/aidlc-vnext-m6-result.html`
+  - M6実装、4代表E2E、Policy Gate、配布、性能、209 testの初心者向け図解
 - `docs/aidlc-vnext-visual-guide.html`
   - 未追跡ファイル。所有者とcommit可否を確認するまで変更しない
 - `docs/aidlc-v2-harness-architecture.md`
@@ -372,8 +394,8 @@ AIが情報を持っていないことではなく、価値判断、権限、不
 
 ST-05のBuild ContractとApproval境界、ST-06のBolt実行とRunnable Candidate境界、ST-07の
 Human FeedbackとAccepted Candidate境界、ST-08のRelease Authorityと外部作用境界、ST-09の
-Outcome観測とIntent終端境界は確定済みである。次は固定10 Stage全体を一つの製品として扱い、
-E2E、UX、運用性、性能、配布品質に関する人間判断を共同設計する。
+Outcome観測とIntent終端境界は確定済みである。M6でE2E、UX、運用性、性能、Policy／Risk、
+配布前Quality Gateも確定・実装済みである。次はM7としてv2残存資産の削除境界と正式Releaseを共同設計する。
 
 ## 7. 各Stageで共同設計する項目
 
@@ -397,10 +419,9 @@ Stageごとに、最低限次をユーザーと確認する。名前と一行説
 
 1. ルート`AGENTS.md`を読み、実装前承認とBun／TypeScript要件に従う
 2. `work/`はユーザーの明示指示がない限り読まない
-3. マイルストーンを完成仕様として扱わず、次にM6の品質Gate設計計画を提示する
-4. 一度に10 Stageを設計せず、一つのStageまたは一つの横断Contractずつ進める
-5. M1共通Contract、M2 Core Route、ST-00〜ST-09の実装を前提にし、小変更、依存機能、Release、
-   Outcomeを含む代表E2Eと運用上の停止・再開をユーザーと確定する
+3. マイルストーンを完成仕様として扱わず、次にM7の残存v2資産調査とRelease計画を提示する
+4. v2という名前だけで削除せず、vNextが回収した実行機構とv2専用Workflowの意味を分ける
+5. M1共通Contract、M2 Core Route、ST-00〜ST-09、M6 E2E／Policy Gate／配布検証を前提にする
 6. 各設計を`docs/`へ保存し、ユーザーの明示的承認後にTypeScript実装へ進む
 7. 実装中もStageごとに結果とtestを説明する
 
@@ -408,13 +429,13 @@ Stageごとに、最低限次をユーザーと確認する。名前と一行説
 
 次のエージェントは、いきなり最適化や配布変更を始めず、まず次をユーザーへ提示する。
 
-**テーマ: M6 E2E、UX、運用性、性能、品質Gateの詳細設計**
+**テーマ: M7 v2 Workflow削除とvNext単一Releaseの詳細設計**
 
-- 小さな文字変更、依存関係を持つ機能追加、Release、Outcomeの代表E2E
-- 中断、再開、差戻し、外部drift、改ざん時の運用手順
-- 初心者がDirective、HTML、JSON成果物を迷わず扱えるUX
-- 大規模Repositoryや複数Repositoryで計測する性能指標
-- Release候補に要求する品質Gateと残課題
+- Runtime、Harness、test、docs、配布物に残るv2専用資産の一覧
+- vNextで回収済みのState、Audit、Doctor、Installerなど、残す実行機構の境界
+- 旧v2 Stateを推測変換せずunsupportedと説明するDoctor契約
+- README、運用手順、Release Notes、version、全target packageの更新
+- 削除前後に要求する回帰testと復旧方法
 
-設計を初心者向けHTMLで説明し、ユーザーの明示的承認後にM6だけを実装する。
-AIは行き先を決めず、M2の固定GraphとCore Directiveを使う。
+設計を初心者向けHTMLで説明し、ユーザーの明示的承認後にM7だけを実装する。
+固定10 StageとCore Directiveの意味は変更しない。

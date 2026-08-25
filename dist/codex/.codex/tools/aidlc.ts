@@ -18,13 +18,13 @@ export type Action =
   | { type: "error"; message: string; code: number };
 
 export const ROUTES: readonly Route[] = [
-  { noun: "architecture", tool: "aidlc-vnext-architecture.ts", commands: ["prepare", "complete"], summary: "prepare and validate ST-04 Architecture work" },
+  { noun: "architecture", tool: "aidlc-vnext-architecture.ts", commands: ["prepare", "complete", "policy-review", "policy-approve"], summary: "prepare, review, and validate ST-04 Architecture work" },
   { noun: "build-contract", tool: "aidlc-vnext-build-contract.ts", commands: ["prepare", "review", "approve"], summary: "prepare, review, and approve ST-05 Build Contract work" },
   { noun: "build", tool: "aidlc-vnext-build-converge.ts", commands: ["prepare", "verify", "reuse"], summary: "prepare, verify, or reuse validated ST-06 build work" },
   { noun: "doctor", tool: "aidlc-vnext-doctor.ts", commands: ["check", "repair"], summary: "diagnose and repair vNext Core state" },
   { noun: "define-intent", tool: "aidlc-vnext-define-intent.ts", commands: ["prepare", "complete"], summary: "prepare and validate ST-02 Define Intent work" },
   { noun: "graph", tool: "aidlc-core-route.ts", commands: ["show", "catalog", "validate"], summary: "inspect the fixed vNext Catalog and Graph" },
-  { noun: "intent", tool: "aidlc-intent.ts", commands: ["birth", "list", "switch"], summary: "create and select Intents" },
+  { noun: "intent", tool: "aidlc-intent.ts", commands: ["birth", "list", "switch", "risk"], summary: "create and select Intents or manage the active Intent Risk Register" },
   { noun: "orchestrate", tool: "aidlc-vnext-orchestrate.ts", commands: ["next"], summary: "resolve the next Core-owned vNext action" },
   { noun: "orient", tool: "aidlc-vnext-orient.ts", commands: ["prepare", "complete"], summary: "prepare and validate ST-01 Orient work" },
   { noun: "outcome", tool: "aidlc-vnext-outcome.ts", commands: ["prepare", "evaluate", "decide", "reuse"], summary: "observe, evaluate, and complete terminal ST-09 Outcome work" },

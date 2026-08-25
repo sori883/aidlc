@@ -73,6 +73,13 @@ import {
   type VNextIntentState,
 } from "./aidlc-vnext-state.ts";
 import { withWorkspaceLock } from "./aidlc-workspace-lock.ts";
+import {
+  humanGateRequirementReferenceAt,
+  renderHumanGateRequirementSection,
+  resolveHumanGateRequirementsAt,
+  validatePolicyAcknowledgements,
+  type PolicyAcknowledgement,
+} from "./aidlc-vnext-policy-gates.ts";
 
 export interface BuildContractPrepareOptions { preparedAt?: string }
 export interface BuildContractReviewOptions { reviewedAt?: string }
@@ -80,6 +87,7 @@ export interface BuildContractApproveOptions {
   candidateSha256: string;
   reason: string;
   decidedAt?: string;
+  policyAcknowledgements?: readonly PolicyAcknowledgement[];
 }
 
 export interface BuildContractPrepareResult {
@@ -594,7 +602,18 @@ function reviewBuildContractLocked(projectDir: string, recordDir: string, propos
   const candidatePath = buildContractCandidatePath(recordDir);
   writeFileAtomic(candidatePath, candidateContent);
   const candidateReference = artifactReference(projectDir, candidatePath, "build-contract-candidate", candidateContent);
-  const reviewContent = renderBuildContractReviewHtml(candidate, candidateReference);
+  const gate = resolveHumanGateRequirementsAt(
+    projectDir,
+    recordDir,
+    "ST-05",
+    candidate.effective_policy_ref,
+    { createdAt: reviewedAt },
+  );
+  const reviewContent = renderBuildContractReviewHtml(
+    candidate,
+    candidateReference,
+    renderHumanGateRequirementSection(gate),
+  );
   const reviewPath = buildContractReviewPath(recordDir);
   writeFileAtomic(reviewPath, reviewContent);
   const reviewReference = artifactReference(projectDir, reviewPath, "build-contract-review", reviewContent);
@@ -629,8 +648,14 @@ export function pendingBuildContractReview(projectDir: string, recordDir = activ
   if (!existsSync(candidatePath) || !existsSync(reviewPath)) fail("ST-05 Build Contract", "candidate and review HTML must exist together");
   const candidate = readCanonical(candidatePath, parseBuildContractCandidate);
   const candidateRef = artifactReference(projectDir, candidatePath, "build-contract-candidate", candidate.content);
+  const gate = resolveHumanGateRequirementsAt(
+    projectDir,
+    recordDir,
+    "ST-05",
+    candidate.value.effective_policy_ref,
+  );
   const reviewContent = readFileSync(reviewPath, "utf8");
-  if (reviewContent !== renderBuildContractReviewHtml(candidate.value, candidateRef)) fail("ST-05 Build Contract", "review HTML does not match the exact candidate");
+  if (reviewContent !== renderBuildContractReviewHtml(candidate.value, candidateRef, renderHumanGateRequirementSection(gate))) fail("ST-05 Build Contract", "review HTML does not match the exact candidate and current Policy Gate requirements");
   return { candidate: candidateRef, review: artifactReference(projectDir, reviewPath, "build-contract-review", reviewContent) };
 }
 
@@ -665,6 +690,22 @@ function approveBuildContractLocked(projectDir: string, recordDir: string, optio
   const candidate = readCanonical(buildContractCandidatePath(recordDir), parseBuildContractCandidate).value;
   if (candidate.intent_id !== state.intent_id) fail("ST-05 Build Contract", "Candidate Intent does not match State");
   const decidedAt = options.decidedAt ?? new Date().toISOString();
+  const gate = resolveHumanGateRequirementsAt(
+    projectDir,
+    recordDir,
+    "ST-05",
+    candidate.effective_policy_ref,
+  );
+  const acknowledgements = validatePolicyAcknowledgements(
+    gate,
+    options.policyAcknowledgements ?? [],
+    { projectDir, recordDir, requireCurrentRiskRegister: true },
+  );
+  const gateReference = humanGateRequirementReferenceAt(
+    projectDir,
+    recordDir,
+    gate,
+  );
   let approval = parseBuildContractApproval({
     schema_version: 1,
     artifact: "human-decision",
@@ -673,6 +714,8 @@ function approveBuildContractLocked(projectDir: string, recordDir: string, optio
     decision_kind: "approval",
     intent_id: state.intent_id,
     candidate_ref: pending.candidate,
+    gate_requirement_set_ref: gateReference,
+    policy_acknowledgements: acknowledgements,
     decision: "approve-build-contract",
     reason: options.reason,
     decided_by: "human",
@@ -786,9 +829,9 @@ export function main(argv: string[]): void {
   const [command, projectDir, argument, ...rest] = argv;
   const validPrepare = command === "prepare" && projectDir !== undefined && argument === undefined;
   const validReview = command === "review" && projectDir !== undefined && argument !== undefined && rest.length === 0;
-  const validApprove = command === "approve" && projectDir !== undefined && argument !== undefined && rest.length === 1;
+  const validApprove = command === "approve" && projectDir !== undefined && argument !== undefined && (rest.length === 1 || rest.length === 2);
   if (!validPrepare && !validReview && !validApprove) {
-    console.error("Usage: aidlc build-contract prepare <project-dir>\n       aidlc build-contract review <project-dir> <proposal.json>\n       aidlc build-contract approve <project-dir> <candidate-sha256> <reason>");
+    console.error("Usage: aidlc build-contract prepare <project-dir>\n       aidlc build-contract review <project-dir> <proposal.json>\n       aidlc build-contract approve <project-dir> <candidate-sha256> <reason> [policy-acknowledgements.json]");
     process.exitCode = 1;
     return;
   }
@@ -798,7 +841,17 @@ export function main(argv: string[]): void {
       ? prepareBuildContract(projectDir)
       : command === "review"
       ? reviewBuildContract(projectDir, JSON.parse(readFileSync(resolve(argument!), "utf8")))
-      : approveBuildContract(projectDir, { candidateSha256: argument!, reason: rest[0]! });
+      : approveBuildContract(projectDir, {
+        candidateSha256: argument!,
+        reason: rest[0]!,
+        ...(rest[1] === undefined
+          ? {}
+          : {
+            policyAcknowledgements: JSON.parse(
+              readFileSync(resolve(rest[1]), "utf8"),
+            ) as PolicyAcknowledgement[],
+          }),
+      });
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

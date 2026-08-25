@@ -16,8 +16,8 @@ install.mjs
 ```
 
 ネイティブバイナリは、本家でBunから実行するTypeScriptコード、その
-コード依存、Bunランタイムを含む。Stage、Rule、Sensor、Agent persona
-などのCoreデータとCodex Harnessは含めず、通常ファイルとして配置する。
+コード依存、Bunランタイムを含む。固定Stage Catalog／Graph、Stage Contract、
+Memory、Codex Skillは含めず、通常ファイルとして配置する。
 
 ## 利用者の前提環境
 
@@ -53,8 +53,7 @@ node install.mjs install --harness codex --project .
 <project>/
 ├── .agents/
 ├── .codex/
-│   ├── aidlc-common/, agents/, knowledge/, memory/
-│   ├── scopes/, sensors/
+│   ├── aidlc-common/, memory/
 │   ├── tools/aidlc[.exe]
 │   ├── hooks.json
 │   └── aidlc-installation.json
@@ -69,10 +68,10 @@ OS、CPU、Linux libcに合うバイナリ1個だけを取得し、PATHを空に
 
 ```bash
 ./.codex/tools/aidlc --version
-./.codex/tools/aidlc graph compile --check
+./.codex/tools/aidlc graph validate
 ./.codex/tools/aidlc workspace init .
-./.codex/tools/aidlc intent birth . "First Intent" --scope poc
-./.codex/tools/aidlc doctor check --project-dir .
+./.codex/tools/aidlc intent birth . "First Intent"
+./.codex/tools/aidlc doctor check .
 ```
 
 Windowsの実体は`.codex/tools/aidlc.exe`である。PowerShellは生成済みSkillの
@@ -106,7 +105,7 @@ node install.mjs install --harness codex --project . --dry-run
 ```bash
 curl -fsSLO https://github.com/sori883/aidlc/releases/download/v0.6.2/install.mjs
 node install.mjs update --harness codex --project .
-./.codex/tools/aidlc doctor check --project-dir .
+./.codex/tools/aidlc doctor check .
 ```
 
 前回記録したSHA-256と現在のファイルが一致する場合だけ置換する。通常更新は

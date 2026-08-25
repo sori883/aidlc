@@ -2,6 +2,10 @@ import {
   parseArtifactReference,
   type ArtifactReference,
 } from "./aidlc-stage-contract.ts";
+import {
+  parsePolicyAcknowledgement,
+  type PolicyAcknowledgement,
+} from "./aidlc-vnext-policy-gates.ts";
 
 export const BUILD_CONTRACT_SCHEMA_VERSION = 1 as const;
 export const BUILD_CONTRACT_ARTIFACT_VERSION = 1 as const;
@@ -162,6 +166,8 @@ export interface BuildContractApproval {
   decision_kind: "approval";
   intent_id: string;
   candidate_ref: ArtifactReference;
+  gate_requirement_set_ref: ArtifactReference;
+  policy_acknowledgements: PolicyAcknowledgement[];
   decision: "approve-build-contract";
   reason: string;
   decided_by: "human";
@@ -630,11 +636,14 @@ export function parseBuildContractCandidate(value: unknown, context = "Build Con
 
 export function parseBuildContractApproval(value: unknown, context = "Build Contract Approval"): BuildContractApproval {
   const record = asRecord(value, context);
-  rejectUnknownKeys(record, ["schema_version", "artifact", "version", "decision_id", "decision_kind", "intent_id", "candidate_ref", "decision", "reason", "decided_by", "decided_at"], context);
+  rejectUnknownKeys(record, ["schema_version", "artifact", "version", "decision_id", "decision_kind", "intent_id", "candidate_ref", "gate_requirement_set_ref", "policy_acknowledgements", "decision", "reason", "decided_by", "decided_at"], context);
   commonArtifact(record, "human-decision", context);
   if (record.decision_kind !== "approval") fail(`${context}.decision_kind`, "must equal approval");
   if (record.decision !== "approve-build-contract") fail(`${context}.decision`, "must equal approve-build-contract");
   if (record.decided_by !== "human") fail(`${context}.decided_by`, "must equal human");
+  if (!Array.isArray(record.policy_acknowledgements)) {
+    fail(`${context}.policy_acknowledgements`, "must be an array");
+  }
   return {
     schema_version: 1,
     artifact: "human-decision",
@@ -643,6 +652,13 @@ export function parseBuildContractApproval(value: unknown, context = "Build Cont
     decision_kind: "approval",
     intent_id: asStableId(record.intent_id, `${context}.intent_id`),
     candidate_ref: parseArtifactReference(record.candidate_ref, `${context}.candidate_ref`),
+    gate_requirement_set_ref: parseArtifactReference(
+      record.gate_requirement_set_ref,
+      `${context}.gate_requirement_set_ref`,
+    ),
+    policy_acknowledgements: record.policy_acknowledgements.map((entry, index) =>
+      parsePolicyAcknowledgement(entry, `${context}.policy_acknowledgements[${index}]`)
+    ),
     decision: "approve-build-contract",
     reason: asOneLine(record.reason, `${context}.reason`),
     decided_by: "human",
@@ -703,6 +719,7 @@ export function parseBuildContractCurrent(value: unknown, context = "Build Contr
 export function renderBuildContractReviewHtml(
   candidate: BuildContractCandidate,
   candidateRef: ArtifactReference,
+  gateSection = "",
 ): string {
   const escape = (value: string) => value
     .replaceAll("&", "&amp;")
@@ -727,5 +744,5 @@ export function renderBuildContractReviewHtml(
   };
   const verifiers = candidate.verifiers.length === 0 ? "" : `<section><h2>ST-06が実行する検証</h2><p>以下の値は候補SHA-256に含まれます。Coreは別のcommandへ置き換えません。</p><ul>${candidate.verifiers.map((verifier) => `<li><strong>${escape(verifier.verifier_id)} / ${escape(verifier.kind)}</strong><br>${verifierDescription(verifier)}<br>合格条件: ${escape(verifier.expected)}</li>`).join("")}</ul></section>`;
   const codeStyle = candidate.verifiers.length === 0 ? "" : "code{overflow-wrap:anywhere}";
-  return `<!doctype html>\n<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ST-05 Build Contract レビュー</title><style>body{font-family:system-ui,sans-serif;max-width:960px;margin:40px auto;padding:0 20px;line-height:1.65;color:#172033}h1{font-size:1.8rem}section{border:1px solid #d8deea;border-radius:12px;padding:20px;margin:18px 0}table{border-collapse:collapse;width:100%}th,td{border:1px solid #d8deea;padding:8px;text-align:left}.hash{overflow-wrap:anywhere;background:#f4f6fa;padding:10px;border-radius:8px}.notice{background:#fff8df}${codeStyle}</style></head><body><h1>ST-05 Build Contract 最終確認</h1><section class="notice"><p>この候補を承認すると、Coreは同じSHA-256の内容だけを実装契約として確定し、ST-06へ進めます。修正したい場合は承認せず、AIへ修正を依頼してください。</p><p class="hash"><strong>候補SHA-256:</strong> ${escape(candidateRef.sha256)}</p></section><section><h2>結論</h2><p>${escape(candidate.disposition)} — ${escape(candidate.reason)}</p></section><section><h2>要件ごとの実装影響</h2><table><thead><tr><th>要件</th><th>実装</th><th>理由</th></tr></thead><tbody>${rows}</tbody></table></section>${targets}<section><h2>Bolt実行順</h2>${bolts}</section>${verifiers}<section><h2>確認すること</h2><p>変更対象、受入条件、検証方法、Boltの依存順に納得できれば、この候補SHA-256を指定して承認してください。</p></section></body></html>\n`;
+  return `<!doctype html>\n<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ST-05 Build Contract レビュー</title><style>body{font-family:system-ui,sans-serif;max-width:960px;margin:40px auto;padding:0 20px;line-height:1.65;color:#172033}h1{font-size:1.8rem}section{border:1px solid #d8deea;border-radius:12px;padding:20px;margin:18px 0}table{border-collapse:collapse;width:100%}th,td{border:1px solid #d8deea;padding:8px;text-align:left}.hash{overflow-wrap:anywhere;background:#f4f6fa;padding:10px;border-radius:8px}.notice{background:#fff8df}${codeStyle}</style></head><body><h1>ST-05 Build Contract 最終確認</h1><section class="notice"><p>この候補を承認すると、Coreは同じSHA-256の内容だけを実装契約として確定し、ST-06へ進めます。修正したい場合は承認せず、AIへ修正を依頼してください。</p><p class="hash"><strong>候補SHA-256:</strong> ${escape(candidateRef.sha256)}</p></section><section><h2>結論</h2><p>${escape(candidate.disposition)} — ${escape(candidate.reason)}</p></section><section><h2>要件ごとの実装影響</h2><table><thead><tr><th>要件</th><th>実装</th><th>理由</th></tr></thead><tbody>${rows}</tbody></table></section>${targets}<section><h2>Bolt実行順</h2>${bolts}</section>${verifiers}${gateSection}<section><h2>確認すること</h2><p>変更対象、受入条件、検証方法、Boltの依存順に納得できれば、この候補SHA-256を指定して承認してください。</p></section></body></html>\n`;
 }

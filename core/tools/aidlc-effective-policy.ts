@@ -15,24 +15,27 @@ import {
 } from "./aidlc-stage-contract.ts";
 import { activeSpace, workspaceRoot } from "./aidlc-workspace.ts";
 
-export const EFFECTIVE_POLICY_SCHEMA_VERSION = 1 as const;
+export const EFFECTIVE_POLICY_SCHEMA_VERSION = 2 as const;
 export const POLICY_SOURCE_LAYERS = ["org", "team", "project"] as const;
-export const POLICY_SOURCE_PRIORITY = [
-  "org",
-  "team",
-  "project",
-  "intent_risk",
-] as const;
+export const POLICY_SOURCE_PRIORITY = ["org", "team", "project"] as const;
 export const INTENT_RISK_SEVERITIES = [
   "low",
   "medium",
   "high",
   "critical",
 ] as const;
+export const HUMAN_GATE_STAGE_IDS = [
+  "ST-04",
+  "ST-05",
+  "ST-07",
+  "ST-08",
+  "ST-09",
+] as const;
 
 export type PolicySourceLayer = (typeof POLICY_SOURCE_LAYERS)[number];
 export type PolicyPriorityLayer = (typeof POLICY_SOURCE_PRIORITY)[number];
 export type IntentRiskSeverity = (typeof INTENT_RISK_SEVERITIES)[number];
+export type HumanGateStageId = (typeof HUMAN_GATE_STAGE_IDS)[number];
 
 export interface EffectivePolicySource {
   layer: PolicySourceLayer;
@@ -41,11 +44,25 @@ export interface EffectivePolicySource {
   content: string;
 }
 
-export interface IntentRiskFact {
-  risk_id: string;
-  severity: IntentRiskSeverity;
-  statement: string;
-  evidence: ArtifactReference[];
+export interface HumanGatePolicyRule {
+  rule_id: string;
+  minimum_severity: IntentRiskSeverity;
+  stage_ids: HumanGateStageId[];
+  acknowledgement: string;
+}
+
+export interface HumanGatePolicySource {
+  schema_version: 1;
+  artifact: "human-gate-policy-source";
+  layer: PolicySourceLayer;
+  rules: HumanGatePolicyRule[];
+}
+
+export interface EffectivePolicyControlSource {
+  layer: PolicySourceLayer;
+  source_of_truth: string;
+  sha256: string;
+  content: string;
 }
 
 export interface EffectivePolicySnapshot {
@@ -56,13 +73,13 @@ export interface EffectivePolicySnapshot {
   created_at: string;
   source_priority: PolicyPriorityLayer[];
   sources: EffectivePolicySource[];
-  intent_risks: IntentRiskFact[];
+  control_sources: EffectivePolicyControlSource[];
+  human_gate_rules: HumanGatePolicyRule[];
 }
 
 export interface BuildEffectivePolicyOptions {
   revision?: number;
   createdAt?: string;
-  intentRisks?: readonly IntentRiskFact[];
 }
 
 export interface WrittenEffectivePolicy {
@@ -77,7 +94,18 @@ const POLICY_SOURCE_KEYS = [
   "sha256",
   "content",
 ] as const;
-const RISK_KEYS = ["risk_id", "severity", "statement", "evidence"] as const;
+const POLICY_RULE_KEYS = [
+  "rule_id",
+  "minimum_severity",
+  "stage_ids",
+  "acknowledgement",
+] as const;
+const POLICY_SOURCE_DOCUMENT_KEYS = [
+  "schema_version",
+  "artifact",
+  "layer",
+  "rules",
+] as const;
 const SNAPSHOT_KEYS = [
   "schema_version",
   "snapshot_id",
@@ -86,7 +114,8 @@ const SNAPSHOT_KEYS = [
   "created_at",
   "source_priority",
   "sources",
-  "intent_risks",
+  "control_sources",
+  "human_gate_rules",
 ] as const;
 const RISK_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SHA256_PATTERN = /^sha256:[a-f0-9]{64}$/;
@@ -214,26 +243,90 @@ function parsePolicySource(
   };
 }
 
-function parseIntentRisk(value: unknown, context: string): IntentRiskFact {
+export function parseHumanGatePolicyRule(
+  value: unknown,
+  context = "Human Gate Policy rule",
+): HumanGatePolicyRule {
   const record = asRecord(value, context);
-  rejectUnknownKeys(record, RISK_KEYS, context);
-  const riskId = asOneLine(record.risk_id, `${context}.risk_id`);
-  if (!RISK_ID_PATTERN.test(riskId)) {
-    fail(`${context}.risk_id`, "must use lowercase kebab-case");
+  rejectUnknownKeys(record, POLICY_RULE_KEYS, context);
+  const ruleId = asOneLine(record.rule_id, `${context}.rule_id`);
+  if (!RISK_ID_PATTERN.test(ruleId)) {
+    fail(`${context}.rule_id`, "must use lowercase kebab-case");
   }
-  if (!Array.isArray(record.evidence)) fail(`${context}.evidence`, "must be an array");
+  if (!Array.isArray(record.stage_ids) || record.stage_ids.length === 0) {
+    fail(`${context}.stage_ids`, "must be a non-empty array");
+  }
+  const stageIds = record.stage_ids.map((entry, index) =>
+    asAllowed(entry, HUMAN_GATE_STAGE_IDS, `${context}.stage_ids[${index}]`)
+  );
+  const duplicateStage = stageIds.find(
+    (stage, index) => stageIds.indexOf(stage) !== index,
+  );
+  if (duplicateStage !== undefined) {
+    fail(`${context}.stage_ids`, `contains duplicate Stage: ${duplicateStage}`);
+  }
   return {
-    risk_id: riskId,
-    severity: asAllowed(
-      record.severity,
+    rule_id: ruleId,
+    minimum_severity: asAllowed(
+      record.minimum_severity,
       INTENT_RISK_SEVERITIES,
-      `${context}.severity`,
+      `${context}.minimum_severity`,
     ),
-    statement: asOneLine(record.statement, `${context}.statement`),
-    evidence: record.evidence.map((entry, index) =>
-      parseArtifactReference(entry, `${context}.evidence[${index}]`)
+    stage_ids: stageIds,
+    acknowledgement: asOneLine(
+      record.acknowledgement,
+      `${context}.acknowledgement`,
     ),
   };
+}
+
+export function parseHumanGatePolicySource(
+  value: unknown,
+  context = "Human Gate Policy source",
+): HumanGatePolicySource {
+  const record = asRecord(value, context);
+  rejectUnknownKeys(record, POLICY_SOURCE_DOCUMENT_KEYS, context);
+  if (record.schema_version !== 1) {
+    fail(`${context}.schema_version`, "must equal 1");
+  }
+  if (record.artifact !== "human-gate-policy-source") {
+    fail(`${context}.artifact`, "must equal human-gate-policy-source");
+  }
+  if (!Array.isArray(record.rules)) fail(`${context}.rules`, "must be an array");
+  const rules = record.rules.map((entry, index) =>
+    parseHumanGatePolicyRule(entry, `${context}.rules[${index}]`)
+  );
+  const ruleIds = rules.map((rule) => rule.rule_id);
+  const duplicateRule = ruleIds.find(
+    (rule, index) => ruleIds.indexOf(rule) !== index,
+  );
+  if (duplicateRule !== undefined) {
+    fail(`${context}.rules`, `contains duplicate rule_id: ${duplicateRule}`);
+  }
+  return {
+    schema_version: 1,
+    artifact: "human-gate-policy-source",
+    layer: asAllowed(record.layer, POLICY_SOURCE_LAYERS, `${context}.layer`),
+    rules,
+  };
+}
+
+function parsePolicyControlSource(
+  value: unknown,
+  context: string,
+): EffectivePolicyControlSource {
+  const source = parsePolicySource(value, context);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source.content);
+  } catch {
+    fail(`${context}.content`, "must contain valid JSON");
+  }
+  const policy = parseHumanGatePolicySource(parsed, `${context}.content`);
+  if (policy.layer !== source.layer) {
+    fail(`${context}.content.layer`, `must equal ${source.layer}`);
+  }
+  return source;
 }
 
 export function parseEffectivePolicySnapshot(
@@ -252,7 +345,7 @@ export function parseEffectivePolicySnapshot(
     asAllowed(entry, POLICY_SOURCE_PRIORITY, `${context}.source_priority[${index}]`)
   );
   if (JSON.stringify(sourcePriority) !== JSON.stringify(POLICY_SOURCE_PRIORITY)) {
-    fail(`${context}.source_priority`, "must use org, team, project, intent_risk order");
+    fail(`${context}.source_priority`, "must use org, team, project order");
   }
   if (!Array.isArray(record.sources)) fail(`${context}.sources`, "must be an array");
   const sources = record.sources.map((entry, index) =>
@@ -266,16 +359,45 @@ export function parseEffectivePolicySnapshot(
       fail(`${context}.sources[${index}].layer`, `must equal ${expected}`);
     }
   }
-  if (!Array.isArray(record.intent_risks)) {
-    fail(`${context}.intent_risks`, "must be an array");
+  if (!Array.isArray(record.control_sources)) {
+    fail(`${context}.control_sources`, "must be an array");
   }
-  const intentRisks = record.intent_risks.map((entry, index) =>
-    parseIntentRisk(entry, `${context}.intent_risks[${index}]`)
+  const controlSources = record.control_sources.map((entry, index) =>
+    parsePolicyControlSource(entry, `${context}.control_sources[${index}]`)
   );
-  const riskIds = intentRisks.map((risk) => risk.risk_id);
-  const duplicateRisk = riskIds.find((risk, index) => riskIds.indexOf(risk) !== index);
-  if (duplicateRisk !== undefined) {
-    fail(`${context}.intent_risks`, `contains duplicate risk_id: ${duplicateRisk}`);
+  if (controlSources.length !== POLICY_SOURCE_LAYERS.length) {
+    fail(
+      `${context}.control_sources`,
+      `must contain exactly ${POLICY_SOURCE_LAYERS.length} sources`,
+    );
+  }
+  for (const [index, expected] of POLICY_SOURCE_LAYERS.entries()) {
+    if (controlSources[index]?.layer !== expected) {
+      fail(`${context}.control_sources[${index}].layer`, `must equal ${expected}`);
+    }
+  }
+  if (!Array.isArray(record.human_gate_rules)) {
+    fail(`${context}.human_gate_rules`, "must be an array");
+  }
+  const humanGateRules = record.human_gate_rules.map((entry, index) =>
+    parseHumanGatePolicyRule(entry, `${context}.human_gate_rules[${index}]`)
+  );
+  const expectedRules = controlSources.flatMap((source, index) => {
+    const parsed = parseHumanGatePolicySource(
+      JSON.parse(source.content),
+      `${context}.control_sources[${index}].content`,
+    );
+    return parsed.rules;
+  });
+  if (JSON.stringify(humanGateRules) !== JSON.stringify(expectedRules)) {
+    fail(`${context}.human_gate_rules`, "must equal the additive control source rules");
+  }
+  const ruleIds = humanGateRules.map((rule) => rule.rule_id);
+  const duplicateRule = ruleIds.find(
+    (rule, index) => ruleIds.indexOf(rule) !== index,
+  );
+  if (duplicateRule !== undefined) {
+    fail(`${context}.human_gate_rules`, `duplicate rule_id: ${duplicateRule}`);
   }
   return {
     schema_version: EFFECTIVE_POLICY_SCHEMA_VERSION,
@@ -285,7 +407,8 @@ export function parseEffectivePolicySnapshot(
     created_at: asIsoTimestamp(record.created_at, `${context}.created_at`),
     source_priority: [...POLICY_SOURCE_PRIORITY],
     sources,
-    intent_risks: intentRisks,
+    control_sources: controlSources,
+    human_gate_rules: humanGateRules,
   };
 }
 
@@ -314,6 +437,41 @@ export function buildEffectivePolicySnapshot(
       content,
     };
   });
+  const controlSources = POLICY_SOURCE_LAYERS.map(
+    (layer): EffectivePolicyControlSource => {
+      const path = join(memoryDir, `${layer}-policy.json`);
+      if (!existsSync(path) || !statSync(path).isFile()) {
+        fail("Effective Policy", `missing ${layer} machine Policy: ${path}`);
+      }
+      const content = readFileSync(path, "utf8");
+      const policy = parseHumanGatePolicySource(
+        JSON.parse(content),
+        `Effective Policy ${layer} machine Policy`,
+      );
+      if (policy.layer !== layer) {
+        fail(`Effective Policy ${layer} machine Policy.layer`, `must equal ${layer}`);
+      }
+      return {
+        layer,
+        source_of_truth: portableProjectPath(projectRoot, path),
+        sha256: digest(content),
+        content,
+      };
+    },
+  );
+  const humanGateRules = controlSources.flatMap((source, index) =>
+    parseHumanGatePolicySource(
+      JSON.parse(source.content),
+      `Effective Policy control_sources[${index}]`,
+    ).rules
+  );
+  const ruleIds = humanGateRules.map((rule) => rule.rule_id);
+  const duplicateRule = ruleIds.find(
+    (rule, index) => ruleIds.indexOf(rule) !== index,
+  );
+  if (duplicateRule !== undefined) {
+    fail("Effective Policy human_gate_rules", `duplicate rule_id: ${duplicateRule}`);
+  }
   return parseEffectivePolicySnapshot({
     schema_version: EFFECTIVE_POLICY_SCHEMA_VERSION,
     snapshot_id: `effective-policy-${intentId}-r${revision}`,
@@ -322,7 +480,8 @@ export function buildEffectivePolicySnapshot(
     created_at: options.createdAt ?? new Date().toISOString(),
     source_priority: [...POLICY_SOURCE_PRIORITY],
     sources,
-    intent_risks: [...(options.intentRisks ?? [])],
+    control_sources: controlSources,
+    human_gate_rules: humanGateRules,
   });
 }
 

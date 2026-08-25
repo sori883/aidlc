@@ -77,6 +77,19 @@ export function createSpace(projectDir: string, rawName: string): CreatedSpace {
     ? readFileSync(defaultOrgPath, "utf8")
     : "# Organization defaults\n";
   writeFileSync(join(memoryDir, "org.md"), organizationRules, "utf8");
+  const defaultOrgPolicyPath = join(
+    defaultSpaceDir,
+    "memory",
+    "org-policy.json",
+  );
+  const coreOrgPolicyPath = join(CORE_MEMORY_DIR, "org-policy.json");
+  writeFileSync(
+    join(memoryDir, "org-policy.json"),
+    existsSync(defaultOrgPolicyPath)
+      ? readFileSync(defaultOrgPolicyPath, "utf8")
+      : readFileSync(coreOrgPolicyPath, "utf8"),
+    "utf8",
+  );
   for (const filename of ["team.md", "project.md"]) {
     // New Spaces inherit organization policy, but start with clean team and
     // project layers rather than copying another Space's learned practices.
@@ -84,6 +97,13 @@ export function createSpace(projectDir: string, rawName: string): CreatedSpace {
     writeFileSync(
       join(memoryDir, filename),
       existsSync(source) ? readFileSync(source, "utf8") : `# ${filename}\n`,
+      "utf8",
+    );
+  }
+  for (const filename of ["team-policy.json", "project-policy.json"]) {
+    writeFileSync(
+      join(memoryDir, filename),
+      readFileSync(join(CORE_MEMORY_DIR, filename), "utf8"),
       "utf8",
     );
   }

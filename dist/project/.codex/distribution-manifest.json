@@ -18,8 +18,11 @@
     ".codex/aidlc-common/stages/st-08-release.json",
     ".codex/aidlc-common/stages/st-09-outcome-evaluation.json",
     ".codex/hooks.json",
+    ".codex/memory/org-policy.json",
     ".codex/memory/org.md",
+    ".codex/memory/project-policy.json",
     ".codex/memory/project.md",
+    ".codex/memory/team-policy.json",
     ".codex/memory/team.md",
     ".codex/memory/templates/.gitkeep",
     "AGENTS.md"

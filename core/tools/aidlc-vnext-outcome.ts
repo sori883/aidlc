@@ -31,6 +31,14 @@ import { reviewCurrentPath } from "./aidlc-vnext-review.ts";
 import { releaseCurrentPath } from "./aidlc-vnext-release.ts";
 import { parseReleaseCurrent, type ReleaseCurrent } from "./aidlc-vnext-release-contract.ts";
 import {
+  humanGateRequirementReferenceAt,
+  parseHumanGateRequirementSet,
+  renderHumanGateRequirementSection,
+  resolveHumanGateRequirementsAt,
+  validatePolicyAcknowledgements,
+  type PolicyAcknowledgement,
+} from "./aidlc-vnext-policy-gates.ts";
+import {
   calculateOutcomeResult,
   parseFollowUpBrief,
   parseOutcomeCurrent,
@@ -72,6 +80,7 @@ export interface OutcomeDecideOptions {
   evaluationSha256: string;
   decision: OutcomeDecision;
   reason: string;
+  policyAcknowledgements?: PolicyAcknowledgement[];
   notBefore?: string | null;
   deadline?: string | null;
   decidedAt?: string;
@@ -362,21 +371,23 @@ function evaluateLocked(projectDir: string, recordDir: string, proposalValue: un
   writeFileAtomic(immutableEvidencePath, evidenceContent);
   writeFileAtomic(outcomeEvidencePath(recordDir), evidenceContent);
   const evidenceReference = reference(projectDir, immutableEvidencePath, "outcome-evidence", evidenceContent);
-  const evaluation = parseOutcomeEvaluation({ schema_version: 1, artifact: "outcome-evaluation", version: 1, revision, evaluation_id: `outcome-evaluation-${String(revision).padStart(3, "0")}`, intent_id: inputs.state.intent_id, stage_id: "ST-09", disposition: "execute", work_request_ref: workRequestReference, outcome_evidence_ref: evidenceReference, release_outcome: requestStored.value.release_outcome, signal_results: proposal.observations, overall_result: overall, reason: proposal.reason, evaluated_at: at });
+  const gate = resolveHumanGateRequirementsAt(projectDir, recordDir, "ST-09", requestStored.value.effective_policy_ref, { createdAt: at });
+  const gateReference = humanGateRequirementReferenceAt(projectDir, recordDir, gate);
+  const evaluation = parseOutcomeEvaluation({ schema_version: 1, artifact: "outcome-evaluation", version: 1, revision, evaluation_id: `outcome-evaluation-${String(revision).padStart(3, "0")}`, intent_id: inputs.state.intent_id, stage_id: "ST-09", disposition: "execute", work_request_ref: workRequestReference, outcome_evidence_ref: evidenceReference, gate_requirement_set_ref: gateReference, release_outcome: requestStored.value.release_outcome, signal_results: proposal.observations, overall_result: overall, reason: proposal.reason, evaluated_at: at });
   const evaluationContent = serialize(evaluation);
   const immutableEvaluationPath = outcomeEvaluationRevisionPath(recordDir, revision);
   writeFileAtomic(immutableEvaluationPath, evaluationContent);
   writeFileAtomic(outcomeEvaluationPath(recordDir), evaluationContent);
   const evaluationReference = reference(projectDir, immutableEvaluationPath, "outcome-evaluation", evaluationContent);
-  const html = renderOutcomeEvaluationHtml(evaluation);
+  const html = renderOutcomeEvaluationHtml(evaluation, renderHumanGateRequirementSection(gate));
   writeFileAtomic(outcomeHtmlRevisionPath(recordDir, revision), html);
   writeFileAtomic(outcomeHtmlPath(recordDir), html);
   const htmlReference = reference(projectDir, outcomeHtmlRevisionPath(recordDir, revision), "outcome-html", html);
-  if (overall === "achieved") {
+  if (overall === "achieved" && gate.requirements.length === 0) {
     const finalized = finalize(projectDir, recordDir, inputs.state, inputs.plan, evaluation, workRequestReference, evidenceReference, evaluationReference, null, null, "auto-achieved", "Every fixed Outcome signal is achieved with verified Project Evidence.", at);
     return { outcome: "completed", evidence, evidenceReference, evaluation, evaluationReference, htmlReference, current: finalized.current, currentReference: finalized.reference, state: finalized.state };
   }
-  const state: VNextIntentState = { ...inputs.state, status: "parked", parked_reason: `ST-09 Outcome is ${overall}; a human must continue observation or accept closure.`, updated_at: at };
+  const state: VNextIntentState = { ...inputs.state, status: "parked", parked_reason: `ST-09 Outcome is ${overall}; a human must confirm Policy requirements and decide whether to continue observation or accept closure.`, updated_at: at };
   writeVNextStateAt(recordDir, state, inputs.plan);
   appendAuditEntry(projectDir, recordDir, "ROUTE_BLOCKED", { Stage: "ST-09", Outcome: overall, "Outcome Evaluation SHA-256": evaluationReference.sha256, Reason: "Human outcome value judgment is required.", "Decision Authority": "core" });
   return { outcome: "awaiting_decision", evidence, evidenceReference, evaluation, evaluationReference, htmlReference, current: null, currentReference: null, state: readVNextStateAt(recordDir) };
@@ -393,7 +404,11 @@ function currentEvaluation(projectDir: string, recordDir: string): { evaluation:
   const immutable = outcomeEvaluationRevisionPath(recordDir, stored.value.revision);
   const immutableHtml = outcomeHtmlRevisionPath(recordDir, stored.value.revision);
   if (!existsSync(immutable) || readFileSync(immutable, "utf8") !== stored.content || !existsSync(immutableHtml)) fail("ST-09 Outcome Evaluation", "immutable Evaluation revision is incomplete");
-  const html = renderOutcomeEvaluationHtml(stored.value);
+  const request = readCanonical(resolve(projectDir, stored.value.work_request_ref.source_of_truth), parseOutcomeWorkRequest).value;
+  verifyProjectArtifactReference(projectDir, stored.value.gate_requirement_set_ref);
+  const gate = readCanonical(resolve(projectDir, stored.value.gate_requirement_set_ref.source_of_truth), parseHumanGateRequirementSet).value;
+  if (gate.stage_id !== "ST-09" || gate.intent_id !== stored.value.intent_id || !refsEqual(gate.effective_policy_ref, request.effective_policy_ref)) fail("ST-09 Outcome Evaluation", "Evaluation Gate Requirement Set does not bind ST-09, the Intent, and Effective Policy");
+  const html = renderOutcomeEvaluationHtml(stored.value, renderHumanGateRequirementSection(gate));
   if (readFileSync(outcomeHtmlPath(recordDir), "utf8") !== html || readFileSync(immutableHtml, "utf8") !== html) fail("ST-09 Outcome Evaluation", "Outcome HTML differs from the canonical Evaluation");
   return { evaluation: stored.value, reference: reference(projectDir, immutable, "outcome-evaluation", stored.content), htmlReference: reference(projectDir, immutableHtml, "outcome-html", html) };
 }
@@ -404,7 +419,6 @@ export function pendingOutcomeDecision(projectDir: string): PendingOutcomeDecisi
   const state = readVNextStateAt(recordDir);
   if (state.current_stage !== "ST-09" || state.status === "completed" || !existsSync(outcomeEvaluationPath(recordDir))) return null;
   const current = currentEvaluation(root, recordDir);
-  if (current.evaluation.overall_result === "achieved") return null;
   if (existsSync(outcomeDecisionPath(recordDir))) {
     const decision = readCanonical(outcomeDecisionPath(recordDir), parseOutcomeHumanDecision).value;
     if (refsEqual(decision.outcome_evaluation_ref, current.reference) && decision.decision === "continue-observation") return null;
@@ -415,10 +429,16 @@ export function pendingOutcomeDecision(projectDir: string): PendingOutcomeDecisi
 function decideLocked(projectDir: string, recordDir: string, options: OutcomeDecideOptions): OutcomeDecideResult {
   const inputs = loadInputs(projectDir, recordDir);
   const current = currentEvaluation(projectDir, recordDir);
-  if (current.evaluation.overall_result === "achieved") fail("ST-09 Outcome Evaluation", "achieved Evaluation is completed automatically and needs no human decision");
   if (current.reference.sha256 !== options.evaluationSha256) fail("ST-09 Outcome Evaluation", "human decision does not bind the current Evaluation SHA-256");
   const at = options.decidedAt ?? new Date().toISOString();
-  const decision = parseOutcomeHumanDecision({ schema_version: 1, artifact: "outcome-human-decision", version: 1, decision_id: `outcome-decision-${randomUUID()}`, intent_id: inputs.state.intent_id, outcome_evaluation_ref: current.reference, decision: options.decision, reason: options.reason, decided_by: "human", decided_at: at, not_before: options.decision === "continue-observation" ? options.notBefore ?? null : null, deadline: options.decision === "continue-observation" ? options.deadline ?? null : null });
+  const workRequest = readCanonical(resolve(projectDir, current.evaluation.work_request_ref.source_of_truth), parseOutcomeWorkRequest).value;
+  verifyProjectArtifactReference(projectDir, current.evaluation.gate_requirement_set_ref);
+  const gate = readCanonical(resolve(projectDir, current.evaluation.gate_requirement_set_ref.source_of_truth), parseHumanGateRequirementSet).value;
+  if (!refsEqual(gate.effective_policy_ref, workRequest.effective_policy_ref)) fail("ST-09 Outcome Evaluation", "Evaluation Gate Requirement Set does not bind the Work Request Policy");
+  if (current.evaluation.overall_result === "achieved" && gate.requirements.length === 0) fail("ST-09 Outcome Evaluation", "achieved Evaluation without Policy requirements is completed automatically and needs no human decision");
+  const acknowledgements = options.decision === "continue-observation" ? [] : validatePolicyAcknowledgements(gate, options.policyAcknowledgements ?? [], { projectDir, recordDir, requireCurrentRiskRegister: true });
+  const gateReference = current.evaluation.gate_requirement_set_ref;
+  const decision = parseOutcomeHumanDecision({ schema_version: 1, artifact: "outcome-human-decision", version: 1, decision_id: `outcome-decision-${randomUUID()}`, intent_id: inputs.state.intent_id, outcome_evaluation_ref: current.reference, gate_requirement_set_ref: gateReference, policy_acknowledgements: acknowledgements, decision: options.decision, reason: options.reason, decided_by: "human", decided_at: at, not_before: options.decision === "continue-observation" ? options.notBefore ?? null : null, deadline: options.decision === "continue-observation" ? options.deadline ?? null : null });
   const decisionContent = serialize(decision);
   const immutableDecisionPath = outcomeDecisionRevisionPath(recordDir, decision.decision_id);
   writeFileAtomic(immutableDecisionPath, decisionContent);
@@ -472,7 +492,9 @@ function reuseLocked(projectDir: string, recordDir: string, options: OutcomeReus
   if (JSON.stringify(comparable(priorRequest)) !== JSON.stringify(comparable(prepared.request))) fail("ST-09 Outcome Evaluation", "reused Outcome does not match the active promises, Release Current, Policy, and signals");
   for (const observation of priorEvidenceStored.value.observations) for (const item of observation.evidence_refs) verifyProjectArtifactReference(projectDir, item);
   const at = options.reusedAt ?? new Date().toISOString();
-  const html = renderOutcomeEvaluationHtml(priorEvaluationStored.value);
+  const gate = resolveHumanGateRequirementsAt(projectDir, recordDir, "ST-09", prepared.request.effective_policy_ref, { createdAt: at });
+  if (gate.requirements.length > 0) fail("ST-09 Outcome Evaluation", "Outcome reuse requires human confirmation because current Policy requirements apply");
+  const html = renderOutcomeEvaluationHtml(priorEvaluationStored.value, renderHumanGateRequirementSection(gate));
   writeFileAtomic(outcomeHtmlPath(recordDir), html);
   const finalized = finalize(projectDir, recordDir, inputs.state, readVNextPlanAt(recordDir), { ...priorEvaluationStored.value, disposition: "reuse" }, prepared.reference, reference(projectDir, resolve(projectDir, prior.outcome_evidence_ref.source_of_truth), "outcome-evidence", priorEvidenceStored.content), reference(projectDir, resolve(projectDir, prior.outcome_evaluation_ref.source_of_truth), "outcome-evaluation", priorEvaluationStored.content), null, null, "reused", options.reason, at, "reuse");
   return { current: finalized.current, currentReference: finalized.reference, reusedOutcomeCurrentReference, state: finalized.state };
@@ -488,12 +510,15 @@ export function main(argv: string[]): void {
   try {
     if (command === "prepare" && projectDir !== undefined && rest.length <= 1) { process.stdout.write(`${JSON.stringify(prepareOutcomeEvaluation(projectDir, rest[0] === undefined ? {} : { preparedAt: rest[0] }), null, 2)}\n`); return; }
     if (command === "evaluate" && projectDir !== undefined && rest.length >= 1 && rest.length <= 2) { process.stdout.write(`${JSON.stringify(evaluateOutcome(projectDir, JSON.parse(readFileSync(resolve(rest[0]!), "utf8")), rest[1] === undefined ? {} : { evaluatedAt: rest[1] }), null, 2)}\n`); return; }
-    if (command === "decide" && projectDir !== undefined && rest.length >= 3 && rest.length <= 6) {
-      const [evaluationSha256, decision, reason, notBefore, deadline, decidedAt] = rest;
-      process.stdout.write(`${JSON.stringify(decideOutcome(projectDir, { evaluationSha256: evaluationSha256!, decision: decision as OutcomeDecision, reason: reason!, ...(notBefore === undefined ? {} : { notBefore }), ...(deadline === undefined ? {} : { deadline }), ...(decidedAt === undefined ? {} : { decidedAt }) }), null, 2)}\n`); return;
+    if (command === "decide" && projectDir !== undefined && rest.length >= 3 && rest.length <= 7) {
+      const [evaluationSha256, decision, reason, fourth, fifth, sixth, seventh] = rest;
+      const acknowledgementPath = fourth !== undefined && existsSync(resolve(fourth)) ? resolve(fourth) : null;
+      const acknowledgements = acknowledgementPath === null ? [] : JSON.parse(readFileSync(acknowledgementPath, "utf8"));
+      const [notBefore, deadline, decidedAt] = acknowledgementPath === null ? [fourth, fifth, sixth] : [fifth, sixth, seventh];
+      process.stdout.write(`${JSON.stringify(decideOutcome(projectDir, { evaluationSha256: evaluationSha256!, decision: decision as OutcomeDecision, reason: reason!, policyAcknowledgements: acknowledgements, ...(notBefore === undefined ? {} : { notBefore }), ...(deadline === undefined ? {} : { deadline }), ...(decidedAt === undefined ? {} : { decidedAt }) }), null, 2)}\n`); return;
     }
     if (command === "reuse" && projectDir !== undefined && rest.length >= 2 && rest.length <= 3) { process.stdout.write(`${JSON.stringify(reuseOutcomeEvaluation(projectDir, { outcomeCurrentPath: rest[0]!, reason: rest[1]!, ...(rest[2] === undefined ? {} : { reusedAt: rest[2] }) }), null, 2)}\n`); return; }
-    console.error("Usage: aidlc-vnext-outcome.ts prepare <project-dir> [prepared-at] | evaluate <project-dir> <proposal.json> [evaluated-at] | decide <project-dir> <evaluation-sha256> <continue-observation|complete-with-outcome|complete-and-draft-follow-up> <reason> [not-before] [deadline] [decided-at] | reuse <project-dir> <outcome-current.json> <reason> [reused-at]");
+    console.error("Usage: aidlc-vnext-outcome.ts prepare <project-dir> [prepared-at] | evaluate <project-dir> <proposal.json> [evaluated-at] | decide <project-dir> <evaluation-sha256> <continue-observation|complete-with-outcome|complete-and-draft-follow-up> <reason> [policy-acknowledgements.json] [not-before] [deadline] [decided-at] | reuse <project-dir> <outcome-current.json> <reason> [reused-at]");
     process.exitCode = 1;
   } catch (error) {
     if (projectDir !== undefined) {

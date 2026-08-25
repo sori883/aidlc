@@ -2,6 +2,10 @@ import {
   parseArtifactReference,
   type ArtifactReference,
 } from "./aidlc-stage-contract.ts";
+import {
+  parsePolicyAcknowledgement,
+  type PolicyAcknowledgement,
+} from "./aidlc-vnext-policy-gates.ts";
 
 export const OUTCOME_SCHEMA_VERSION = 1 as const;
 export const OUTCOME_ARTIFACT_VERSION = 1 as const;
@@ -94,6 +98,7 @@ export interface OutcomeEvaluation {
   disposition: "execute" | "reuse";
   work_request_ref: ArtifactReference;
   outcome_evidence_ref: ArtifactReference;
+  gate_requirement_set_ref: ArtifactReference;
   release_outcome: OutcomeReleaseResult;
   signal_results: OutcomeSignalObservation[];
   overall_result: OutcomeResult;
@@ -108,6 +113,8 @@ export interface OutcomeHumanDecision {
   decision_id: string;
   intent_id: string;
   outcome_evaluation_ref: ArtifactReference;
+  gate_requirement_set_ref: ArtifactReference;
+  policy_acknowledgements: PolicyAcknowledgement[];
   decision: OutcomeDecision;
   reason: string;
   decided_by: "human";
@@ -317,29 +324,30 @@ export function parseOutcomeEvidence(value: unknown, context = "Outcome Evidence
 export function parseOutcomeEvaluation(value: unknown, context = "Outcome Evaluation"): OutcomeEvaluation {
   noSecrets(value, context);
   const record = object(value, context);
-  rejectUnknown(record, ["schema_version", "artifact", "version", "revision", "evaluation_id", "intent_id", "stage_id", "disposition", "work_request_ref", "outcome_evidence_ref", "release_outcome", "signal_results", "overall_result", "reason", "evaluated_at"], context);
+  rejectUnknown(record, ["schema_version", "artifact", "version", "revision", "evaluation_id", "intent_id", "stage_id", "disposition", "work_request_ref", "outcome_evidence_ref", "gate_requirement_set_ref", "release_outcome", "signal_results", "overall_result", "reason", "evaluated_at"], context);
   if (record.schema_version !== 1 || record.version !== 1 || record.artifact !== "outcome-evaluation" || record.stage_id !== "ST-09") fail(context, "must define ST-09 outcome-evaluation version 1");
   const signalResults = observations(record.signal_results, `${context}.signal_results`);
   const overall = result(record.overall_result, `${context}.overall_result`);
   if (calculateOutcomeResult(signalResults) !== overall) fail(`${context}.overall_result`, "does not match the signal results");
   const released = releaseResult(record.release_outcome, `${context}.release_outcome`);
   if (released === "rolled_back" && overall === "achieved") fail(`${context}.overall_result`, "a rolled_back Release cannot be automatically achieved");
-  return { schema_version: 1, artifact: "outcome-evaluation", version: 1, revision: integer(record.revision, `${context}.revision`), evaluation_id: id(record.evaluation_id, `${context}.evaluation_id`), intent_id: text(record.intent_id, `${context}.intent_id`), stage_id: "ST-09", disposition: choice(record.disposition, ["execute", "reuse"] as const, `${context}.disposition`), work_request_ref: parseArtifactReference(record.work_request_ref, `${context}.work_request_ref`), outcome_evidence_ref: parseArtifactReference(record.outcome_evidence_ref, `${context}.outcome_evidence_ref`), release_outcome: released, signal_results: signalResults, overall_result: overall, reason: text(record.reason, `${context}.reason`), evaluated_at: iso(record.evaluated_at, `${context}.evaluated_at`) };
+  return { schema_version: 1, artifact: "outcome-evaluation", version: 1, revision: integer(record.revision, `${context}.revision`), evaluation_id: id(record.evaluation_id, `${context}.evaluation_id`), intent_id: text(record.intent_id, `${context}.intent_id`), stage_id: "ST-09", disposition: choice(record.disposition, ["execute", "reuse"] as const, `${context}.disposition`), work_request_ref: parseArtifactReference(record.work_request_ref, `${context}.work_request_ref`), outcome_evidence_ref: parseArtifactReference(record.outcome_evidence_ref, `${context}.outcome_evidence_ref`), gate_requirement_set_ref: parseArtifactReference(record.gate_requirement_set_ref, `${context}.gate_requirement_set_ref`), release_outcome: released, signal_results: signalResults, overall_result: overall, reason: text(record.reason, `${context}.reason`), evaluated_at: iso(record.evaluated_at, `${context}.evaluated_at`) };
 }
 
 export function parseOutcomeHumanDecision(value: unknown, context = "Outcome Human Decision"): OutcomeHumanDecision {
   noSecrets(value, context);
   const record = object(value, context);
-  rejectUnknown(record, ["schema_version", "artifact", "version", "decision_id", "intent_id", "outcome_evaluation_ref", "decision", "reason", "decided_by", "decided_at", "not_before", "deadline"], context);
+  rejectUnknown(record, ["schema_version", "artifact", "version", "decision_id", "intent_id", "outcome_evaluation_ref", "gate_requirement_set_ref", "policy_acknowledgements", "decision", "reason", "decided_by", "decided_at", "not_before", "deadline"], context);
   if (record.schema_version !== 1 || record.version !== 1 || record.artifact !== "outcome-human-decision") fail(context, "must define outcome-human-decision version 1");
   if (record.decided_by !== "human") fail(`${context}.decided_by`, "must equal human");
+  if (!Array.isArray(record.policy_acknowledgements)) fail(`${context}.policy_acknowledgements`, "must be an array");
   const decision = choice(record.decision, OUTCOME_DECISIONS, `${context}.decision`);
   const notBefore = nullableIso(record.not_before, `${context}.not_before`);
   const deadline = nullableIso(record.deadline, `${context}.deadline`);
   if (decision === "continue-observation" && notBefore === null) fail(`${context}.not_before`, "is required when observation continues");
   if (decision !== "continue-observation" && (notBefore !== null || deadline !== null)) fail(context, "completion decisions cannot schedule another observation");
   if (notBefore !== null && deadline !== null && Date.parse(deadline) <= Date.parse(notBefore)) fail(`${context}.deadline`, "must be after not_before");
-  return { schema_version: 1, artifact: "outcome-human-decision", version: 1, decision_id: id(record.decision_id, `${context}.decision_id`), intent_id: text(record.intent_id, `${context}.intent_id`), outcome_evaluation_ref: parseArtifactReference(record.outcome_evaluation_ref, `${context}.outcome_evaluation_ref`), decision, reason: text(record.reason, `${context}.reason`), decided_by: "human", decided_at: iso(record.decided_at, `${context}.decided_at`), not_before: notBefore, deadline };
+  return { schema_version: 1, artifact: "outcome-human-decision", version: 1, decision_id: id(record.decision_id, `${context}.decision_id`), intent_id: text(record.intent_id, `${context}.intent_id`), outcome_evaluation_ref: parseArtifactReference(record.outcome_evaluation_ref, `${context}.outcome_evaluation_ref`), gate_requirement_set_ref: parseArtifactReference(record.gate_requirement_set_ref, `${context}.gate_requirement_set_ref`), policy_acknowledgements: record.policy_acknowledgements.map((entry, index) => parsePolicyAcknowledgement(entry, `${context}.policy_acknowledgements[${index}]`)), decision, reason: text(record.reason, `${context}.reason`), decided_by: "human", decided_at: iso(record.decided_at, `${context}.decided_at`), not_before: notBefore, deadline };
 }
 
 export function parseFollowUpBrief(value: unknown, context = "Follow-up Brief"): FollowUpBrief {
@@ -370,8 +378,8 @@ function escapeHtml(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 
-export function renderOutcomeEvaluationHtml(evaluation: OutcomeEvaluation): string {
+export function renderOutcomeEvaluationHtml(evaluation: OutcomeEvaluation, gateSection = ""): string {
   const label: Record<OutcomeResult, string> = { achieved: "達成", partially_achieved: "一部達成", not_achieved: "未達成", inconclusive: "判断不能" };
   const rows = evaluation.signal_results.map((entry) => `<tr><td>${escapeHtml(entry.signal_id)}</td><td>${label[entry.result]}</td><td>${escapeHtml(entry.reason)}</td><td>${escapeHtml(entry.observed_at)}</td></tr>`).join("");
-  return `<!doctype html>\n<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ST-09 Outcome Evaluation</title><style>body{margin:0;background:#f5f7fb;color:#172033;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.7}main{max-width:960px;margin:auto;padding:32px 18px}header,section{background:#fff;border:1px solid #dbe3f0;border-radius:18px;padding:24px;margin-bottom:16px}h1,h2{margin-top:0}.result{display:inline-block;padding:8px 14px;border-radius:999px;background:#e8f5ee;color:#17633b;font-weight:800}table{width:100%;border-collapse:collapse}th,td{border:1px solid #dbe3f0;padding:10px;text-align:left;vertical-align:top}th{background:#f3f6fb}@media(max-width:680px){table{font-size:13px}}</style></head><body><main><header><p>AI-DLC vNext / ST-09</p><h1>Outcome Evaluation</h1><p>最初に決めた成功条件と、実際に観測した事実を比較した結果です。</p><span class="result">${label[evaluation.overall_result]}</span></header><section><h2>全体結果</h2><p>${escapeHtml(evaluation.reason)}</p><p>Release結果: ${escapeHtml(evaluation.release_outcome)}</p></section><section><h2>条件ごとの確認</h2><table><thead><tr><th>条件ID</th><th>結果</th><th>理由</th><th>確認時刻</th></tr></thead><tbody>${rows}</tbody></table></section></main></body></html>\n`;
+  return `<!doctype html>\n<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ST-09 Outcome Evaluation</title><style>body{margin:0;background:#f5f7fb;color:#172033;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.7}main{max-width:960px;margin:auto;padding:32px 18px}header,section{background:#fff;border:1px solid #dbe3f0;border-radius:18px;padding:24px;margin-bottom:16px}h1,h2{margin-top:0}.result{display:inline-block;padding:8px 14px;border-radius:999px;background:#e8f5ee;color:#17633b;font-weight:800}table{width:100%;border-collapse:collapse}th,td{border:1px solid #dbe3f0;padding:10px;text-align:left;vertical-align:top}th{background:#f3f6fb}@media(max-width:680px){table{font-size:13px}}</style></head><body><main><header><p>AI-DLC vNext / ST-09</p><h1>Outcome Evaluation</h1><p>最初に決めた成功条件と、実際に観測した事実を比較した結果です。</p><span class="result">${label[evaluation.overall_result]}</span></header><section><h2>全体結果</h2><p>${escapeHtml(evaluation.reason)}</p><p>Release結果: ${escapeHtml(evaluation.release_outcome)}</p></section><section><h2>条件ごとの確認</h2><table><thead><tr><th>条件ID</th><th>結果</th><th>理由</th><th>確認時刻</th></tr></thead><tbody>${rows}</tbody></table></section>${gateSection}</main></body></html>\n`;
 }

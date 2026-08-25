@@ -14,12 +14,37 @@ Run from the project root:
 
 1. `./.codex/tools/aidlc workspace init .`
 2. `./.codex/tools/aidlc intent list . --json`
-3. If no Intent exists, derive a short label and run
-   `./.codex/tools/aidlc intent birth . "<label>"`
+3. Before Birth, ask the human about known Intent-specific risks. If there are
+   any, write the confirmed JSON array and run
+   `./.codex/tools/aidlc intent birth . "<label>" --risk-file ../<risks.json>`.
+   Otherwise run `./.codex/tools/aidlc intent birth . "<label>"`.
 4. Run `./.codex/tools/aidlc next .`
 
 Do not ask for a Scope, work type, lightweight/enterprise profile, or free-form
 route. Those controls do not exist in vNext.
+
+## Policy and Intent risks
+
+Human-readable Org, Team, and Project Markdown Memory remains guidance. The
+adjacent `org-policy.json`, `team-policy.json`, and `project-policy.json` files
+are the only machine-executed additional Human Gate rules. Never infer an
+executable rule from Markdown and never use Policy to remove a fixed Gate or
+change the Stage Graph.
+
+Show the current Register with
+`./.codex/tools/aidlc intent risk show ..`. When new Evidence reveals a
+risk, submit a strict add-or-increase proposal with
+`./.codex/tools/aidlc intent risk propose .. <proposal.json>`.
+AI may add a risk or increase its severity, but may not reduce, dismiss,
+resolve, or reactivate one. Only after an actual human decision may Codex run
+`./.codex/tools/aidlc intent risk decide .. ../<human-decision.json>`.
+Never edit Risk Current or immutable revisions directly.
+
+At ST-05, ST-07, ST-08, and a human-decided ST-09, read the Policy section in
+the generated review HTML. For every listed `requirement_id`, create one
+`{"requirement_id":"...","acknowledged":true,"reason":"..."}` entry in a
+JSON array from the human's actual decision. Pass that file to the approval
+command. An old Gate table is invalid after the Risk Register changes.
 
 ## Core Directive
 
@@ -117,13 +142,27 @@ decisions. Submit the proposal with:
 
 `./.codex/tools/aidlc architecture complete . <proposal.json>`
 
+If Core reports that ST-04 Policy approval is required, do not alter the
+proposal to bypass it. Generate the exact human review with:
+
+`./.codex/tools/aidlc architecture policy-review .. <proposal.json>`
+
+Show the generated review HTML and Proposal SHA-256 to the human. After the
+human supplies a reason and one acknowledgement for every listed requirement,
+submit:
+
+`./.codex/tools/aidlc architecture policy-approve .. <proposal-sha256> "<human reason>" ../<policy-acknowledgements.json>`
+
+Core binds this approval to the reviewed Proposal, Effective Policy, and
+current Risk Register. A changed Risk Register makes the old review stale.
+
 Core rejects incomplete requirement coverage, dangling current entity IDs,
 invalid disposition bodies, stale references, unapproved reuse, and tampered
 artifacts. For `execute`, Core writes an immutable Architecture Decision
 revision. For all three dispositions, Core writes Intent-local `current.json`,
 revises the Core-owned Plan, records Audit and State, and advances only through
-the fixed ST-04 to ST-05 edge. JSON is canonical; HTML is not a standard runtime
-output.
+the fixed ST-04 to ST-05 edge. JSON is canonical. HTML is generated only when a
+human Policy decision is actually required.
 
 ST-05 Build Contract has a proposal and approval boundary. Core prepares
 `artifacts/build-contract/build-contract-work-request.json` from the pinned
@@ -151,7 +190,7 @@ It derives execution batches and writes an escaped static
 `review/build-contract-review.html`. When Core returns `approval`, show that
 file and SHA-256. Only after the human explicitly approves, run:
 
-`./.codex/tools/aidlc build-contract approve . <candidate-sha256> <reason>`
+`./.codex/tools/aidlc build-contract approve . <candidate-sha256> <reason> [policy-acknowledgements.json]`
 
 Approval is bound to the exact candidate SHA-256. Core then writes the human
 decision, immutable Build Contract revision for `execute` (or an exact reuse/no
@@ -204,7 +243,7 @@ it is awaiting a decision.
 
 After an actual human approves every human check, run:
 
-`./.codex/tools/aidlc review approve . <review-manifest-sha256> <reason> [human-checks.json]`
+`./.codex/tools/aidlc review approve . <review-manifest-sha256> <reason> [human-checks.json] [policy-acknowledgements.json]`
 
 If the human requests changes, record one or more feedback items with a known
 requirement ID and at least one confirmed impact, then run:
@@ -237,7 +276,7 @@ Core re-observes every Target, pins an immutable Release Plan, and generates
 `artifacts/release/review/release.html`. Show that HTML to the human. Only the
 exact Plan SHA-256 can be authorized:
 
-`./.codex/tools/aidlc release authorize . <release-plan-sha256> <reason>`
+`./.codex/tools/aidlc release authorize . <release-plan-sha256> <reason> [policy-acknowledgements.json]`
 
 Authorization alone performs no external operation. After explicit human
 instruction to execute, run:
@@ -272,8 +311,10 @@ authority, or a new Intent instruction. Submit the proposal with:
 `./.codex/tools/aidlc outcome evaluate . <proposal.json>`
 
 Core writes immutable Outcome Evidence and Evaluation JSON plus a derived,
-escaped `artifacts/outcome/outcome.html`. If every signal is `achieved`, Core
-may write Outcome Current and complete the Intent automatically. A
+escaped `artifacts/outcome/outcome.html`. If every signal is `achieved` and the
+ST-09 Gate Requirement Set is empty, Core may write Outcome Current and complete
+the Intent automatically. If Policy adds an ST-09 confirmation, even an
+achieved result waits for the human. A
 `rolled_back` Release can never be auto-achieved. For `partially_achieved`,
 `not_achieved`, or `inconclusive`, show the HTML and exact Evaluation SHA-256,
 then wait for the human. The three decisions are:
@@ -285,7 +326,7 @@ then wait for the human. The three decisions are:
 
 Run the human's exact decision with:
 
-`./.codex/tools/aidlc outcome decide . <evaluation-sha256> <decision> <reason> [not-before] [deadline]`
+`./.codex/tools/aidlc outcome decide . <evaluation-sha256> <decision> <reason> [policy-acknowledgements.json] [not-before] [deadline]`
 
 The Follow-up Brief never creates or activates a new Intent. ST-09 has no
 backward Graph edge and rejects `not_applicable`. After terminal completion,
@@ -304,4 +345,5 @@ Unknown fields such as `next_stage`, `authority`, or transition instructions
 are rejected.
 
 Never edit `aidlc-state.json`, `stage-execution-plan.json`, Effective Policy
-snapshots, `aidlc-state.md`, or Audit logs directly.
+snapshots, Risk Register revisions, Gate Requirement Sets, `aidlc-state.md`, or
+Audit logs directly.

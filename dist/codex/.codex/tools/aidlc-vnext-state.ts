@@ -37,8 +37,10 @@ import {
   parseRequirementsWorkRequest,
 } from "./aidlc-vnext-requirements-contract.ts";
 import {
+  parseArchitectureAssessmentProposal,
   parseArchitectureCurrent,
   parseArchitectureDecision,
+  parseArchitecturePolicyApproval,
   parseArchitectureReuseApproval,
   parseArchitectureWorkRequest,
 } from "./aidlc-vnext-architecture-contract.ts";
@@ -86,6 +88,13 @@ import {
   parseOutcomeWorkRequest,
   renderOutcomeEvaluationHtml,
 } from "./aidlc-vnext-outcome-contract.ts";
+import {
+  parseHumanGateRequirementSet,
+  renderHumanGateRequirementSection,
+  resolveHumanGateRequirementsAt,
+  validatePolicyAcknowledgements,
+} from "./aidlc-vnext-policy-gates.ts";
+import { validateIntentRiskArtifactsAt } from "./aidlc-vnext-risk.ts";
 
 export const VNEXT_STATE_SCHEMA_VERSION = 1 as const;
 export const VNEXT_STATE_STATUSES = ["parked", "ready", "completed"] as const;
@@ -438,6 +447,7 @@ export function validateVNextIntentAt(projectDir: string, recordDir: string): vo
     fail("vNext State", "Effective Policy reference does not match Plan");
   }
   verifyProjectArtifactReference(projectDir, state.policy_snapshot);
+  validateIntentRiskArtifactsAt(projectDir, recordDir, state.intent_id);
   validateOrientArtifactsAt(projectDir, recordDir, state);
   validateDefineIntentArtifactsAt(projectDir, recordDir, state);
   validateRequirementsArtifactsAt(projectDir, recordDir, state);
@@ -787,6 +797,55 @@ export function validateArchitectureArtifactsAt(
     verifyProjectArtifactReference(projectDir, actual);
   }
   for (const evidence of current.evidence) verifyProjectArtifactReference(projectDir, evidence);
+  const policyApprovalRefs = current.evidence.filter((entry) =>
+    entry.artifact === "architecture-policy-approval"
+  );
+  if (policyApprovalRefs.length > 1) {
+    fail("ST-04 Architecture", "Current contains more than one Policy approval");
+  }
+  if (policyApprovalRefs.length === 1) {
+    const approvalPath = resolve(projectDir, policyApprovalRefs[0]!.source_of_truth);
+    const approval = parseArchitecturePolicyApproval(
+      readJsonArtifact(approvalPath, "ST-04 Architecture"),
+      approvalPath,
+    );
+    if (approval.intent_id !== state.intent_id) {
+      fail("ST-04 Architecture", "Policy approval belongs to a different Intent");
+    }
+    verifyProjectArtifactReference(projectDir, approval.proposal_ref);
+    const approvedProposal = parseArchitectureAssessmentProposal(
+      readJsonArtifact(
+        resolve(projectDir, approval.proposal_ref.source_of_truth),
+        "ST-04 Architecture",
+      ),
+    );
+    if (
+      approvedProposal.intent_id !== state.intent_id ||
+      approvedProposal.disposition !== current.disposition ||
+      approvedProposal.reason !== current.reason ||
+      JSON.stringify(approvedProposal.requirement_assessments) !==
+        JSON.stringify(current.requirement_assessments) ||
+      JSON.stringify(approvedProposal.evidence) !== JSON.stringify(
+        current.evidence.filter((entry) =>
+          entry.artifact !== "architecture-policy-approval"
+        ),
+      )
+    ) fail("ST-04 Architecture", "Policy approval does not match Architecture Current");
+    const gatePath = verifyProjectArtifactReference(
+      projectDir,
+      approval.gate_requirement_set_ref,
+    );
+    const gate = parseHumanGateRequirementSet(
+      readJsonArtifact(gatePath, "ST-04 Architecture"),
+      gatePath,
+    );
+    if (
+      gate.stage_id !== "ST-04" || gate.intent_id !== state.intent_id ||
+      JSON.stringify(gate.effective_policy_ref) !==
+        JSON.stringify(request.effective_policy_ref)
+    ) fail("ST-04 Architecture", "Policy approval Gate does not match the Work Request");
+    validatePolicyAcknowledgements(gate, approval.policy_acknowledgements);
+  }
 
   const expectedIds = new Set(request.requirement_ids);
   const assessmentIds = current.requirement_assessments.map((entry) => entry.requirement_id);
@@ -926,7 +985,19 @@ export function validateBuildContractArtifactsAt(
       [candidate.system_map_ref, request.system_map_ref, "System Map"],
       [candidate.effective_policy_ref, request.effective_policy_ref, "Effective Policy"],
     ] as const) if (JSON.stringify(actual) !== JSON.stringify(expected)) fail("ST-05 Build Contract", `${label} reference does not match the Work Request`);
-    if (readFileSync(reviewPath, "utf8") !== renderBuildContractReviewHtml(candidate, candidateReference)) fail("ST-05 Build Contract", "review HTML does not match the exact Candidate");
+    const gate = stageIndex >= VNEXT_STAGE_IDS.indexOf("ST-06") && existsSync(approvalPath)
+      ? (() => {
+        const storedApproval = parseBuildContractApproval(readJsonArtifact(approvalPath, "ST-05 Build Contract"), approvalPath);
+        verifyProjectArtifactReference(projectDir, storedApproval.gate_requirement_set_ref);
+        return parseHumanGateRequirementSet(readJsonArtifact(resolve(projectDir, storedApproval.gate_requirement_set_ref.source_of_truth), "ST-05 Build Contract"));
+      })()
+      : resolveHumanGateRequirementsAt(
+        projectDir,
+        recordDir,
+        "ST-05",
+        candidate.effective_policy_ref,
+      );
+    if (readFileSync(reviewPath, "utf8") !== renderBuildContractReviewHtml(candidate, candidateReference, renderHumanGateRequirementSection(gate))) fail("ST-05 Build Contract", "review HTML does not match the exact Candidate and current Policy Gate requirements");
   }
   if (stageIndex < VNEXT_STAGE_IDS.indexOf("ST-06")) return;
   if (request === undefined || candidate === undefined || candidateReference === undefined || !existsSync(approvalPath) || !existsSync(currentPath)) {
@@ -936,6 +1007,23 @@ export function validateBuildContractArtifactsAt(
   const approval = parseBuildContractApproval(readJsonArtifact(approvalPath, "ST-05 Build Contract"), approvalPath);
   if (approvalContent !== `${JSON.stringify(approval, null, 2)}\n`) fail("ST-05 Build Contract", "approval is not canonical");
   if (approval.intent_id !== state.intent_id || JSON.stringify(approval.candidate_ref) !== JSON.stringify(candidateReference)) fail("ST-05 Build Contract", "approval is not bound to the exact Candidate");
+  const gatePath = verifyProjectArtifactReference(
+    projectDir,
+    approval.gate_requirement_set_ref,
+  );
+  const approvedGate = parseHumanGateRequirementSet(
+    readJsonArtifact(gatePath, "ST-05 Build Contract"),
+  );
+  if (
+    approvedGate.stage_id !== "ST-05" ||
+    approvedGate.intent_id !== state.intent_id ||
+    JSON.stringify(approvedGate.effective_policy_ref) !==
+      JSON.stringify(candidate.effective_policy_ref)
+  ) fail("ST-05 Build Contract", "approval Gate requirements do not match the Candidate");
+  validatePolicyAcknowledgements(
+    approvedGate,
+    approval.policy_acknowledgements,
+  );
   const approvalReference = parseArtifactReference({
     artifact: "human-decision",
     version: 1,
@@ -1086,7 +1174,17 @@ export function validateCandidateReviewArtifactsAt(
     manifestReference = parseArtifactReference({ artifact: "review-manifest", version: 1, source_of_truth: relative(resolve(projectDir), manifestPath).split(sep).join("/"), sha256: `sha256:${createHash("sha256").update(content).digest("hex")}` });
     if (manifest.intent_id !== state.intent_id) fail("ST-07 Human Review", "Review Manifest Intent does not match State");
     for (const reference of [manifest.build_current_ref, manifest.runnable_candidate_ref, manifest.requirements_ref, manifest.architecture_current_ref, manifest.build_contract_ref, manifest.effective_policy_ref, manifest.system_map_ref, ...manifest.machine_evidence_refs]) verifyProjectArtifactReference(projectDir, reference);
-    if (readFileSync(htmlPath, "utf8") !== renderCandidateReviewHtml(manifest)) fail("ST-07 Human Review", "Review HTML differs from its pinned Manifest");
+    const completedReviewPath = join(root, "current.json");
+    const gate = stageIndex >= VNEXT_STAGE_IDS.indexOf("ST-08") && existsSync(completedReviewPath)
+      ? (() => {
+        const completedReview = parseReviewCurrent(readJsonArtifact(completedReviewPath, "ST-07 Human Review"), completedReviewPath);
+        const completedDecisionPath = resolve(projectDir, completedReview.human_decision_ref.source_of_truth);
+        const completedDecision = parseCandidateReviewDecision(readJsonArtifact(completedDecisionPath, "ST-07 Human Review"), completedDecisionPath);
+        verifyProjectArtifactReference(projectDir, completedDecision.gate_requirement_set_ref);
+        return parseHumanGateRequirementSet(readJsonArtifact(resolve(projectDir, completedDecision.gate_requirement_set_ref.source_of_truth), "ST-07 Human Review"));
+      })()
+      : resolveHumanGateRequirementsAt(projectDir, recordDir, "ST-07", manifest.effective_policy_ref);
+    if (readFileSync(htmlPath, "utf8") !== renderCandidateReviewHtml(manifest, renderHumanGateRequirementSection(gate))) fail("ST-07 Human Review", "Review HTML differs from its pinned Manifest and Gate Requirement Set");
   }
   if (stageIndex < VNEXT_STAGE_IDS.indexOf("ST-08")) return;
   const currentPath = join(root, "current.json");
@@ -1108,6 +1206,11 @@ export function validateCandidateReviewArtifactsAt(
     const decisionContent = readFileSync(decisionPath, "utf8");
     const decision = parseCandidateReviewDecision(readJsonArtifact(decisionPath, "ST-07 Human Review"), decisionPath);
     if (decisionContent !== `${JSON.stringify(decision, null, 2)}\n` || decision.decision !== "approve-runnable-candidate" || JSON.stringify(decision.review_manifest_ref) !== JSON.stringify(manifestReference) || JSON.stringify(decision.runnable_candidate_ref) !== JSON.stringify(manifest.runnable_candidate_ref)) fail("ST-07 Human Review", "approval is not bound to the exact Manifest and Candidate");
+    verifyProjectArtifactReference(projectDir, decision.gate_requirement_set_ref);
+    const gatePath = resolve(projectDir, decision.gate_requirement_set_ref.source_of_truth);
+    const gate = parseHumanGateRequirementSet(readJsonArtifact(gatePath, "ST-07 Human Review"), gatePath);
+    if (gate.stage_id !== "ST-07" || gate.intent_id !== state.intent_id || JSON.stringify(gate.effective_policy_ref) !== JSON.stringify(manifest.effective_policy_ref)) fail("ST-07 Human Review", "approval Gate Requirement Set is not bound to ST-07, the Intent, and Effective Policy");
+    validatePolicyAcknowledgements(gate, decision.policy_acknowledgements);
     const acceptedPath = resolve(projectDir, current.accepted_candidate_ref.source_of_truth);
     const acceptedContent = readFileSync(acceptedPath, "utf8");
     const accepted = parseAcceptedCandidate(readJsonArtifact(acceptedPath, "ST-07 Human Review"), acceptedPath);
@@ -1174,7 +1277,14 @@ export function validateReleaseArtifactsAt(
     const immutablePath = join(root, "revisions", releasePlan.revision.toString().padStart(6, "0"), "release-plan.json");
     const immutableHtmlPath = join(root, "revisions", releasePlan.revision.toString().padStart(6, "0"), "release.html");
     if (!existsSync(immutablePath) || !existsSync(immutableHtmlPath) || readFileSync(immutablePath, "utf8") !== stored.content) fail(context, "immutable Release Plan revision is missing or differs");
-    const expectedHtml = renderReleaseReviewHtml(releasePlan);
+    const gate = stageIndex >= VNEXT_STAGE_IDS.indexOf("ST-09") && existsSync(authorityPath)
+      ? (() => {
+        const completedAuthority = parseReleaseAuthority(readJsonArtifact(authorityPath, context), authorityPath);
+        verifyProjectArtifactReference(projectDir, completedAuthority.gate_requirement_set_ref);
+        return parseHumanGateRequirementSet(readJsonArtifact(resolve(projectDir, completedAuthority.gate_requirement_set_ref.source_of_truth), context));
+      })()
+      : resolveHumanGateRequirementsAt(projectDir, recordDir, "ST-08", releasePlan.effective_policy_ref);
+    const expectedHtml = renderReleaseReviewHtml(releasePlan, renderHumanGateRequirementSection(gate));
     if (readFileSync(htmlPath, "utf8") !== expectedHtml || readFileSync(immutableHtmlPath, "utf8") !== expectedHtml) fail(context, "Release Review HTML differs from the exact Plan");
     releasePlanReference = localReference(immutablePath, "release-plan", stored.content);
     for (const reference of [releasePlan.work_request_ref, releasePlan.review_current_ref, releasePlan.accepted_candidate_ref, releasePlan.effective_policy_ref, releasePlan.capability_snapshot_ref]) verifyProjectArtifactReference(projectDir, reference);
@@ -1191,6 +1301,11 @@ export function validateReleaseArtifactsAt(
     if (!existsSync(immutablePath) || readFileSync(immutablePath, "utf8") !== stored.content) fail(context, "immutable Release Authority is missing or differs");
     currentAuthorityReference = localReference(immutablePath, "release-authority", stored.content);
     if (currentAuthority.intent_id !== state.intent_id || JSON.stringify(currentAuthority.release_plan_ref) !== JSON.stringify(releasePlanReference)) fail(context, "Release Authority does not bind the active Plan");
+    verifyProjectArtifactReference(projectDir, currentAuthority.gate_requirement_set_ref);
+    const gatePath = resolve(projectDir, currentAuthority.gate_requirement_set_ref.source_of_truth);
+    const gate = parseHumanGateRequirementSet(readJsonArtifact(gatePath, context), gatePath);
+    if (gate.stage_id !== "ST-08" || gate.intent_id !== state.intent_id || JSON.stringify(gate.effective_policy_ref) !== JSON.stringify(releasePlan.effective_policy_ref)) fail(context, "Release Authority Gate Requirement Set is not bound to ST-08, the Intent, and Effective Policy");
+    validatePolicyAcknowledgements(gate, currentAuthority.policy_acknowledgements);
   }
 
   const attemptsRoot = join(root, "attempts");
@@ -1231,6 +1346,11 @@ export function validateReleaseArtifactsAt(
     const receipt = canonical(resolve(projectDir, current.release_receipt_ref.source_of_truth), parseReleaseReceipt).value;
     const deployment = canonical(resolve(projectDir, current.deployment_map_ref.source_of_truth), parseDeploymentMap).value;
     if (JSON.stringify(authority.release_plan_ref) !== JSON.stringify(completedPlanReference) || JSON.stringify(receipt.release_plan_ref) !== JSON.stringify(completedPlanReference) || JSON.stringify(receipt.authority_ref) !== JSON.stringify(current.release_authority_ref) || receipt.outcome !== current.outcome) fail(context, "completed Release bindings are inconsistent");
+    verifyProjectArtifactReference(projectDir, authority.gate_requirement_set_ref);
+    const gatePath = resolve(projectDir, authority.gate_requirement_set_ref.source_of_truth);
+    const gate = parseHumanGateRequirementSet(readJsonArtifact(gatePath, context), gatePath);
+    if (gate.stage_id !== "ST-08" || gate.intent_id !== authority.intent_id || JSON.stringify(gate.effective_policy_ref) !== JSON.stringify(completedPlan.effective_policy_ref)) fail(context, "completed Release Gate Requirement Set is not bound to ST-08, its Intent, and Effective Policy");
+    validatePolicyAcknowledgements(gate, authority.policy_acknowledgements);
     if (current.disposition === "reuse") {
       const activeAccepted = canonical(resolve(projectDir, current.accepted_candidate_ref.source_of_truth), parseAcceptedCandidate).value;
       const priorAccepted = canonical(resolve(projectDir, receipt.accepted_candidate_ref.source_of_truth), parseAcceptedCandidate).value;
@@ -1300,7 +1420,11 @@ export function validateOutcomeArtifactsAt(
     if (!existsSync(immutableEvidencePath) || !existsSync(immutableEvaluationPath) || !existsSync(immutableHtmlPath) || readFileSync(immutableEvidencePath, "utf8") !== evidenceStored.content || readFileSync(immutableEvaluationPath, "utf8") !== evaluationStored.content) fail(context, "immutable Outcome revision is incomplete or differs");
     evidenceReference = localReference(immutableEvidencePath, "outcome-evidence", evidenceStored.content);
     evaluationReference = localReference(immutableEvaluationPath, "outcome-evaluation", evaluationStored.content);
-    const expectedHtml = renderOutcomeEvaluationHtml(evaluation);
+    verifyProjectArtifactReference(projectDir, evaluation.gate_requirement_set_ref);
+    const gatePath = resolve(projectDir, evaluation.gate_requirement_set_ref.source_of_truth);
+    const gate = parseHumanGateRequirementSet(readJsonArtifact(gatePath, context), gatePath);
+    if (gate.stage_id !== "ST-09" || gate.intent_id !== state.intent_id || JSON.stringify(gate.effective_policy_ref) !== JSON.stringify(request.effective_policy_ref)) fail(context, "Outcome Gate Requirement Set is not bound to ST-09, the Intent, and Effective Policy");
+    const expectedHtml = renderOutcomeEvaluationHtml(evaluation, renderHumanGateRequirementSection(gate));
     if (readFileSync(htmlPath, "utf8") !== expectedHtml || readFileSync(immutableHtmlPath, "utf8") !== expectedHtml) fail(context, "Outcome HTML differs from the canonical Evaluation");
     if (evidence.intent_id !== state.intent_id || evaluation.intent_id !== state.intent_id || evidence.revision !== evaluation.revision || JSON.stringify(evidence.work_request_ref) !== JSON.stringify(requestReference) || JSON.stringify(evaluation.work_request_ref) !== JSON.stringify(requestReference) || JSON.stringify(evaluation.outcome_evidence_ref) !== JSON.stringify(evidenceReference)) fail(context, "Outcome revision bindings are inconsistent");
     const expectedSignals = [...request.signals.map((entry) => entry.signal_id)].sort();
@@ -1316,7 +1440,12 @@ export function validateOutcomeArtifactsAt(
     const immutablePath = join(root, "decisions", stored.value.decision_id, "human-decision.json");
     if (!existsSync(immutablePath) || readFileSync(immutablePath, "utf8") !== stored.content) fail(context, "immutable human decision is missing or differs");
     decisionReference = localReference(immutablePath, "outcome-human-decision", stored.content);
-    if (stored.value.intent_id !== state.intent_id || JSON.stringify(stored.value.outcome_evaluation_ref) !== JSON.stringify(evaluationReference)) fail(context, "human decision does not bind the current Evaluation");
+    if (stored.value.intent_id !== state.intent_id || JSON.stringify(stored.value.outcome_evaluation_ref) !== JSON.stringify(evaluationReference) || evaluation === null || JSON.stringify(stored.value.gate_requirement_set_ref) !== JSON.stringify(evaluation.gate_requirement_set_ref)) fail(context, "human decision does not bind the current Evaluation and Gate Requirement Set");
+    verifyProjectArtifactReference(projectDir, stored.value.gate_requirement_set_ref);
+    const gatePath = resolve(projectDir, stored.value.gate_requirement_set_ref.source_of_truth);
+    const gate = parseHumanGateRequirementSet(readJsonArtifact(gatePath, context), gatePath);
+    if (stored.value.decision !== "continue-observation") validatePolicyAcknowledgements(gate, stored.value.policy_acknowledgements);
+    else if (stored.value.policy_acknowledgements.length !== 0) fail(context, "continue-observation must not claim Policy acknowledgement");
   }
 
   let followUpReference: ArtifactReference | null = null;
@@ -1334,6 +1463,11 @@ export function validateOutcomeArtifactsAt(
   const currentStored = canonical(currentPath, parseOutcomeCurrent);
   const current = currentStored.value;
   if (current.intent_id !== state.intent_id || JSON.stringify(current.work_request_ref) !== JSON.stringify(requestReference) || JSON.stringify(current.outcome_evidence_ref) !== JSON.stringify(evidenceReference) || JSON.stringify(current.outcome_evaluation_ref) !== JSON.stringify(evaluationReference) || JSON.stringify(current.human_decision_ref) !== JSON.stringify(decisionReference) || JSON.stringify(current.follow_up_brief_ref) !== JSON.stringify(followUpReference) || current.overall_result !== evaluation.overall_result) fail(context, "Outcome Current bindings are inconsistent");
+  if (decisionReference === null) {
+    const gatePath = resolve(projectDir, evaluation.gate_requirement_set_ref.source_of_truth);
+    const gate = parseHumanGateRequirementSet(readJsonArtifact(gatePath, context), gatePath);
+    if (gate.requirements.length !== 0) fail(context, "auto completion is prohibited when ST-09 Policy requirements exist");
+  }
   const stageDecision = plan.stage_decisions.find((entry) => entry.stage_id === "ST-09");
   if (stageDecision?.disposition !== current.disposition) fail(context, "Outcome Current disposition differs from the Core Plan");
   const currentDigest = `sha256:${createHash("sha256").update(currentStored.content).digest("hex")}`;

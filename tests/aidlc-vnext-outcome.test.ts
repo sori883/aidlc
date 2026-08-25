@@ -47,6 +47,7 @@ function evaluation() {
     disposition: "execute",
     work_request_ref: ref("outcome-work-request", "outcome-request"),
     outcome_evidence_ref: ref("outcome-evidence", "outcome-evidence"),
+    gate_requirement_set_ref: ref("human-gate-requirements", "gate-requirements"),
     release_outcome: "released",
     signal_results: [{
       signal_id: "OUT-001",
@@ -96,6 +97,8 @@ test("Outcome contracts reject arbitrary routes, missing Evidence, and AI human 
     decision_id: "outcome-decision-001",
     intent_id: "intent-001",
     outcome_evaluation_ref: ref("outcome-evaluation", "outcome-evaluation"),
+    gate_requirement_set_ref: ref("human-gate-requirements", "gate-requirements"),
+    policy_acknowledgements: [],
     decision: "complete-with-outcome",
     reason: "部分達成を記録して終了する。",
     decided_by: "human",

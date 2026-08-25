@@ -107,6 +107,8 @@ test("Release contracts reject shell commands, AI authority, and unknown fields"
     intent_id: "intent-001",
     release_plan_ref: ref("release-plan", "release-plan"),
     accepted_candidate_ref: ref("accepted-candidate", "accepted-candidate"),
+    gate_requirement_set_ref: ref("human-gate-requirements", "gate-requirements"),
+    policy_acknowledgements: [],
     decision: "authorize-release",
     reason: "このTargetへのReleaseを許可する。",
     decided_by: "human",

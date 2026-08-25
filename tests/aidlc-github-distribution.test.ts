@@ -197,6 +197,7 @@ test("GitHub distribution installs without npm, Git, authentication, Bun, or Nod
     );
     assert.equal(existsSync(resolve(project, "AGENTS.md")), true);
     assert.equal(existsSync(resolve(project, ".codex/hooks.json")), true);
+    assert.equal(existsSync(resolve(project, ".codex/memory/project-policy.json")), true);
     assert.equal(
       existsSync(resolve(project, ".codex/aidlc-common/data/vnext-stage-graph.json")),
       true,
@@ -231,6 +232,9 @@ test("GitHub distribution installs without npm, Git, authentication, Bun, or Nod
       pathless,
     );
     assert.equal(intent.status, 0, `${intent.stdout}\n${intent.stderr}`);
+    const risk = run(executable, ["intent", "risk", "show", "."], project, pathless);
+    assert.equal(risk.status, 0, `${risk.stdout}\n${risk.stderr}`);
+    assert.equal((JSON.parse(risk.stdout) as { register: { revision: number } }).register.revision, 1);
     const doctor = run(
       executable,
       ["doctor", "check", "."],

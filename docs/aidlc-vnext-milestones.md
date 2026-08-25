@@ -304,8 +304,17 @@ Accepted BaselineとしてReleaseとOutcomeへ接続する。
 
 ### M6: Codex HarnessとEnd-to-End
 
-**状態: 2026-08-25 全体計画を承認済み。Policy／Risk／Human Gateの詳細設計
-`docs/aidlc-vnext-m6-policy-gates-plan.html`のレビュー待ち。**
+**状態: 2026-08-25 TDD実装、配布物検証、代表E2E、実Project Sandbox検証まで完了。**
+
+- vNext専用Codex Skillを6種類のCore Directive、再開、Feedback、承認、Outcomeへ接続
+- Org／Team／Projectの機械Policyを追加和でEffective Policyへ固定
+- Intent Risk Registerをimmutable revisionとして実装し、AIの追加・重大化と人間の軽減・解消を分離
+- ST-04、ST-05、ST-07、ST-08、ST-09の既存Human Gateへ追加確認を接続
+- 小変更、依存する複数Repository、実装なし、Release失敗とrollbackの4代表E2Eを追加
+- 1500個の無関係fileを含むProjectで開始、next、Doctorのhang guardと計測値を記録
+- Codex Bundle、Project Distribution、Bun／Node不要Installer、native binaryを検証
+- `bun run release:check`は37ファイル209 testが成功し、Graph、Bundle、Distribution、native buildも成功
+- 結果は`docs/aidlc-vnext-m6-result.html`へ初心者向けに記録
 
 **目的**
 
@@ -401,10 +410,10 @@ M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7
 
 ## 8. 次に着手する作業
 
-M6として、次の順に進める。
+M7として、まず実装せずに次の順で調査・設計する。
 
-1. 固定10 Stage全体の代表E2Eと失敗・再開シナリオを選ぶ
-2. 初心者向けDirective／HTML／操作手順のUXを確認する
-3. 複数Repositoryと大規模Repositoryで計測する性能指標を決める
-4. Release候補へ要求する品質Gateと残課題を初心者向けHTMLでレビュー可能にする
-5. 明示的承認後にM6の試験・改善だけをTDDで実装する
+1. Runtime、Harness、test、docs、配布物に残るv2 Workflow資産を一覧化する
+2. vNextが回収した実行機構と、削除するv2専用の意味を分ける
+3. 旧v2 Stateをunsupportedとして説明するDoctor境界を決める
+4. README、Release Notes、version、全target packageの更新計画を作る
+5. 初心者向けHTMLの明示承認後に、M7だけをTDDで実装する

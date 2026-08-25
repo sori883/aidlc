@@ -3,6 +3,10 @@ import {
   type ArtifactReference,
 } from "./aidlc-stage-contract.ts";
 import type { RunnableSourceResult } from "./aidlc-vnext-build-converge-contract.ts";
+import {
+  parsePolicyAcknowledgement,
+  type PolicyAcknowledgement,
+} from "./aidlc-vnext-policy-gates.ts";
 
 export const REVIEW_SCHEMA_VERSION = 1 as const;
 export const REVIEW_ARTIFACT_VERSION = 1 as const;
@@ -79,6 +83,8 @@ export interface CandidateReviewDecision {
   intent_id: string;
   review_manifest_ref: ArtifactReference;
   runnable_candidate_ref: ArtifactReference;
+  gate_requirement_set_ref: ArtifactReference;
+  policy_acknowledgements: PolicyAcknowledgement[];
   decision: "approve-runnable-candidate" | "request-changes";
   human_check_results: HumanCheckResult[];
   feedback_items: ReviewFeedbackItem[];
@@ -343,14 +349,15 @@ export function parseCandidateReviewDecision(value: unknown, context = "Candidat
   const record = object(value, context);
   rejectUnknown(record, [
     "schema_version", "artifact", "version", "decision_id", "decision_kind", "intent_id",
-    "review_manifest_ref", "runnable_candidate_ref", "decision", "human_check_results",
+    "review_manifest_ref", "runnable_candidate_ref", "gate_requirement_set_ref", "policy_acknowledgements", "decision", "human_check_results",
     "feedback_items", "reason", "decided_by", "decided_at",
   ], context);
   common(record, "human-decision", context);
   if (record.decision_kind !== "candidate-review") fail(`${context}.decision_kind`, "must equal candidate-review");
   if (record.decided_by !== "human") fail(`${context}.decided_by`, "must equal human");
   if (record.decision !== "approve-runnable-candidate" && record.decision !== "request-changes") fail(`${context}.decision`, "must be approve-runnable-candidate or request-changes");
-  if (!Array.isArray(record.human_check_results) || !Array.isArray(record.feedback_items)) fail(context, "human_check_results and feedback_items must be arrays");
+  if (!Array.isArray(record.policy_acknowledgements) || !Array.isArray(record.human_check_results) || !Array.isArray(record.feedback_items)) fail(context, "policy_acknowledgements, human_check_results, and feedback_items must be arrays");
+  const acknowledgements = record.policy_acknowledgements.map((entry, index) => parsePolicyAcknowledgement(entry, `${context}.policy_acknowledgements[${index}]`));
   const checks = record.human_check_results.map((entry, index) => parseHumanCheckResult(entry, `${context}.human_check_results[${index}]`));
   if (new Set(checks.map((entry) => entry.verifier_id)).size !== checks.length) fail(`${context}.human_check_results`, "contains duplicate verifier_id");
   const feedback = record.feedback_items.map((entry, index) => parseReviewFeedbackItem(entry, `${context}.feedback_items[${index}]`));
@@ -366,6 +373,8 @@ export function parseCandidateReviewDecision(value: unknown, context = "Candidat
     intent_id: id(record.intent_id, `${context}.intent_id`),
     review_manifest_ref: parseArtifactReference(record.review_manifest_ref, `${context}.review_manifest_ref`),
     runnable_candidate_ref: parseArtifactReference(record.runnable_candidate_ref, `${context}.runnable_candidate_ref`),
+    gate_requirement_set_ref: parseArtifactReference(record.gate_requirement_set_ref, `${context}.gate_requirement_set_ref`),
+    policy_acknowledgements: acknowledgements,
     decision: record.decision,
     human_check_results: checks,
     feedback_items: feedback,
@@ -465,7 +474,7 @@ function escapeHtml(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 
-export function renderCandidateReviewHtml(manifest: ReviewManifest): string {
+export function renderCandidateReviewHtml(manifest: ReviewManifest, gateSection = ""): string {
   const requirements = manifest.requirements.map((entry) => `<li><b>${escapeHtml(entry.requirement_id)}</b> ${escapeHtml(entry.statement)}</li>`).join("");
   const criteria = manifest.acceptance_criteria.map((entry) => `<article><b>${escapeHtml(entry.criterion_id)}</b><p>${escapeHtml(entry.given)} → ${escapeHtml(entry.when)} → ${escapeHtml(entry.then)}</p></article>`).join("");
   const sources = manifest.source_results.map((entry) => `<article><b>${escapeHtml(entry.repository_id)}</b><p>base revision: ${escapeHtml(entry.base_revision)}</p><p>candidate revision: ${escapeHtml(entry.candidate_revision)}</p><ul>${entry.changed_files.map((path) => `<li>${escapeHtml(path)}</li>`).join("")}</ul></article>`).join("");
@@ -482,6 +491,7 @@ export function renderCandidateReviewHtml(manifest: ReviewManifest): string {
 <section><h2>合格済みの機械Evidence</h2>${evidence}</section>
 <section><h2>人間が確認すること</h2>${checks}</section>
 <section><h2>変えてはいけないこと・既知制約</h2>${constraints}</section>
+${gateSection}
 <section class="approval"><h2>人間の判断</h2><p>問題がなければ、このCandidateを明示的に承認します。問題があれば、要求・構成・Build Contract・実装のどこを見直すか指定します。</p></section></main></body></html>
 `;
 }

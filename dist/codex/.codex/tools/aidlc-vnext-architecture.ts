@@ -44,11 +44,13 @@ import {
   parseArchitectureAssessmentProposal,
   parseArchitectureCurrent,
   parseArchitectureDecision,
+  parseArchitecturePolicyApproval,
   parseArchitectureReuseApproval,
   parseArchitectureWorkRequest,
   type ArchitectureAssessmentProposal,
   type ArchitectureCurrent,
   type ArchitectureDecision,
+  type ArchitecturePolicyApproval,
   type ArchitectureReuseApproval,
   type ArchitectureWorkRequest,
 } from "./aidlc-vnext-architecture-contract.ts";
@@ -61,6 +63,14 @@ import {
   type VNextIntentState,
 } from "./aidlc-vnext-state.ts";
 import { withWorkspaceLock } from "./aidlc-workspace-lock.ts";
+import {
+  humanGateRequirementReferenceAt,
+  renderHumanGateReviewHtml,
+  resolveHumanGateRequirementsAt,
+  validatePolicyAcknowledgements,
+  type HumanGateRequirementSet,
+  type PolicyAcknowledgement,
+} from "./aidlc-vnext-policy-gates.ts";
 
 export interface ArchitecturePrepareOptions {
   preparedAt?: string;
@@ -83,6 +93,32 @@ export interface ArchitectureCompleteResult {
   currentReference: ArtifactReference;
   plan: StageExecutionPlan;
   state: VNextIntentState;
+}
+
+export interface ArchitecturePolicyReviewOptions {
+  reviewedAt?: string;
+}
+
+export interface ArchitecturePolicyReviewResult {
+  recordDir: string;
+  proposal: ArchitectureAssessmentProposal;
+  proposalReference: ArtifactReference;
+  gate: HumanGateRequirementSet;
+  gateReference: ArtifactReference;
+  reviewReference: ArtifactReference;
+  state: VNextIntentState;
+}
+
+export interface ArchitecturePolicyApproveOptions {
+  proposalSha256: string;
+  reason: string;
+  policyAcknowledgements?: readonly PolicyAcknowledgement[];
+  decidedAt?: string;
+}
+
+export interface ArchitecturePolicyApproveResult extends ArchitectureCompleteResult {
+  approval: ArchitecturePolicyApproval;
+  approvalReference: ArtifactReference;
 }
 
 const STAGE_CONTRACT_PATH = join(
@@ -185,6 +221,22 @@ export function architectureWorkRequestPath(recordDir: string): string {
 
 export function architectureCurrentPath(recordDir: string): string {
   return join(architectureRootDir(recordDir), "current.json");
+}
+
+export function architecturePolicyProposalPath(recordDir: string): string {
+  return join(architectureRootDir(recordDir), "review", "architecture-proposal.json");
+}
+
+export function architecturePolicyGateReferencePath(recordDir: string): string {
+  return join(architectureRootDir(recordDir), "review", "gate-reference.json");
+}
+
+export function architecturePolicyReviewPath(recordDir: string): string {
+  return join(architectureRootDir(recordDir), "review", "architecture-policy-review.html");
+}
+
+export function architecturePolicyApprovalPath(recordDir: string): string {
+  return join(architectureRootDir(recordDir), "review", "architecture-policy-approval.json");
 }
 
 export function architectureRevisionPath(recordDir: string, revision: number): string {
@@ -637,6 +689,180 @@ function revisePlan(
   });
 }
 
+function proposalWithoutPolicyApproval(
+  proposal: ArchitectureAssessmentProposal,
+): ArchitectureAssessmentProposal {
+  return {
+    ...proposal,
+    evidence: proposal.evidence.filter((entry) =>
+      entry.artifact !== "architecture-policy-approval"
+    ),
+  };
+}
+
+function validateArchitecturePolicyGate(
+  projectDir: string,
+  recordDir: string,
+  request: ArchitectureWorkRequest,
+  proposal: ArchitectureAssessmentProposal,
+  at?: string,
+): HumanGateRequirementSet {
+  const gate = resolveHumanGateRequirementsAt(
+    projectDir,
+    recordDir,
+    "ST-04",
+    request.effective_policy_ref,
+    at === undefined ? {} : { createdAt: at },
+  );
+  const approvalRefs = proposal.evidence.filter((entry) =>
+    entry.artifact === "architecture-policy-approval"
+  );
+  if (gate.requirements.length === 0) {
+    if (approvalRefs.length > 0) {
+      fail("ST-04 Architecture", "Policy approval Evidence is not allowed when the Gate Requirement Set is empty");
+    }
+    return gate;
+  }
+  if (approvalRefs.length !== 1) {
+    fail(
+      "ST-04 Architecture",
+      "Policy approval is required; run architecture policy-review before completion",
+    );
+  }
+  const approvalRef = approvalRefs[0]!;
+  verifyProjectArtifactReference(projectDir, approvalRef);
+  const approval = readCanonical(
+    resolve(projectDir, approvalRef.source_of_truth),
+    parseArchitecturePolicyApproval,
+  ).value;
+  if (approval.intent_id !== request.intent_id) {
+    fail("ST-04 Architecture", "Policy approval belongs to a different Intent");
+  }
+  verifyProjectArtifactReference(projectDir, approval.proposal_ref);
+  const approvedProposal = readCanonical(
+    resolve(projectDir, approval.proposal_ref.source_of_truth),
+    parseArchitectureAssessmentProposal,
+  ).value;
+  if (
+    JSON.stringify(approvedProposal) !==
+      JSON.stringify(proposalWithoutPolicyApproval(proposal))
+  ) {
+    fail("ST-04 Architecture", "Policy approval is not bound to the exact Architecture Proposal");
+  }
+  const gateReference = humanGateRequirementReferenceAt(projectDir, recordDir, gate);
+  if (!referencesEqual(approval.gate_requirement_set_ref, gateReference)) {
+    fail("ST-04 Architecture", "Policy approval is bound to a stale Gate Requirement Set");
+  }
+  validatePolicyAcknowledgements(gate, approval.policy_acknowledgements, {
+    projectDir,
+    recordDir,
+    requireCurrentRiskRegister: true,
+  });
+  return gate;
+}
+
+function validateProposalAgainstPreparedRequest(
+  projectDir: string,
+  request: ArchitectureWorkRequest,
+  proposal: ArchitectureAssessmentProposal,
+): void {
+  validateRequirementCoverage(request, proposal);
+  validateCurrentEntityReferences(projectDir, request, proposal);
+  for (const reference of proposal.evidence) verifyProjectArtifactReference(projectDir, reference);
+  if (proposal.disposition === "execute") {
+    validateExecute(projectDir, request, proposal);
+  } else if (proposal.disposition === "reuse") {
+    readReuseApproval(projectDir, request, proposal);
+  } else {
+    validateNotApplicable(request, proposal);
+  }
+}
+
+function reviewArchitecturePolicyLocked(
+  projectDir: string,
+  recordDir: string,
+  proposalValue: unknown,
+  options: ArchitecturePolicyReviewOptions,
+): ArchitecturePolicyReviewResult {
+  const state = readVNextStateAt(recordDir);
+  const plan = readVNextPlanAt(recordDir);
+  if (state.current_stage !== "ST-04") {
+    fail("ST-04 Architecture", `current Stage must be ST-04, found ${state.current_stage}`);
+  }
+  const proposal = parseArchitectureAssessmentProposal(proposalValue);
+  if (proposal.evidence.some((entry) => entry.artifact === "architecture-policy-approval")) {
+    fail("ST-04 Architecture", "Policy review requires the original AI Proposal without approval Evidence");
+  }
+  if (proposal.intent_id !== state.intent_id) {
+    fail("ST-04 Architecture", "Proposal Intent does not match State");
+  }
+  const prepared = recoverPreparedRequest(projectDir, recordDir, state, proposal) ??
+    prepareArchitectureLocked(projectDir, recordDir, {});
+  if (proposal.work_request_sha256 !== prepared.reference.sha256) {
+    fail("ST-04 Architecture", "Proposal does not reference the current Architecture Work Request");
+  }
+  validateProposalAgainstPreparedRequest(projectDir, prepared.request, proposal);
+  const reviewedAt = options.reviewedAt ?? new Date().toISOString();
+  const gate = resolveHumanGateRequirementsAt(
+    projectDir,
+    recordDir,
+    "ST-04",
+    prepared.request.effective_policy_ref,
+    { createdAt: reviewedAt },
+  );
+  if (gate.requirements.length === 0) {
+    fail("ST-04 Architecture", "no Policy approval is required; run architecture complete");
+  }
+  const proposalContent = serialize(proposal);
+  const proposalPath = architecturePolicyProposalPath(recordDir);
+  writeFileAtomic(proposalPath, proposalContent);
+  const proposalReference = artifactReference(
+    projectDir,
+    proposalPath,
+    "architecture-assessment-proposal",
+    proposalContent,
+  );
+  const gateReference = humanGateRequirementReferenceAt(projectDir, recordDir, gate);
+  writeFileAtomic(
+    architecturePolicyGateReferencePath(recordDir),
+    serialize(gateReference),
+  );
+  const reviewContent = renderHumanGateReviewHtml(
+    gate,
+    `Architecture Proposal ${proposal.proposal_id} (${proposalReference.sha256})`,
+  );
+  const reviewPath = architecturePolicyReviewPath(recordDir);
+  writeFileAtomic(reviewPath, reviewContent);
+  const reviewReference = artifactReference(
+    projectDir,
+    reviewPath,
+    "architecture-policy-review",
+    reviewContent,
+  );
+  const parked: VNextIntentState = {
+    ...state,
+    status: "parked",
+    parked_reason: "ST-04 Architecture Proposal is awaiting Policy approval.",
+    updated_at: reviewedAt,
+  };
+  writeVNextStateAt(recordDir, parked, plan);
+  appendAuditEntry(projectDir, recordDir, "STAGE_AWAITING_APPROVAL", {
+    Stage: "ST-04",
+    "Proposal SHA-256": proposalReference.sha256,
+    "Gate Requirement Set": gateReference.source_of_truth,
+    "Decision Authority": "human",
+  });
+  return {
+    recordDir,
+    proposal,
+    proposalReference,
+    gate,
+    gateReference,
+    reviewReference,
+    state: readVNextStateAt(recordDir),
+  };
+}
+
 function completeArchitectureLocked(
   projectDir: string,
   recordDir: string,
@@ -658,17 +884,14 @@ function completeArchitectureLocked(
   if (proposal.work_request_sha256 !== prepared.reference.sha256) {
     fail("ST-04 Architecture", "Proposal does not reference the current Architecture Work Request");
   }
-  validateRequirementCoverage(prepared.request, proposal);
-  validateCurrentEntityReferences(projectDir, prepared.request, proposal);
-  for (const reference of proposal.evidence) verifyProjectArtifactReference(projectDir, reference);
-
-  if (proposal.disposition === "execute") {
-    validateExecute(projectDir, prepared.request, proposal);
-  } else if (proposal.disposition === "reuse") {
-    readReuseApproval(projectDir, prepared.request, proposal);
-  } else {
-    validateNotApplicable(prepared.request, proposal);
-  }
+  validateProposalAgainstPreparedRequest(projectDir, prepared.request, proposal);
+  validateArchitecturePolicyGate(
+    projectDir,
+    recordDir,
+    prepared.request,
+    proposal,
+    options.completedAt,
+  );
 
   const completedAt = options.completedAt ?? new Date().toISOString();
   let decision: ArchitectureDecision | null = null;
@@ -854,14 +1077,146 @@ export function completeArchitecture(
   });
 }
 
+export function reviewArchitecturePolicy(
+  projectDir: string,
+  proposalValue: unknown,
+  options: ArchitecturePolicyReviewOptions = {},
+): ArchitecturePolicyReviewResult {
+  const projectRoot = resolve(projectDir);
+  return withWorkspaceLock(projectRoot, () => {
+    const recordDir = activeVNextIntentRecordDir(projectRoot);
+    return reviewArchitecturePolicyLocked(projectRoot, recordDir, proposalValue, options);
+  });
+}
+
+export function approveArchitecturePolicy(
+  projectDir: string,
+  options: ArchitecturePolicyApproveOptions,
+): ArchitecturePolicyApproveResult {
+  const projectRoot = resolve(projectDir);
+  return withWorkspaceLock(projectRoot, () => {
+    const recordDir = activeVNextIntentRecordDir(projectRoot);
+    const state = readVNextStateAt(recordDir);
+    if (state.current_stage !== "ST-04") {
+      fail("ST-04 Architecture", `current Stage must be ST-04, found ${state.current_stage}`);
+    }
+    const pendingPath = architecturePolicyProposalPath(recordDir);
+    if (!existsSync(pendingPath)) {
+      fail("ST-04 Architecture", "Policy review Proposal is missing");
+    }
+    const pending = readCanonical(pendingPath, parseArchitectureAssessmentProposal);
+    const proposalReference = artifactReference(
+      projectRoot,
+      pendingPath,
+      "architecture-assessment-proposal",
+      pending.content,
+    );
+    if (proposalReference.sha256 !== options.proposalSha256) {
+      fail("ST-04 Architecture", "human approval does not match the reviewed Proposal SHA-256");
+    }
+    const gateRefPath = architecturePolicyGateReferencePath(recordDir);
+    if (!existsSync(gateRefPath)) {
+      fail("ST-04 Architecture", "Policy review Gate reference is missing");
+    }
+    const storedGateReference = parseArtifactReference(
+      JSON.parse(readFileSync(gateRefPath, "utf8")),
+      gateRefPath,
+    );
+    verifyProjectArtifactReference(projectRoot, storedGateReference);
+    const prepared = recoverPreparedRequest(projectRoot, recordDir, state, pending.value) ??
+      prepareArchitectureLocked(projectRoot, recordDir, {});
+    const decidedAt = options.decidedAt ?? new Date().toISOString();
+    const currentGate = resolveHumanGateRequirementsAt(
+      projectRoot,
+      recordDir,
+      "ST-04",
+      prepared.request.effective_policy_ref,
+      { createdAt: decidedAt },
+    );
+    const currentGateReference = humanGateRequirementReferenceAt(
+      projectRoot,
+      recordDir,
+      currentGate,
+    );
+    if (!referencesEqual(storedGateReference, currentGateReference)) {
+      fail("ST-04 Architecture", "Risk Register changed after Policy review; run policy-review again");
+    }
+    const acknowledgements = validatePolicyAcknowledgements(
+      currentGate,
+      [...(options.policyAcknowledgements ?? [])],
+      {
+        projectDir: projectRoot,
+        recordDir,
+        requireCurrentRiskRegister: true,
+      },
+    );
+    let approval = parseArchitecturePolicyApproval({
+      schema_version: 1,
+      artifact: "architecture-policy-approval",
+      version: 1,
+      decision_id: `architecture-policy-${proposalReference.sha256.slice(7, 19)}`,
+      intent_id: state.intent_id,
+      proposal_ref: proposalReference,
+      gate_requirement_set_ref: currentGateReference,
+      policy_acknowledgements: acknowledgements,
+      decision: "approve-architecture-policy",
+      reason: options.reason,
+      decided_by: "human",
+      decided_at: decidedAt,
+    });
+    const approvalPath = architecturePolicyApprovalPath(recordDir);
+    let approvalContent = serialize(approval);
+    if (existsSync(approvalPath)) {
+      const stored = readCanonical(approvalPath, parseArchitecturePolicyApproval);
+      const { decided_at: _candidateAt, ...candidateStable } = approval;
+      const { decided_at: _storedAt, ...storedStable } = stored.value;
+      if (JSON.stringify(candidateStable) !== JSON.stringify(storedStable)) {
+        fail("ST-04 Architecture", "existing Policy approval is bound to different content");
+      }
+      approval = stored.value;
+      approvalContent = stored.content;
+    } else {
+      writeFileAtomic(approvalPath, approvalContent);
+    }
+    const approvalReference = artifactReference(
+      projectRoot,
+      approvalPath,
+      "architecture-policy-approval",
+      approvalContent,
+    );
+    const approvedProposal = parseArchitectureAssessmentProposal({
+      ...pending.value,
+      evidence: [...pending.value.evidence, approvalReference],
+    });
+    appendAuditEntry(projectRoot, recordDir, "DECISION_RECORDED", {
+      Stage: "ST-04",
+      Decision: "approve-architecture-policy",
+      "Proposal SHA-256": proposalReference.sha256,
+      "Gate Requirement Set": currentGateReference.source_of_truth,
+      "Decision Authority": "human",
+    });
+    const completed = completeArchitectureLocked(
+      projectRoot,
+      recordDir,
+      approvedProposal,
+      { completedAt: decidedAt },
+    );
+    return { ...completed, approval, approvalReference };
+  });
+}
+
 export function main(argv: string[]): void {
   const [command, projectDir, proposalPath, ...rest] = argv;
   const validPrepare = command === "prepare" && projectDir !== undefined && proposalPath === undefined;
   const validComplete = command === "complete" && projectDir !== undefined && proposalPath !== undefined && rest.length === 0;
-  if (!validPrepare && !validComplete) {
+  const validPolicyReview = command === "policy-review" && projectDir !== undefined && proposalPath !== undefined && rest.length === 0;
+  const validPolicyApprove = command === "policy-approve" && projectDir !== undefined && proposalPath !== undefined && rest.length >= 1 && rest.length <= 2;
+  if (!validPrepare && !validComplete && !validPolicyReview && !validPolicyApprove) {
     console.error(
       "Usage: aidlc architecture prepare <project-dir>\n" +
-        "       aidlc architecture complete <project-dir> <proposal.json>",
+        "       aidlc architecture complete <project-dir> <proposal.json>\n" +
+        "       aidlc architecture policy-review <project-dir> <proposal.json>\n" +
+        "       aidlc architecture policy-approve <project-dir> <proposal-sha256> <reason> [policy-acknowledgements.json]",
     );
     process.exitCode = 1;
     return;
@@ -870,10 +1225,23 @@ export function main(argv: string[]): void {
     if (projectDir === undefined) throw new Error("project directory is required");
     const result = command === "prepare"
       ? prepareArchitecture(projectDir)
-      : completeArchitecture(
+      : command === "complete"
+      ? completeArchitecture(
         projectDir,
         JSON.parse(readFileSync(resolve(proposalPath!), "utf8")),
-      );
+      )
+      : command === "policy-review"
+      ? reviewArchitecturePolicy(
+        projectDir,
+        JSON.parse(readFileSync(resolve(proposalPath!), "utf8")),
+      )
+      : approveArchitecturePolicy(projectDir, {
+        proposalSha256: proposalPath!,
+        reason: rest[0]!,
+        ...(rest[1] === undefined ? {} : {
+          policyAcknowledgements: JSON.parse(readFileSync(resolve(rest[1]), "utf8")),
+        }),
+      });
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

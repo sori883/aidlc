@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { test } from "bun:test";
 import { AIDLC_VERSION } from "../core/tools/aidlc-version.ts";
@@ -35,6 +35,7 @@ test("builds and smoke-gates a Harness-neutral project-local native binary", () 
   const project = resolve(NATIVE_DIR, "project-layout");
   const runtime = resolve(project, ".codex");
   assert.equal(existsSync(resolve(runtime, "aidlc-common/data/vnext-stage-graph.json")), true);
+  assert.equal(existsSync(resolve(runtime, "memory/project-policy.json")), true);
   assert.equal(existsSync(resolve(project, ".agents/skills/aidlc/SKILL.md")), true);
   const skill = readFileSync(resolve(project, ".agents/skills/aidlc/SKILL.md"), "utf8");
   assert.match(skill, /`\.\/\.codex\/tools\/aidlc workspace init \.`/);
@@ -62,4 +63,15 @@ test("builds and smoke-gates a Harness-neutral project-local native binary", () 
     catalog_version: "vnext-stage-catalog-v1",
     graph_version: "vnext-10-stage-graph-v1",
   });
+  const workspace = spawnSync(installedExecutable, ["workspace", "init", "."], { cwd: project, encoding: "utf8", env: { ...process.env, PATH: "" } });
+  assert.equal(workspace.status, 0, workspace.stderr);
+  const risksPath = resolve(project, "known-risks.json");
+  writeFileSync(risksPath, `${JSON.stringify([{ risk_id: "native-smoke", severity: "medium", statement: "Native配布のRisk導線を確認する。", evidence_refs: [] }], null, 2)}\n`);
+  const birth = spawnSync(installedExecutable, ["intent", "birth", ".", "Native Smoke", "--risk-file", risksPath], { cwd: project, encoding: "utf8", env: { ...process.env, PATH: "" } });
+  assert.equal(birth.status, 0, `${birth.stdout}\n${birth.stderr}`);
+  const risk = spawnSync(installedExecutable, ["intent", "risk", "show", "."], { cwd: project, encoding: "utf8", env: { ...process.env, PATH: "" } });
+  assert.equal(risk.status, 0, `${risk.stdout}\n${risk.stderr}`);
+  assert.equal((JSON.parse(risk.stdout) as { register: { risks: unknown[] } }).register.risks.length, 1);
+  const doctor = spawnSync(installedExecutable, ["doctor", "check", "."], { cwd: project, encoding: "utf8", env: { ...process.env, PATH: "" } });
+  assert.equal(doctor.status, 0, `${doctor.stdout}\n${doctor.stderr}`);
 });

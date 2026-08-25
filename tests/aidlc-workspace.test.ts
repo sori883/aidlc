@@ -29,6 +29,13 @@ test("initializes the vNext default workspace shell", () => {
     readFileSync("core/memory/org.md", "utf8"),
   );
   assert.equal(
+    readFileSync(
+      join(projectDir, "aidlc", "spaces", "default", "memory", "org-policy.json"),
+      "utf8",
+    ),
+    readFileSync("core/memory/org-policy.json", "utf8"),
+  );
+  assert.equal(
     existsSync(join(projectDir, "aidlc", "spaces", "default", "memory", "phases")),
     false,
   );

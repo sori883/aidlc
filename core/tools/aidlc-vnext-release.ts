@@ -39,6 +39,13 @@ import {
 } from "./aidlc-vnext-review-contract.ts";
 import { acceptedCandidatePath, reviewCurrentPath } from "./aidlc-vnext-review.ts";
 import {
+  humanGateRequirementReferenceAt,
+  renderHumanGateRequirementSection,
+  resolveHumanGateRequirementsAt,
+  validatePolicyAcknowledgements,
+  type PolicyAcknowledgement,
+} from "./aidlc-vnext-policy-gates.ts";
+import {
   parseDeploymentMap,
   parseDeploymentMapBaseline,
   parseReleaseAttempt,
@@ -85,7 +92,7 @@ const GIT_ADAPTER_ID = "git-remote-ref-v1";
 
 export interface ReleasePrepareOptions { preparedAt?: string }
 export interface ReleaseReviewOptions { reviewedAt?: string }
-export interface ReleaseAuthorizeOptions { planSha256: string; reason: string; decidedAt?: string }
+export interface ReleaseAuthorizeOptions { planSha256: string; reason: string; policyAcknowledgements?: PolicyAcknowledgement[]; decidedAt?: string }
 export interface ReleaseExecuteOptions { executedAt?: string }
 export interface ReleaseReuseOptions { releaseCurrentPath: string; reason: string; reusedAt?: string }
 
@@ -508,7 +515,8 @@ function reviewLocked(projectDir: string, recordDir: string, proposalValue: Rele
   writeFileAtomic(immutablePath, content);
   writeFileAtomic(releasePlanPath(recordDir), content);
   const planReference = reference(projectDir, immutablePath, "release-plan", content);
-  const html = renderReleaseReviewHtml(plan);
+  const gate = resolveHumanGateRequirementsAt(projectDir, recordDir, "ST-08", plan.effective_policy_ref, { createdAt: at });
+  const html = renderReleaseReviewHtml(plan, renderHumanGateRequirementSection(gate));
   writeFileAtomic(releaseHtmlRevisionPath(recordDir, revision), html);
   writeFileAtomic(releaseHtmlPath(recordDir), html);
   const reviewReference = reference(projectDir, releaseHtmlRevisionPath(recordDir, revision), "release-html", html);
@@ -535,7 +543,8 @@ function pendingReviewLocked(projectDir: string, recordDir: string): PendingRele
   const stored = readCanonical(releasePlanPath(recordDir), parseReleasePlan);
   const immutable = releasePlanRevisionPath(recordDir, stored.value.revision);
   if (!existsSync(immutable) || readFileSync(immutable, "utf8") !== stored.content) fail("ST-08 Release", "immutable Release Plan is missing or differs");
-  const html = renderReleaseReviewHtml(stored.value);
+  const gate = resolveHumanGateRequirementsAt(projectDir, recordDir, "ST-08", stored.value.effective_policy_ref);
+  const html = renderReleaseReviewHtml(stored.value, renderHumanGateRequirementSection(gate));
   if (readFileSync(releaseHtmlPath(recordDir), "utf8") !== html || readFileSync(releaseHtmlRevisionPath(recordDir, stored.value.revision), "utf8") !== html) fail("ST-08 Release", "Release Review HTML differs from its exact Plan");
   return { plan: stored.value, planReference: reference(projectDir, immutable, "release-plan", stored.content), reviewReference: reference(projectDir, releaseHtmlRevisionPath(recordDir, stored.value.revision), "release-html", html) };
 }
@@ -566,7 +575,10 @@ function authorizeLocked(projectDir: string, recordDir: string, options: Release
     if (source === undefined || remoteRevision(resolve(projectDir, source.repository_root), target.locator) !== target.observed_before) fail("ST-08 Release", `Target ${target.target_id} changed before authority`);
   }
   const at = options.decidedAt ?? new Date().toISOString();
-  const authority = parseReleaseAuthority({ schema_version: 1, artifact: "release-authority", version: 1, authority_id: `release-authority-${pending.planReference.sha256.slice(7, 19)}`, intent_id: inputs.state.intent_id, release_plan_ref: pending.planReference, accepted_candidate_ref: inputs.acceptedCandidateReference, decision: "authorize-release", reason: options.reason, decided_by: "human", decided_at: at });
+  const gate = resolveHumanGateRequirementsAt(projectDir, recordDir, "ST-08", pending.plan.effective_policy_ref, { createdAt: at });
+  const acknowledgements = validatePolicyAcknowledgements(gate, options.policyAcknowledgements ?? [], { projectDir, recordDir, requireCurrentRiskRegister: true });
+  const gateReference = humanGateRequirementReferenceAt(projectDir, recordDir, gate);
+  const authority = parseReleaseAuthority({ schema_version: 1, artifact: "release-authority", version: 1, authority_id: `release-authority-${pending.planReference.sha256.slice(7, 19)}`, intent_id: inputs.state.intent_id, release_plan_ref: pending.planReference, accepted_candidate_ref: inputs.acceptedCandidateReference, gate_requirement_set_ref: gateReference, policy_acknowledgements: acknowledgements, decision: "authorize-release", reason: options.reason, decided_by: "human", decided_at: at });
   const content = serialize(authority);
   const immutable = releaseAuthorityRevisionPath(recordDir, authority.authority_id);
   if (existsSync(immutable) && readFileSync(immutable, "utf8") !== content) fail("ST-08 Release", "immutable Release Authority differs");
@@ -767,10 +779,16 @@ export function main(argv: string[]): void {
   try {
     if (command === "prepare" && projectDir !== undefined && rest.length === 0) { process.stdout.write(`${JSON.stringify(prepareRelease(projectDir), null, 2)}\n`); return; }
     if (command === "review" && projectDir !== undefined && rest.length >= 1 && rest.length <= 2) { process.stdout.write(`${JSON.stringify(reviewReleasePlan(projectDir, JSON.parse(readFileSync(resolve(rest[0]!), "utf8")), rest[1] === undefined ? {} : { reviewedAt: rest[1] }), null, 2)}\n`); return; }
-    if (command === "authorize" && projectDir !== undefined && rest.length >= 2 && rest.length <= 3) { process.stdout.write(`${JSON.stringify(authorizeRelease(projectDir, rest[2] === undefined ? { planSha256: rest[0]!, reason: rest[1]! } : { planSha256: rest[0]!, reason: rest[1]!, decidedAt: rest[2] }), null, 2)}\n`); return; }
+    if (command === "authorize" && projectDir !== undefined && rest.length >= 2 && rest.length <= 4) {
+      const third = rest[2];
+      const acknowledgementPath = third !== undefined && existsSync(resolve(third)) ? resolve(third) : null;
+      const acknowledgements = acknowledgementPath === null ? [] : JSON.parse(readFileSync(acknowledgementPath, "utf8"));
+      const decidedAt = rest[3] ?? (acknowledgementPath === null ? third : undefined);
+      process.stdout.write(`${JSON.stringify(authorizeRelease(projectDir, { planSha256: rest[0]!, reason: rest[1]!, policyAcknowledgements: acknowledgements, ...(decidedAt === undefined ? {} : { decidedAt }) }), null, 2)}\n`); return;
+    }
     if (command === "execute" && projectDir !== undefined && rest.length <= 1) { process.stdout.write(`${JSON.stringify(executeRelease(projectDir, rest[0] === undefined ? {} : { executedAt: rest[0] }), null, 2)}\n`); return; }
     if (command === "reuse" && projectDir !== undefined && rest.length >= 2 && rest.length <= 3) { process.stdout.write(`${JSON.stringify(reuseRelease(projectDir, rest[2] === undefined ? { releaseCurrentPath: rest[0]!, reason: rest[1]! } : { releaseCurrentPath: rest[0]!, reason: rest[1]!, reusedAt: rest[2] }), null, 2)}\n`); return; }
-    console.error("Usage: aidlc-vnext-release.ts prepare <project-dir> | review <project-dir> <proposal.json> [reviewed-at] | authorize <project-dir> <plan-sha256> <reason> [decided-at] | execute <project-dir> [executed-at] | reuse <project-dir> <release-current.json> <reason> [reused-at]");
+    console.error("Usage: aidlc-vnext-release.ts prepare <project-dir> | review <project-dir> <proposal.json> [reviewed-at] | authorize <project-dir> <plan-sha256> <reason> [policy-acknowledgements.json] [decided-at] | execute <project-dir> [executed-at] | reuse <project-dir> <release-current.json> <reason> [reused-at]");
     process.exitCode = 1;
   } catch (error) {
     const root = projectDir === undefined ? null : resolve(projectDir);

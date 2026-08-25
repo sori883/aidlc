@@ -38,6 +38,7 @@ test("birth creates one vNext Intent with Core-owned State, Plan, and Policy", (
   assert.equal(existsSync(vNextPlanPath(born.recordDir)), true);
   assert.equal(existsSync(vNextStateSummaryPath(born.recordDir)), true);
   assert.equal(existsSync(born.policyPath), true);
+  assert.equal(existsSync(born.riskCurrentPath), true);
 
   const state = readVNextStateAt(born.recordDir);
   const plan = readVNextPlanAt(born.recordDir);

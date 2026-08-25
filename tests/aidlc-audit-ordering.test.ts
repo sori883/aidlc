@@ -89,7 +89,7 @@ test("concurrent processes cannot duplicate or reverse a shard sequence", async 
   ));
   await Promise.all(children);
   const appended = readOrderedAuditEntries(born.recordDir)
-    .filter((entry) => entry.event === "DECISION_RECORDED");
+    .filter((entry) => entry.event === "DECISION_RECORDED" && entry.sequence > before);
   assert.deepEqual(
     appended.map((entry) => entry.sequence),
     Array.from({ length: 6 }, (_value, index) => before + index + 1),

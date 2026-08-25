@@ -33,6 +33,13 @@ import {
 } from "./aidlc-vnext-build-converge-contract.ts";
 import { buildCurrentPath } from "./aidlc-vnext-build-converge.ts";
 import { promoteAcceptedSystemMapSources } from "./aidlc-vnext-orient.ts";
+import {
+  humanGateRequirementReferenceAt,
+  renderHumanGateRequirementSection,
+  resolveHumanGateRequirementsAt,
+  validatePolicyAcknowledgements,
+  type PolicyAcknowledgement,
+} from "./aidlc-vnext-policy-gates.ts";
 import { parseRequirementsDefinition } from "./aidlc-vnext-requirements-contract.ts";
 import {
   parseAcceptedCandidate,
@@ -78,6 +85,7 @@ export interface CandidateReviewApproveOptions {
   manifestSha256: string;
   reason: string;
   humanCheckResults?: HumanCheckResult[];
+  policyAcknowledgements?: PolicyAcknowledgement[];
   decidedAt?: string;
 }
 export interface CandidateReviewApprovalResult {
@@ -238,7 +246,8 @@ function pendingLocked(projectDir: string, recordDir: string): PendingCandidateR
   if (!existsSync(immutableManifest) || readFileSync(immutableManifest, "utf8") !== stored.content) fail("ST-07 Human Review", "immutable Review Manifest snapshot is missing or differs");
   const manifestReference = reference(projectDir, immutableManifest, "review-manifest", stored.content);
   for (const item of [stored.value.runnable_candidate_ref, stored.value.build_current_ref, stored.value.requirements_ref, stored.value.architecture_current_ref, stored.value.build_contract_ref, stored.value.effective_policy_ref, stored.value.system_map_ref, ...stored.value.machine_evidence_refs]) verifyProjectArtifactReference(projectDir, item);
-  const html = renderCandidateReviewHtml(stored.value);
+  const gate = resolveHumanGateRequirementsAt(projectDir, recordDir, "ST-07", stored.value.effective_policy_ref);
+  const html = renderCandidateReviewHtml(stored.value, renderHumanGateRequirementSection(gate));
   if (readFileSync(htmlPath, "utf8") !== html) fail("ST-07 Human Review", "Review HTML differs from its pinned Manifest");
   const immutableHtml = immutableReviewHtmlPath(recordDir, stored.value.runnable_candidate_ref.sha256);
   if (!existsSync(immutableHtml) || readFileSync(immutableHtml, "utf8") !== html) fail("ST-07 Human Review", "immutable Review HTML snapshot is missing or differs");
@@ -327,7 +336,8 @@ function prepareLocked(projectDir: string, recordDir: string, options: Candidate
   writeFileAtomic(immutableReviewManifestPath(recordDir, snapshotted.reference.sha256), manifestContent);
   writeFileAtomic(reviewManifestPath(recordDir), manifestContent);
   const manifestReference = reference(projectDir, immutableReviewManifestPath(recordDir, snapshotted.reference.sha256), "review-manifest", manifestContent);
-  const html = renderCandidateReviewHtml(manifest);
+  const gate = resolveHumanGateRequirementsAt(projectDir, recordDir, "ST-07", manifest.effective_policy_ref, { createdAt: at });
+  const html = renderCandidateReviewHtml(manifest, renderHumanGateRequirementSection(gate));
   writeFileAtomic(immutableReviewHtmlPath(recordDir, snapshotted.reference.sha256), html);
   writeFileAtomic(reviewHtmlPath(recordDir), html);
   const reviewReference = reference(projectDir, immutableReviewHtmlPath(recordDir, snapshotted.reference.sha256), "review-html", html);
@@ -371,7 +381,10 @@ function approvalLocked(projectDir: string, recordDir: string, options: Candidat
   if (pending.manifestReference.sha256 !== options.manifestSha256) fail("ST-07 Human Review", "approval SHA-256 does not match the pending Review Manifest");
   const checks = validateHumanChecks(pending.manifest, options.humanCheckResults ?? [], true);
   const at = options.decidedAt ?? new Date().toISOString();
-  const decision = parseCandidateReviewDecision({ schema_version: 1, artifact: "human-decision", version: 1, decision_id: `approve-${pending.manifestReference.sha256.slice(7, 19)}`, decision_kind: "candidate-review", intent_id: inputs.state.intent_id, review_manifest_ref: pending.manifestReference, runnable_candidate_ref: pending.manifest.runnable_candidate_ref, decision: "approve-runnable-candidate", human_check_results: checks, feedback_items: [], reason: options.reason, decided_by: "human", decided_at: at });
+  const gate = resolveHumanGateRequirementsAt(projectDir, recordDir, "ST-07", pending.manifest.effective_policy_ref, { createdAt: at });
+  const acknowledgements = validatePolicyAcknowledgements(gate, options.policyAcknowledgements ?? [], { projectDir, recordDir, requireCurrentRiskRegister: true });
+  const gateReference = humanGateRequirementReferenceAt(projectDir, recordDir, gate);
+  const decision = parseCandidateReviewDecision({ schema_version: 1, artifact: "human-decision", version: 1, decision_id: `approve-${pending.manifestReference.sha256.slice(7, 19)}`, decision_kind: "candidate-review", intent_id: inputs.state.intent_id, review_manifest_ref: pending.manifestReference, runnable_candidate_ref: pending.manifest.runnable_candidate_ref, gate_requirement_set_ref: gateReference, policy_acknowledgements: acknowledgements, decision: "approve-runnable-candidate", human_check_results: checks, feedback_items: [], reason: options.reason, decided_by: "human", decided_at: at });
   const decisionReference = writeDecision(projectDir, recordDir, decision);
   const promotion = promoteAcceptedSystemMapSources(projectDir, activeSpace(projectDir), pending.manifest.system_map_ref, pending.manifest.source_results.map((entry) => ({ source_ids: entry.source_ids, candidate_revision: entry.candidate_revision })), at);
   const accepted = parseAcceptedCandidate({ schema_version: 1, artifact: "accepted-candidate", version: 1, intent_id: inputs.state.intent_id, runnable_candidate_ref: pending.manifest.runnable_candidate_ref, review_manifest_ref: pending.manifestReference, approval_ref: decisionReference, requirements_ref: pending.manifest.requirements_ref, architecture_current_ref: pending.manifest.architecture_current_ref, build_contract_ref: pending.manifest.build_contract_ref, system_map_ref: promotion.systemMapReference, source_results: pending.manifest.source_results, accepted_at: at });
@@ -413,7 +426,9 @@ function feedbackLocked(projectDir: string, recordDir: string, options: Candidat
   const route = selectFeedbackRoute(feedbackItems);
   const checks = validateHumanChecks(pending.manifest, options.humanCheckResults ?? [], false);
   const at = options.decidedAt ?? new Date().toISOString();
-  const decision = parseCandidateReviewDecision({ schema_version: 1, artifact: "human-decision", version: 1, decision_id: `feedback-${pending.manifestReference.sha256.slice(7, 19)}`, decision_kind: "candidate-review", intent_id: inputs.state.intent_id, review_manifest_ref: pending.manifestReference, runnable_candidate_ref: pending.manifest.runnable_candidate_ref, decision: "request-changes", human_check_results: checks, feedback_items: feedbackItems, reason: options.reason, decided_by: "human", decided_at: at });
+  const gate = resolveHumanGateRequirementsAt(projectDir, recordDir, "ST-07", pending.manifest.effective_policy_ref, { createdAt: at });
+  const gateReference = humanGateRequirementReferenceAt(projectDir, recordDir, gate);
+  const decision = parseCandidateReviewDecision({ schema_version: 1, artifact: "human-decision", version: 1, decision_id: `feedback-${pending.manifestReference.sha256.slice(7, 19)}`, decision_kind: "candidate-review", intent_id: inputs.state.intent_id, review_manifest_ref: pending.manifestReference, runnable_candidate_ref: pending.manifest.runnable_candidate_ref, gate_requirement_set_ref: gateReference, policy_acknowledgements: [], decision: "request-changes", human_check_results: checks, feedback_items: feedbackItems, reason: options.reason, decided_by: "human", decided_at: at });
   const decisionReference = writeDecision(projectDir, recordDir, decision);
   const targetIndex = VNEXT_STAGE_IDS.indexOf(route.stage);
   const invalidated = VNEXT_STAGE_IDS.slice(targetIndex, VNEXT_STAGE_IDS.indexOf("ST-07") + 1);
@@ -452,16 +467,17 @@ export function main(argv: string[]): void {
   const [command, projectDir, ...rest] = argv;
   try {
     if (command === "prepare" && projectDir !== undefined && rest.length === 0) { process.stdout.write(`${JSON.stringify(prepareCandidateReview(projectDir), null, 2)}\n`); return; }
-    if (command === "approve" && projectDir !== undefined && rest.length >= 2 && rest.length <= 3) {
+    if (command === "approve" && projectDir !== undefined && rest.length >= 2 && rest.length <= 4) {
       const checks = rest[2] === undefined ? [] : JSON.parse(readFileSync(resolve(rest[2]), "utf8"));
-      process.stdout.write(`${JSON.stringify(approveCandidateReview(projectDir, { manifestSha256: rest[0]!, reason: rest[1]!, humanCheckResults: checks }), null, 2)}\n`); return;
+      const acknowledgements = rest[3] === undefined ? [] : JSON.parse(readFileSync(resolve(rest[3]), "utf8"));
+      process.stdout.write(`${JSON.stringify(approveCandidateReview(projectDir, { manifestSha256: rest[0]!, reason: rest[1]!, humanCheckResults: checks, policyAcknowledgements: acknowledgements }), null, 2)}\n`); return;
     }
     if (command === "feedback" && projectDir !== undefined && rest.length === 3) {
       const feedback = JSON.parse(readFileSync(resolve(rest[1]!), "utf8"));
       if (!Array.isArray(feedback)) fail("ST-07 Human Review", "feedback file must contain an array");
       process.stdout.write(`${JSON.stringify(submitCandidateFeedback(projectDir, { manifestSha256: rest[0]!, feedbackItems: feedback, reason: rest[2]! }), null, 2)}\n`); return;
     }
-    console.error("Usage: aidlc review <prepare project-dir | approve project-dir manifest-sha256 reason [human-checks.json] | feedback project-dir manifest-sha256 feedback.json reason>");
+    console.error("Usage: aidlc review <prepare project-dir | approve project-dir manifest-sha256 reason [human-checks.json] [policy-acknowledgements.json] | feedback project-dir manifest-sha256 feedback.json reason>");
     process.exitCode = 1;
   } catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; }
 }

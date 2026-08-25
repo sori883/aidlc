@@ -3,6 +3,10 @@ import {
   parseArtifactReference,
   type ArtifactReference,
 } from "./aidlc-stage-contract.ts";
+import {
+  parsePolicyAcknowledgement,
+  type PolicyAcknowledgement,
+} from "./aidlc-vnext-policy-gates.ts";
 
 export const RELEASE_SCHEMA_VERSION = 1 as const;
 export const RELEASE_ARTIFACT_VERSION = 1 as const;
@@ -132,6 +136,8 @@ export interface ReleaseAuthority {
   intent_id: string;
   release_plan_ref: ArtifactReference;
   accepted_candidate_ref: ArtifactReference;
+  gate_requirement_set_ref: ArtifactReference;
+  policy_acknowledgements: PolicyAcknowledgement[];
   decision: "authorize-release";
   reason: string;
   decided_by: "human";
@@ -402,9 +408,10 @@ export function parseReleasePlan(value: unknown, context = "Release Plan"): Rele
 
 export function parseReleaseAuthority(value: unknown, context = "Release Authority"): ReleaseAuthority {
   const item = object(value, context); common(item, "release-authority", context);
-  rejectUnknown(item, ["schema_version", "artifact", "version", "authority_id", "intent_id", "release_plan_ref", "accepted_candidate_ref", "decision", "reason", "decided_by", "decided_at"], context);
+  rejectUnknown(item, ["schema_version", "artifact", "version", "authority_id", "intent_id", "release_plan_ref", "accepted_candidate_ref", "gate_requirement_set_ref", "policy_acknowledgements", "decision", "reason", "decided_by", "decided_at"], context);
   if (item.decision !== "authorize-release" || item.decided_by !== "human") fail(context, "Release authority must be an actual human authorize-release decision");
-  return { schema_version: 1, artifact: "release-authority", version: 1, authority_id: id(item.authority_id, `${context}.authority_id`), intent_id: id(item.intent_id, `${context}.intent_id`), release_plan_ref: parseArtifactReference(item.release_plan_ref, `${context}.release_plan_ref`), accepted_candidate_ref: parseArtifactReference(item.accepted_candidate_ref, `${context}.accepted_candidate_ref`), decision: "authorize-release", reason: text(item.reason, `${context}.reason`), decided_by: "human", decided_at: iso(item.decided_at, `${context}.decided_at`) };
+  if (!Array.isArray(item.policy_acknowledgements)) fail(`${context}.policy_acknowledgements`, "must be an array");
+  return { schema_version: 1, artifact: "release-authority", version: 1, authority_id: id(item.authority_id, `${context}.authority_id`), intent_id: id(item.intent_id, `${context}.intent_id`), release_plan_ref: parseArtifactReference(item.release_plan_ref, `${context}.release_plan_ref`), accepted_candidate_ref: parseArtifactReference(item.accepted_candidate_ref, `${context}.accepted_candidate_ref`), gate_requirement_set_ref: parseArtifactReference(item.gate_requirement_set_ref, `${context}.gate_requirement_set_ref`), policy_acknowledgements: item.policy_acknowledgements.map((entry, index) => parsePolicyAcknowledgement(entry, `${context}.policy_acknowledgements[${index}]`)), decision: "authorize-release", reason: text(item.reason, `${context}.reason`), decided_by: "human", decided_at: iso(item.decided_at, `${context}.decided_at`) };
 }
 
 export function parseReleaseStepReceipt(value: unknown, context = "Release Step Receipt"): ReleaseStepReceipt {
@@ -465,10 +472,10 @@ export function parseReleaseCurrent(value: unknown, context = "Release Current")
 }
 
 function escapeHtml(value: string): string { return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;"); }
-export function renderReleaseReviewHtml(plan: ReleasePlan): string {
+export function renderReleaseReviewHtml(plan: ReleasePlan, gateSection = ""): string {
   const value = parseReleasePlan(plan);
   const targets = value.targets.map((target) => `<article><b>${escapeHtml(target.target_id)}</b><h3>${escapeHtml(target.target_kind)} / ${escapeHtml(target.provider)}</h3><p>${escapeHtml(target.locator)}</p><small>現在: ${escapeHtml(target.observed_before)}</small></article>`).join("");
   const steps = value.steps.map((step) => `<tr><td>${escapeHtml(step.step_id)}</td><td>${escapeHtml(step.operation)}</td><td>${escapeHtml(step.target_id)}</td><td>${escapeHtml(step.desired_state)}</td><td>${escapeHtml(step.rollback_mode)}</td></tr>`).join("");
   const notes = value.release_notes.map((note) => `<li>${escapeHtml(note)}</li>`).join("");
-  return `<!doctype html>\n<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ST-08 Release確認</title><style>*{box-sizing:border-box}body{margin:0;background:#f4f7fb;color:#172033;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.65}main{width:min(980px,calc(100% - 28px));margin:auto;padding:32px 0}header,section{margin-bottom:18px;padding:26px;border:1px solid #dce4ef;border-radius:20px;background:#fff}h1,h2,h3,p{margin-top:0}.lead,small{color:#607086}.targets{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.targets article{padding:16px;border-radius:14px;background:#eaf1ff}.targets b{color:#2563eb}table{width:100%;border-collapse:collapse}th,td{padding:10px;border:1px solid #dce4ef;text-align:left;vertical-align:top}th{background:#f4f7fb}.warning{border-left:5px solid #a25c00;background:#fff4d8}code{overflow-wrap:anywhere}@media(max-width:650px){header,section{padding:19px}table{font-size:12px}}</style></head><body><main><header><small>AI-DLC vNext / ST-08 / RELEASE AUTHORITY</small><h1>Release前の最終確認</h1><p class="lead">承認すると、次のTargetへ外部操作を行います。CandidateやTargetが変わった場合、この承認は使えません。</p><code>Release Plan revision ${value.revision}</code></header><section><h2>Release先</h2><div class="targets">${targets}</div></section><section><h2>実行順</h2><table><thead><tr><th>Step</th><th>操作</th><th>Target</th><th>到達状態</th><th>失敗時</th></tr></thead><tbody>${steps}</tbody></table></section><section><h2>Release notes</h2><ul>${notes}</ul></section><section class="warning"><h2>人間が確認すること</h2><p>Target、現在revision、到達revision、rollback方式が正しい場合だけ、このRelease PlanのSHA-256を承認してください。</p></section></main></body></html>\n`;
+  return `<!doctype html>\n<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ST-08 Release確認</title><style>*{box-sizing:border-box}body{margin:0;background:#f4f7fb;color:#172033;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.65}main{width:min(980px,calc(100% - 28px));margin:auto;padding:32px 0}header,section{margin-bottom:18px;padding:26px;border:1px solid #dce4ef;border-radius:20px;background:#fff}h1,h2,h3,p{margin-top:0}.lead,small{color:#607086}.targets{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.targets article{padding:16px;border-radius:14px;background:#eaf1ff}.targets b{color:#2563eb}table{width:100%;border-collapse:collapse}th,td{padding:10px;border:1px solid #dce4ef;text-align:left;vertical-align:top}th{background:#f4f7fb}.warning{border-left:5px solid #a25c00;background:#fff4d8}code{overflow-wrap:anywhere}@media(max-width:650px){header,section{padding:19px}table{font-size:12px}}</style></head><body><main><header><small>AI-DLC vNext / ST-08 / RELEASE AUTHORITY</small><h1>Release前の最終確認</h1><p class="lead">承認すると、次のTargetへ外部操作を行います。CandidateやTargetが変わった場合、この承認は使えません。</p><code>Release Plan revision ${value.revision}</code></header><section><h2>Release先</h2><div class="targets">${targets}</div></section><section><h2>実行順</h2><table><thead><tr><th>Step</th><th>操作</th><th>Target</th><th>到達状態</th><th>失敗時</th></tr></thead><tbody>${steps}</tbody></table></section><section><h2>Release notes</h2><ul>${notes}</ul></section>${gateSection}<section class="warning"><h2>人間が確認すること</h2><p>Target、現在revision、到達revision、rollback方式が正しい場合だけ、このRelease PlanのSHA-256を承認してください。</p></section></main></body></html>\n`;
 }

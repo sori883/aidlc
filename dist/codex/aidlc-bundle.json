@@ -8,7 +8,7 @@
     },
     {
       "path": ".agents/skills/aidlc/SKILL.md",
-      "sha256": "3c80382b6bc4e67c7d9681b4ecb51148667bb23d0c9e2b1daa0aa6eac624de60"
+      "sha256": "ab7fd856e2ba715462d925a05036014648e2f84b53c92e6057ee390458e10eb3"
     },
     {
       "path": ".codex/aidlc-common/data/runtime-shared-resources.json",
@@ -71,12 +71,24 @@
       "sha256": "78922a784ee78e9e50587e93628cd3b9d4dfbe49087adc4514e6781cea38cbb9"
     },
     {
+      "path": ".codex/memory/org-policy.json",
+      "sha256": "b41ee0aa847b99348c2fae8b37d85cacba3969bdae904749528fbcb9abe2d95f"
+    },
+    {
       "path": ".codex/memory/org.md",
       "sha256": "84c1fbd05afe2c4bb3cb2a6fe26c45d7e7da0698b2c5324b0bc126646db3b32e"
     },
     {
+      "path": ".codex/memory/project-policy.json",
+      "sha256": "f0d3f76f326aa878966e0f1db60109ac08ebb0b9982b1ff52b448b5a8cd71301"
+    },
+    {
       "path": ".codex/memory/project.md",
       "sha256": "48a0686495d791abaad4512f8a33497947138edddf1c6b35914e51f64099b5c3"
+    },
+    {
+      "path": ".codex/memory/team-policy.json",
+      "sha256": "6c914ecf9d6d49867d1993f55f851b404ff4978c5ec7ba13288402ff9a09896c"
     },
     {
       "path": ".codex/memory/team.md",
@@ -100,11 +112,11 @@
     },
     {
       "path": ".codex/tools/aidlc-effective-policy.ts",
-      "sha256": "371ec57a6d3e76d87c9b16844a7021ef1261522f5a6cba8d2b20cd73b2f27d47"
+      "sha256": "c487798c5c8541c764738f499bde4387f788cbecfb0a7efde919138093d8408f"
     },
     {
       "path": ".codex/tools/aidlc-intent.ts",
-      "sha256": "17ff7799cef703b6a718aab50870dc3321b56e3fef1fae4e93bcabb8e30f26f4"
+      "sha256": "ab7cd9978a254212481c4ed3187126ec110c3ea14e36e84e011df9a3309bf4a1"
     },
     {
       "path": ".codex/tools/aidlc-runtime-paths.ts",
@@ -112,7 +124,7 @@
     },
     {
       "path": ".codex/tools/aidlc-space.ts",
-      "sha256": "c29d3ca498d73e159d611aaf6ae9e9084dc2e244c2639e4b2fc67e759ddea238"
+      "sha256": "3e040bc06a814b9ab8e197507e5a4a8888117e0df3b40f9d73e397643ef4e6b3"
     },
     {
       "path": ".codex/tools/aidlc-stage-contract.ts",
@@ -124,11 +136,11 @@
     },
     {
       "path": ".codex/tools/aidlc-vnext-architecture-contract.ts",
-      "sha256": "2d39200943fbef4fccd6c03157395c9371e68bc410b29f6a829e9d3cb0ff4448"
+      "sha256": "6c659d70476c8a2151170e0b43dfd12d85ce8a46fb04c8cc005181ab29e43b48"
     },
     {
       "path": ".codex/tools/aidlc-vnext-architecture.ts",
-      "sha256": "e2069006e1f0240e55d77c53a46f29174b29d27b3d86a324eb4773283ac1730d"
+      "sha256": "2b5ac101a72c8b4ce7e32bcd528d414b4a26561fd85f1fa8b975f049d6a343a8"
     },
     {
       "path": ".codex/tools/aidlc-vnext-bootstrap.ts",
@@ -136,11 +148,11 @@
     },
     {
       "path": ".codex/tools/aidlc-vnext-build-contract-contract.ts",
-      "sha256": "b0407f0f917fcb5810e45c490dd7a1ae39491b1a6560398ca686b4b76571bc98"
+      "sha256": "f01cb05cc7359e75b714262f992e0822a3f8c807bbc701eed88b8b5bca5d6099"
     },
     {
       "path": ".codex/tools/aidlc-vnext-build-contract.ts",
-      "sha256": "17b43a08c2ea8526283c9a25ea0e306407f2b6297568ff1e3e1b9672b9cda53f"
+      "sha256": "5feb049be0acc83369db598ff32ac979bc8598614cf12048c68d265301e22fa1"
     },
     {
       "path": ".codex/tools/aidlc-vnext-build-converge-contract.ts",
@@ -180,23 +192,27 @@
     },
     {
       "path": ".codex/tools/aidlc-vnext-outcome-contract.ts",
-      "sha256": "63b88b371a84b31c5343d3da1aad047442970a87232b242f10453aa1fe048261"
+      "sha256": "4a3979621bb27d3a23295288aba4d853056dea2f653d11e10b87ec29e5aa20ac"
     },
     {
       "path": ".codex/tools/aidlc-vnext-outcome.ts",
-      "sha256": "a54454e3ee2d595771dff70c4d7ddd0fa4ee1e8cf8a6a6a7ac1efc584c3dc7f1"
+      "sha256": "3315d83a32d69e82fde1a3b133cd3ee888b7293928609aca538423ef8e6385a5"
     },
     {
       "path": ".codex/tools/aidlc-vnext-plan.ts",
       "sha256": "e9b77f6cfed23527285222b356571a00adb33f195589010d115d6394e2cc43ba"
     },
     {
+      "path": ".codex/tools/aidlc-vnext-policy-gates.ts",
+      "sha256": "bf65b3710ac74ccfbada7a60f9727a35c01d216eec5b9ab13130ecaa0b1514cd"
+    },
+    {
       "path": ".codex/tools/aidlc-vnext-release-contract.ts",
-      "sha256": "e83087c215425565c628b5c8b50ff0ef3f61eaa6a885b9a3f636af63ec835e15"
+      "sha256": "789aa7bf622e15e69aa78652a032320e7cc79f5d2b219a1a03804b9a589118d9"
     },
     {
       "path": ".codex/tools/aidlc-vnext-release.ts",
-      "sha256": "4264257335f1b4ed47d6b1ad2f0eb2e73e5ab864ced9479311c7073026d80189"
+      "sha256": "b8967f9e106df894c9c5d84c7475682d8333ac8ad23cfb302cb63649451303e2"
     },
     {
       "path": ".codex/tools/aidlc-vnext-requirements-contract.ts",
@@ -208,15 +224,23 @@
     },
     {
       "path": ".codex/tools/aidlc-vnext-review-contract.ts",
-      "sha256": "52a50640f80ae49969a21cc59516f60a2b75925c3663f4211bbf6dd965218dfc"
+      "sha256": "96c2953c88cdebc8b783d2325eb1995af7864ec34108ac16c07780957ef38f6e"
     },
     {
       "path": ".codex/tools/aidlc-vnext-review.ts",
-      "sha256": "c1642fffee8e25a922831e782bf543eb67be68628c80b4874fec9bcd6eaf50ff"
+      "sha256": "544c3540541b516d1cc46e95402bbdbeffd4814501fa76d15a60c77a84e3a418"
+    },
+    {
+      "path": ".codex/tools/aidlc-vnext-risk-contract.ts",
+      "sha256": "bde1921441e26f859c7acdfd9b771976aa5d2e74ba0850c2c115b31ef1c0d500"
+    },
+    {
+      "path": ".codex/tools/aidlc-vnext-risk.ts",
+      "sha256": "f4a6f63173537b376d47c857badebe23e4b4aa0096dc054de052f33269500cdd"
     },
     {
       "path": ".codex/tools/aidlc-vnext-state.ts",
-      "sha256": "7dafc1593f6535c0121bc9c7ee3cf8882f39572fa97864ec04ef76e0847579ac"
+      "sha256": "de629bdeb16d9115740153754246661cc1778aefc76cce76ce73bb751ae44f46"
     },
     {
       "path": ".codex/tools/aidlc-workspace-lock.ts",
@@ -228,7 +252,7 @@
     },
     {
       "path": ".codex/tools/aidlc.ts",
-      "sha256": "19453ebacadc1f1e5b9a6caf401f13152496fb5070f99aa3b166e6e6929c69a6"
+      "sha256": "4ec42605fe3e8e345b5a1c04576618702298415a24bbe3ef84910d6b349bcc2d"
     },
     {
       "path": "AGENTS.md",

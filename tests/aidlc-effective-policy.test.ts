@@ -36,6 +36,17 @@ function fixture(): { projectDir: string; recordDir: string } {
   writeFileSync(join(memoryDir, "org.md"), "# Org\n\nALWAYS test.\n");
   writeFileSync(join(memoryDir, "team.md"), "# Team\n\nUse Bun.\n");
   writeFileSync(join(memoryDir, "project.md"), "# Project\n\nTypeScript.\n");
+  for (const layer of ["org", "team", "project"] as const) {
+    writeFileSync(
+      join(memoryDir, `${layer}-policy.json`),
+      `${JSON.stringify({
+        schema_version: 1,
+        artifact: "human-gate-policy-source",
+        layer,
+        rules: [],
+      }, null, 2)}\n`,
+    );
+  }
   const recordDir = join(projectDir, "aidlc", "spaces", "default", "intents", "intent-1");
   mkdirSync(recordDir, { recursive: true });
   return { projectDir, recordDir };
@@ -95,8 +106,13 @@ test("snapshots org, team, and project Memory in fixed priority order", () => {
   const snapshot = buildEffectivePolicySnapshot(projectDir, "intent-1", {
     createdAt: "2026-08-23T00:00:00.000Z",
   });
-  assert.deepEqual(snapshot.source_priority, ["org", "team", "project", "intent_risk"]);
+  assert.deepEqual(snapshot.source_priority, ["org", "team", "project"]);
   assert.deepEqual(snapshot.sources.map((source) => source.layer), ["org", "team", "project"]);
+  assert.deepEqual(
+    snapshot.control_sources.map((source) => source.layer),
+    ["org", "team", "project"],
+  );
+  assert.deepEqual(snapshot.human_gate_rules, []);
   assert.match(snapshot.sources[0]?.content ?? "", /ALWAYS test/);
   rmSync(projectDir, { recursive: true, force: true });
 });
@@ -124,9 +140,9 @@ test("rejects a malformed policy source order or unknown field", () => {
   assert.throws(
     () => parseEffectivePolicySnapshot({
       ...snapshot,
-      source_priority: ["team", "org", "project", "intent_risk"],
+      source_priority: ["team", "org", "project"],
     }),
-    /must use org, team, project, intent_risk order/,
+    /must use org, team, project order/,
   );
   assert.throws(
     () => parseEffectivePolicySnapshot({ ...snapshot, profile: "enterprise" }),

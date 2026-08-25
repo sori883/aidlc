@@ -24,10 +24,24 @@ import {
 import { loadVNextDefinitions, createInitialStageExecutionPlan } from "./aidlc-core-route.ts";
 import { writeEffectivePolicySnapshot } from "./aidlc-effective-policy.ts";
 import {
+  activeVNextIntentRecordDir,
   initializeVNextIntentStateAt,
   type VNextIntentState,
 } from "./aidlc-vnext-state.ts";
 import type { StageExecutionPlan } from "./aidlc-stage-contract.ts";
+import {
+  decideIntentRiskAt,
+  initializeIntentRiskRegisterAt,
+  intentRiskCurrentPath,
+  proposeIntentRisksAt,
+  readCurrentIntentRiskRegisterWithReferenceAt,
+} from "./aidlc-vnext-risk.ts";
+import {
+  parseIntentRiskDecision,
+  parseIntentRiskProposal,
+  parseIntentRiskSeed,
+  type IntentRiskSeed,
+} from "./aidlc-vnext-risk-contract.ts";
 import {
   parseDesignBrief,
   type DesignBrief,
@@ -58,6 +72,7 @@ export interface BornIntentWithState extends BornIntent {
   policyPath: string;
   auditPath: string;
   designBriefPath: string;
+  riskCurrentPath: string;
 }
 
 export interface IntentInfo extends Omit<IntentRegistryEntry, "dirName"> {
@@ -291,6 +306,7 @@ export function birthIntentWithState(
   label: string,
   space = activeSpace(projectDir),
   repos?: string[],
+  risks?: readonly IntentRiskSeed[],
 ): BornIntentWithState {
   if (label.trim() === "" || label !== label.trim() || /[\r\n\0]/.test(label)) {
     throw new Error("Intent label must be a non-empty single-line Design Brief");
@@ -331,6 +347,18 @@ export function birthIntentWithState(
       Revision: String(policy.snapshot.revision),
       "Source Priority": policy.snapshot.source_priority.join(" > "),
     });
+    const riskRegister = initializeIntentRiskRegisterAt(
+      projectRoot,
+      born.recordDir,
+      born.uuid,
+      { ...(risks === undefined ? {} : { risks }), createdAt: startedAt },
+    );
+    appendAuditEntry(projectRoot, born.recordDir, "DECISION_RECORDED", {
+      Decision: "Intent Risk Register Created",
+      Revision: String(riskRegister.register.revision),
+      "Risk Count": String(riskRegister.register.risks.length),
+      "Decision Authority": "core",
+    });
     const plan = createInitialStageExecutionPlan(
       born.uuid,
       definitions.graph.graph_version,
@@ -366,6 +394,7 @@ export function birthIntentWithState(
       policyPath: policy.path,
       auditPath,
       designBriefPath,
+      riskCurrentPath: intentRiskCurrentPath(born.recordDir),
     };
   });
 }
@@ -456,12 +485,60 @@ function birthIntentUnlocked(
 }
 
 export function main(argv: string[]): void {
+  if (argv[0] === "risk") {
+    const [action, riskProjectDir, inputPath, ...riskArgs] = argv.slice(1);
+    const validShow = action === "show" && riskProjectDir !== undefined && inputPath === undefined;
+    const validMutation = (action === "propose" || action === "decide") && riskProjectDir !== undefined && inputPath !== undefined && riskArgs.length === 0;
+    if (!validShow && !validMutation) {
+      console.error(
+        "Usage: aidlc intent risk show <project-dir>\n" +
+          "       aidlc intent risk propose <project-dir> <proposal.json>\n" +
+          "       aidlc intent risk decide <project-dir> <human-decision.json>",
+      );
+      process.exitCode = 1;
+      return;
+    }
+    try {
+      const root = resolve(riskProjectDir!);
+      const result = action === "show"
+        ? readCurrentIntentRiskRegisterWithReferenceAt(root, activeVNextIntentRecordDir(root))
+        : withWorkspaceLock(root, () => {
+          const recordDir = activeVNextIntentRecordDir(root);
+          const value: unknown = JSON.parse(readFileSync(resolve(inputPath!), "utf8"));
+          if (action === "propose") {
+            const proposal = parseIntentRiskProposal(value);
+            const register = proposeIntentRisksAt(root, recordDir, proposal);
+            appendAuditEntry(root, recordDir, "DECISION_RECORDED", {
+              Decision: "Intent Risk Proposal Accepted",
+              Proposal: proposal.proposal_id,
+              Revision: String(register.revision),
+              "Decision Authority": "core",
+            });
+            return { register };
+          }
+          const decision = parseIntentRiskDecision(value);
+          const register = decideIntentRiskAt(root, recordDir, decision);
+          appendAuditEntry(root, recordDir, "DECISION_RECORDED", {
+            Decision: decision.action,
+            Risk: decision.risk_id,
+            Revision: String(register.revision),
+            "Decision Authority": "human",
+          });
+          return { register };
+        });
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    }
+    return;
+  }
   const [command, projectDir, label, ...args] = argv;
   const validBirth =
     command === "birth" &&
     projectDir !== undefined &&
     label !== undefined &&
-    args.length === 0;
+    (args.length === 0 || (args.length === 2 && args[0] === "--risk-file"));
   const validSwitch =
     command === "switch" &&
     projectDir !== undefined &&
@@ -474,7 +551,7 @@ export function main(argv: string[]): void {
   if (!validBirth && !validSwitch && !validList) {
     console.error(
       "Usage: aidlc-intent list <project-dir> [--json]\n" +
-        "       aidlc-intent birth <project-dir> <label>\n" +
+        "       aidlc-intent birth <project-dir> <label> [--risk-file risks.json]\n" +
         "       aidlc-intent switch <project-dir> <intent>",
     );
     process.exitCode = 1;
@@ -520,10 +597,18 @@ export function main(argv: string[]): void {
       console.log(`Active intent → ${result.dirName} (space: ${activeSpace(projectDir)})`);
       return;
     }
+    let risks: IntentRiskSeed[] | undefined;
+    if (args.length === 2) {
+      const value: unknown = JSON.parse(readFileSync(resolve(args[1]!), "utf8"));
+      if (!Array.isArray(value)) throw new Error("risk file must contain an array");
+      risks = value.map((entry, index) => parseIntentRiskSeed(entry, `risk-file[${index}]`));
+    }
     const result = birthIntentWithState(
       projectDir,
       label,
       activeSpace(projectDir),
+      undefined,
+      risks,
     );
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } catch (error) {

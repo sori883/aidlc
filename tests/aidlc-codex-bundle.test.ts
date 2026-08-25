@@ -58,6 +58,9 @@ test("writes a vNext-only Codex bundle", () => {
     ".codex/package.json",
     ".codex/tools/aidlc.ts",
     ".codex/tools/aidlc-core-route.ts",
+    ".codex/tools/aidlc-vnext-risk-contract.ts",
+    ".codex/tools/aidlc-vnext-risk.ts",
+    ".codex/tools/aidlc-vnext-policy-gates.ts",
     ".codex/tools/aidlc-vnext-bootstrap.ts",
     ".codex/tools/aidlc-vnext-define-intent-contract.ts",
     ".codex/tools/aidlc-vnext-define-intent.ts",
@@ -81,6 +84,9 @@ test("writes a vNext-only Codex bundle", () => {
     ".codex/aidlc-common/stages/st-04-architecture-decision.json",
     ".codex/aidlc-common/stages/st-05-build-contract.json",
     ".codex/aidlc-common/stages/st-09-outcome-evaluation.json",
+    ".codex/memory/org-policy.json",
+    ".codex/memory/team-policy.json",
+    ".codex/memory/project-policy.json",
     ".agents/skills/aidlc/SKILL.md",
   ]) assert.equal(existsSync(join(outDir, path)), true, path);
 
@@ -134,6 +140,11 @@ test("generated Codex runtime completes ST-00 and prepares ST-01 work", () => {
   run(outDir, [
     "run", "--cwd", ".codex", "aidlc", "intent", "birth", "..", "Bundle Smoke",
   ]);
+  const risk = JSON.parse(run(outDir, [
+    "run", "--cwd", ".codex", "aidlc", "intent", "risk", "show", "..",
+  ])) as { register: { revision: number; risks: unknown[] } };
+  assert.equal(risk.register.revision, 1);
+  assert.deepEqual(risk.register.risks, []);
   const advanced = JSON.parse(run(outDir, [
     "run", "--cwd", ".codex", "aidlc", "next", "..",
   ])) as { kind: string; workflow: string; stage: string; decision_authority: string };

@@ -2,6 +2,10 @@ import {
   parseArtifactReference,
   type ArtifactReference,
 } from "./aidlc-stage-contract.ts";
+import {
+  parsePolicyAcknowledgement,
+  type PolicyAcknowledgement,
+} from "./aidlc-vnext-policy-gates.ts";
 
 export const ARCHITECTURE_SCHEMA_VERSION = 1 as const;
 export const ARCHITECTURE_ARTIFACT_VERSION = 1 as const;
@@ -143,6 +147,21 @@ export interface ArchitectureReuseApproval {
   approved_architecture_ref: ArtifactReference;
   requirements_ref: ArtifactReference;
   decision: "approve-reuse";
+  reason: string;
+  decided_by: "human";
+  decided_at: string;
+}
+
+export interface ArchitecturePolicyApproval {
+  schema_version: typeof ARCHITECTURE_SCHEMA_VERSION;
+  artifact: "architecture-policy-approval";
+  version: typeof ARCHITECTURE_ARTIFACT_VERSION;
+  decision_id: string;
+  intent_id: string;
+  proposal_ref: ArtifactReference;
+  gate_requirement_set_ref: ArtifactReference;
+  policy_acknowledgements: PolicyAcknowledgement[];
+  decision: "approve-architecture-policy";
   reason: string;
   decided_by: "human";
   decided_at: string;
@@ -735,6 +754,59 @@ export function parseArchitectureReuseApproval(
     ),
     requirements_ref: parseArtifactReference(record.requirements_ref, `${context}.requirements_ref`),
     decision: "approve-reuse",
+    reason: asOneLine(record.reason, `${context}.reason`),
+    decided_by: "human",
+    decided_at: asIsoTimestamp(record.decided_at, `${context}.decided_at`),
+  };
+}
+
+export function parseArchitecturePolicyApproval(
+  value: unknown,
+  context = "Architecture Policy Approval",
+): ArchitecturePolicyApproval {
+  assertNoSecretFields(value, context);
+  const record = asRecord(value, context);
+  rejectUnknownKeys(record, [
+    "schema_version",
+    "artifact",
+    "version",
+    "decision_id",
+    "intent_id",
+    "proposal_ref",
+    "gate_requirement_set_ref",
+    "policy_acknowledgements",
+    "decision",
+    "reason",
+    "decided_by",
+    "decided_at",
+  ], context);
+  if (record.schema_version !== 1) fail(`${context}.schema_version`, "must equal 1");
+  if (record.artifact !== "architecture-policy-approval") {
+    fail(`${context}.artifact`, "must equal architecture-policy-approval");
+  }
+  if (record.version !== 1) fail(`${context}.version`, "must equal 1");
+  if (record.decision !== "approve-architecture-policy") {
+    fail(`${context}.decision`, "must equal approve-architecture-policy");
+  }
+  if (record.decided_by !== "human") fail(`${context}.decided_by`, "must equal human");
+  if (!Array.isArray(record.policy_acknowledgements)) {
+    fail(`${context}.policy_acknowledgements`, "must be an array");
+  }
+  return {
+    schema_version: 1,
+    artifact: "architecture-policy-approval",
+    version: 1,
+    decision_id: asStableId(record.decision_id, `${context}.decision_id`),
+    intent_id: asStableId(record.intent_id, `${context}.intent_id`),
+    proposal_ref: parseArtifactReference(record.proposal_ref, `${context}.proposal_ref`),
+    gate_requirement_set_ref: parseArtifactReference(
+      record.gate_requirement_set_ref,
+      `${context}.gate_requirement_set_ref`,
+    ),
+    policy_acknowledgements: record.policy_acknowledgements.map((entry, index) =>
+      parsePolicyAcknowledgement(entry, `${context}.policy_acknowledgements[${index}]`)
+    ),
+    decision: "approve-architecture-policy",
     reason: asOneLine(record.reason, `${context}.reason`),
     decided_by: "human",
     decided_at: asIsoTimestamp(record.decided_at, `${context}.decided_at`),

@@ -20,11 +20,14 @@ import { resolveVNextDirective } from "../core/tools/aidlc-vnext-orchestrate.ts"
 import { completeRequirements, prepareRequirements } from "../core/tools/aidlc-vnext-requirements.ts";
 import {
   architectureCurrentPath,
+  approveArchitecturePolicy,
   architectureRevisionPath,
+  architecturePolicyReviewPath,
   architectureWorkRequestPath,
   completeArchitecture,
   loadArchitectureStageContract,
   prepareArchitecture,
+  reviewArchitecturePolicy,
 } from "../core/tools/aidlc-vnext-architecture.ts";
 import {
   parseArchitectureAssessmentProposal,
@@ -46,7 +49,20 @@ function sha256(content: string): string {
   return `sha256:${createHash("sha256").update(content).digest("hex")}`;
 }
 
-function fixture() {
+function fixture(options: {
+  policyRule?: {
+    rule_id: string;
+    minimum_severity: "low" | "medium" | "high" | "critical";
+    stage_ids: ["ST-04"];
+    acknowledgement: string;
+  };
+  risks?: Array<{
+    risk_id: string;
+    severity: "low" | "medium" | "high" | "critical";
+    statement: string;
+    evidence_refs: [];
+  }>;
+} = {}) {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-vnext-architecture-"));
   fixtures.push(projectDir);
   mkdirSync(join(projectDir, "app", "src"), { recursive: true });
@@ -55,11 +71,23 @@ function fixture() {
     "export const buttonLabel = '送信';\n",
   );
   initializeWorkspace(projectDir);
+  if (options.policyRule !== undefined) {
+    writeFileSync(
+      join(projectDir, "aidlc", "spaces", "default", "memory", "project-policy.json"),
+      `${JSON.stringify({
+        schema_version: 1,
+        artifact: "human-gate-policy-source",
+        layer: "project",
+        rules: [options.policyRule],
+      }, null, 2)}\n`,
+    );
+  }
   const born = birthIntentWithState(
     projectDir,
     "ログイン画面の『送信』を『ログイン』へ変える",
     "default",
     ["app"],
+    options.risks,
   );
   executeBootstrap(projectDir, { createdAt: "2026-08-24T03:00:00.000Z" });
   const orient = prepareOrient(projectDir, { observedAt: "2026-08-24T03:01:00.000Z" });
@@ -351,6 +379,60 @@ test("execute writes one immutable Architecture Decision revision and pins it in
   );
   assert.equal(existsSync(join(born.recordDir, "artifacts", "architecture.html")), false);
   assert.equal(result.state.current_stage, "ST-05");
+});
+
+test("ST-04 Policy Gate binds the exact Architecture Proposal and rejects missing acknowledgements", () => {
+  const { projectDir } = fixture({
+    policyRule: {
+      rule_id: "project-high-risk-architecture",
+      minimum_severity: "high",
+      stage_ids: ["ST-04"],
+      acknowledgement: "Architecture判断と残存リスクを確認する",
+    },
+    risks: [{
+      risk_id: "login-lockout",
+      severity: "high",
+      statement: "設計ミスでログインできなくなる可能性がある",
+      evidence_refs: [],
+    }],
+  });
+  const proposal = notApplicableProposal(projectDir);
+  assert.throws(
+    () => completeArchitecture(projectDir, proposal),
+    /Policy approval is required.*policy-review/i,
+  );
+  const review = reviewArchitecturePolicy(projectDir, proposal, {
+    reviewedAt: "2026-08-24T03:07:30.000Z",
+  });
+  assert.equal(review.gate.requirements.length, 1);
+  assert.equal(existsSync(architecturePolicyReviewPath(review.recordDir)), true);
+  assert.throws(
+    () => approveArchitecturePolicy(projectDir, {
+      proposalSha256: review.proposalReference.sha256,
+      reason: "リスクを確認した。",
+      policyAcknowledgements: [],
+    }),
+    /missing acknowledgement/i,
+  );
+  const result = approveArchitecturePolicy(projectDir, {
+    proposalSha256: review.proposalReference.sha256,
+    reason: "リスクを確認した。",
+    policyAcknowledgements: [{
+      requirement_id: "project-high-risk-architecture:login-lockout",
+      acknowledged: true,
+      reason: "表示文言だけの変更で、認証処理は変えない。",
+    }],
+    decidedAt: "2026-08-24T03:08:00.000Z",
+  });
+  assert.equal(result.state.current_stage, "ST-05");
+  assert.equal(
+    result.current.evidence.some((reference) =>
+      reference.artifact === "architecture-policy-approval"
+    ),
+    true,
+  );
+  assert.equal(resumeVNextIntent(projectDir).state.current_stage, "ST-05");
+  assert.equal(checkVNextDoctor(projectDir).healthy, true);
 });
 
 test("reuse requires a human approval bound to the current Requirements and writes no new revision", () => {

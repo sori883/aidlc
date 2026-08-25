@@ -41,6 +41,10 @@ import {
   parseBuildContractProposal,
   type BuildContractProposal,
 } from "../core/tools/aidlc-vnext-build-contract-contract.ts";
+import {
+  humanGateRequirementReferenceAt,
+  resolveHumanGateRequirementsAt,
+} from "../core/tools/aidlc-vnext-policy-gates.ts";
 
 const fixtures: string[] = [];
 
@@ -48,13 +52,16 @@ function sha256(content: string): string {
   return `sha256:${createHash("sha256").update(content).digest("hex")}`;
 }
 
-function fixture() {
+function fixture(options: { policyRule?: { rule_id: string; minimum_severity: "low" | "medium" | "high" | "critical"; stage_ids: ["ST-05"]; acknowledgement: string }; risks?: Array<{ risk_id: string; severity: "low" | "medium" | "high" | "critical"; statement: string; evidence_refs: [] }> } = {}) {
   const projectDir = mkdtempSync(join(tmpdir(), "aidlc-vnext-build-contract-"));
   fixtures.push(projectDir);
   mkdirSync(join(projectDir, "app", "src"), { recursive: true });
   writeFileSync(join(projectDir, "app", "src", "login.ts"), "export const buttonLabel = '送信';\n");
   initializeWorkspace(projectDir);
-  const born = birthIntentWithState(projectDir, "ログイン画面の『送信』を『ログイン』へ変える", "default", ["app"]);
+  if (options.policyRule !== undefined) {
+    writeFileSync(join(projectDir, "aidlc", "spaces", "default", "memory", "project-policy.json"), `${JSON.stringify({ schema_version: 1, artifact: "human-gate-policy-source", layer: "project", rules: [options.policyRule] }, null, 2)}\n`);
+  }
+  const born = birthIntentWithState(projectDir, "ログイン画面の『送信』を『ログイン』へ変える", "default", ["app"], options.risks);
   executeBootstrap(projectDir, { createdAt: "2026-08-24T04:00:00.000Z" });
   const orient = prepareOrient(projectDir, { observedAt: "2026-08-24T04:01:00.000Z" });
   const source = orient.profile.repository_snapshots[0]!;
@@ -249,6 +256,23 @@ test("Core validates a one-Bolt small change, derives batches, escapes HTML, and
   assert.deepEqual("decisions" in directive && directive.decisions, ["approve", "revise"]);
 });
 
+test("ST-05 approval requires every Policy acknowledgement from the pinned current Risk Register", () => {
+  const { projectDir, born } = fixture({
+    policyRule: { rule_id: "project-high-risk-build", minimum_severity: "high", stage_ids: ["ST-05"], acknowledgement: "高リスクを確認してBuild Contractを承認する。" },
+    risks: [{ risk_id: "login-regression", severity: "high", statement: "認証処理を壊す可能性がある。", evidence_refs: [] }],
+  });
+  const reviewed = reviewBuildContract(projectDir, executeProposal(projectDir), { reviewedAt: "2026-08-24T04:10:00.000Z" });
+  assert.match(readFileSync(buildContractReviewPath(born.recordDir), "utf8"), /project-high-risk-build:login-regression/);
+  assert.throws(() => approveBuildContract(projectDir, { candidateSha256: reviewed.candidateReference.sha256, reason: "確認した。" }), /missing acknowledgement/i);
+  const approved = approveBuildContract(projectDir, {
+    candidateSha256: reviewed.candidateReference.sha256,
+    reason: "リスクを確認して承認した。",
+    policyAcknowledgements: [{ requirement_id: "project-high-risk-build:login-regression", acknowledged: true, reason: "認証処理を変更しない契約を確認した。" }],
+  });
+  assert.equal(approved.state.current_stage, "ST-06");
+  assert.equal(approved.approval.gate_requirement_set_ref.artifact, "human-gate-requirements");
+});
+
 test("Core rejects Bolt cycles, repository escapes, and shell-string verifiers", () => {
   const cyclic = fixture();
   const cyclicProposal = executeProposal(cyclic.projectDir);
@@ -359,7 +383,19 @@ test("reuse pins an exact compatible approved Build Contract and writes no local
   const candidateContent = `${JSON.stringify(reusableCandidate, null, 2)}\n`;
   writeFileSync(candidatePath, candidateContent);
   const candidateRef = { artifact: "build-contract-candidate", version: 1, source_of_truth: relative(projectDir, candidatePath), sha256: sha256(candidateContent) };
-  const oldApproval = parseBuildContractApproval({ schema_version: 1, artifact: "human-decision", version: 1, decision_id: "approve-reusable", decision_kind: "approval", intent_id: born.uuid, candidate_ref: candidateRef, decision: "approve-build-contract", reason: "既存契約を承認した。", decided_by: "human", decided_at: "2026-08-24T04:09:40.000Z" });
+  const oldGate = resolveHumanGateRequirementsAt(
+    projectDir,
+    born.recordDir,
+    "ST-05",
+    prepared.request.effective_policy_ref,
+    { createdAt: "2026-08-24T04:09:35.000Z" },
+  );
+  const oldGateRef = humanGateRequirementReferenceAt(
+    projectDir,
+    born.recordDir,
+    oldGate,
+  );
+  const oldApproval = parseBuildContractApproval({ schema_version: 1, artifact: "human-decision", version: 1, decision_id: "approve-reusable", decision_kind: "approval", intent_id: born.uuid, candidate_ref: candidateRef, gate_requirement_set_ref: oldGateRef, policy_acknowledgements: [], decision: "approve-build-contract", reason: "既存契約を承認した。", decided_by: "human", decided_at: "2026-08-24T04:09:40.000Z" });
   const oldApprovalPath = join(reusableDir, "approval.json");
   const oldApprovalContent = `${JSON.stringify(oldApproval, null, 2)}\n`;
   writeFileSync(oldApprovalPath, oldApprovalContent);
