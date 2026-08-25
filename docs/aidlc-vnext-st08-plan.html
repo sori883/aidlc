@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI-DLC vNext｜ST-08 Release 実装前設計</title>
+  <style>
+    :root{--ink:#172033;--muted:#607086;--line:#dce4ef;--blue:#2563eb;--blue-soft:#eaf1ff;--green:#147a55;--green-soft:#e6f7ef;--amber:#9a5b00;--amber-soft:#fff4d8;--purple:#6d3bc1;--purple-soft:#f1ebff;--red:#b33a2b;--red-soft:#fff0ee;--navy:#17315c;--soft:#f5f8fc;--shadow:0 18px 46px rgba(30,48,78,.09)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(180deg,#edf5ff 0,#f8fafc 440px);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.72}main{width:min(1120px,calc(100% - 30px));margin:auto;padding:38px 0 74px}header,section{margin-bottom:23px;padding:clamp(22px,4vw,41px);border:1px solid var(--line);border-radius:23px;background:#fff;box-shadow:var(--shadow)}.eyebrow{margin:0 0 8px;color:var(--blue);font-size:13px;font-weight:900;letter-spacing:.12em}h1{margin:0;font-size:clamp(31px,5vw,53px);line-height:1.18;letter-spacing:-.025em}h2{margin:0 0 8px;font-size:clamp(23px,3vw,33px)}h3{margin:0 0 6px;font-size:18px}p{margin:0}.lead,.intro,.node p,.card p,.check p,.question p,td{color:var(--muted)}.lead{max-width:900px;margin-top:16px;font-size:18px}.metrics,.cards,.checks,.questions{display:grid;gap:12px;margin-top:20px}.metrics{grid-template-columns:repeat(4,1fr)}.cards,.checks{grid-template-columns:repeat(3,1fr)}.questions{grid-template-columns:repeat(2,1fr)}.metric,.card,.check,.question{padding:18px;border-radius:17px}.metric{background:var(--soft)}.metric span,.check span{display:block;color:var(--muted);font-size:12px;font-weight:900}.metric strong,.check strong{display:block;margin-top:4px;font-size:18px}.flow{display:grid;grid-template-columns:1fr 32px 1fr 32px 1fr 32px 1fr;gap:8px;margin-top:19px}.node{padding:17px;border:1px solid var(--line);border-radius:16px;background:var(--soft)}.node small{color:var(--blue);font-weight:900}.node strong{display:block;margin:8px 0 4px}.node.core{background:var(--green-soft);border-color:#b8dfcd}.node.human{background:var(--amber-soft);border-color:#ecd18e}.node.end{color:#fff;background:var(--blue);border-color:var(--blue)}.node.end small,.node.end p{color:#dce8ff}.arrow{display:grid;place-items:center;color:var(--blue);font-size:23px;font-weight:900}.card{border:1px solid var(--line);background:var(--soft)}.card.blue{background:var(--blue-soft);border-color:#bdd1ff}.card.green{background:var(--green-soft);border-color:#b8dfcd}.card.amber{background:var(--amber-soft);border-color:#ecd18e}.card.purple{background:var(--purple-soft);border-color:#d4c5ef}.card.red{background:var(--red-soft);border-color:#efc4bd}.card b{display:inline-block;margin-bottom:7px;padding:3px 9px;border-radius:999px;background:#fff;font-size:12px}.note{margin-top:15px;padding:15px 18px;border-left:5px solid var(--blue);border-radius:12px;background:var(--blue-soft)}.note.warn{border-left-color:var(--amber);background:var(--amber-soft)}.note.good{border-left-color:var(--green);background:var(--green-soft)}.table-wrap{overflow:auto;margin-top:17px}table{width:100%;min-width:720px;border-collapse:collapse}th,td{padding:12px 13px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--soft);color:var(--muted);font-size:12px}.target-flow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}.target{position:relative;padding:21px;border:1px solid var(--line);border-radius:18px;background:var(--soft)}.target:not(:last-child)::after{content:"→";position:absolute;right:-20px;top:50%;z-index:2;transform:translateY(-50%);color:var(--blue);font-size:24px;font-weight:900}.target small{color:var(--blue);font-weight:900}.target strong{display:block;margin:8px 0 4px}.target p{color:var(--muted);font-size:14px}.capability{display:grid;grid-template-columns:1fr 40px 1.25fr;gap:12px;align-items:center;margin-top:20px}.cap-box{padding:21px;border:1px solid var(--line);border-radius:18px;background:var(--soft)}.cap-box.core{background:var(--green-soft);border-color:#b8dfcd}.cap-box code{display:block;margin-top:6px;color:var(--blue);font-size:13px}.outcomes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:19px}.outcome{padding:17px;border-radius:16px;background:var(--soft);border:1px solid var(--line)}.outcome b{display:block;color:var(--blue)}.outcome span{font-size:13px;color:var(--muted)}.filebox{margin-top:17px;padding:19px;border-radius:16px;background:#172033;color:#edf3ff;overflow:auto}.filebox code{display:block;min-width:760px;color:#c1d3ff}.question{border:1px solid #bdd1ff;background:#f4f8ff}.question .choice{margin-top:9px;color:var(--ink);font-weight:900}.check{border:1px solid #b8dfcd;background:var(--green-soft)}.check span{color:var(--green)}.not-now{color:#fff;background:linear-gradient(135deg,#17315c,#285eae)}.not-now p{color:#dce8ff}footer{text-align:center;color:var(--muted);font-size:13px}@media(max-width:900px){.metrics,.cards,.checks,.outcomes{grid-template-columns:repeat(2,1fr)}.flow,.capability{grid-template-columns:1fr}.arrow{min-height:20px;transform:rotate(90deg)}.target-flow{grid-template-columns:1fr}.target:not(:last-child)::after{content:"↓";right:50%;top:auto;bottom:-26px;transform:translateX(50%)}}@media(max-width:620px){main{width:min(100% - 18px,1120px);padding-top:18px}header,section{border-radius:18px}.metrics,.cards,.checks,.questions,.outcomes{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M5 / ST-08 PLAN</p>
+    <h1>承認済みのものだけを、承認済みの場所へ出す。</h1>
+    <p class="lead">ST-08 Releaseは、ST-07で受け入れた候補を正式な配布先へ昇格するStageです。AIはRelease案を整理できます。Coreが対象と手順を固定し、必要なRelease権限は人間または事前承認済みPolicyだけが与えます。</p>
+    <div class="metrics">
+      <div class="metric"><span>入力</span><strong>Accepted Candidate</strong></div>
+      <div class="metric"><span>外部操作</span><strong>登録済みCapabilityだけ</strong></div>
+      <div class="metric"><span>安全確認</span><strong>Release前後</strong></div>
+      <div class="metric"><span>完了後</span><strong>固定ST-09</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Releaseは「本番deployだけ」ではありません。</h2>
+    <p class="intro">プロジェクトに必要なところまで進めます。不要な工程は作りません。</p>
+    <div class="target-flow" role="img" aria-label="ソース昇格、成果物公開、環境デプロイの順に必要な部分だけReleaseする図">
+      <article class="target"><small>1 / SOURCE</small><strong>正式なSourceへ昇格</strong><p>承認済みrevisionをmainなどの正式なDelivery先へ反映します。</p></article>
+      <article class="target"><small>2 / ARTIFACT</small><strong>成果物を公開</strong><p>必要ならpackage、container、binaryなどをRegistryへ公開します。</p></article>
+      <article class="target"><small>3 / ENVIRONMENT</small><strong>環境へ反映</strong><p>必要ならstagingやProductionへdeployし、動作と健康状態を確認します。</p></article>
+    </div>
+    <div class="note">たとえば文書だけの変更はSource昇格で終わります。WebサービスはSource昇格後にPipelineを起動し、stagingやProductionまで進む場合があります。</div>
+  </section>
+
+  <section>
+    <h2>まず計画だけを作ります。</h2>
+    <div class="flow" role="img" aria-label="副作用なしでRelease対象を固定してから人間が確認する図">
+      <article class="node core"><small>1 / CORE</small><strong>入力を固定</strong><p>Accepted Candidate、Policy、System Map、現在の配布先をhash固定します。</p></article><div class="arrow">→</div>
+      <article class="node"><small>2 / AI</small><strong>Release案を作る</strong><p>必要なTarget、順番、確認、rollbackを提案します。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>3 / CORE</small><strong>実行可能性を検査</strong><p>登録済みCapabilityと現在Targetを照合します。</p></article><div class="arrow">→</div>
+      <article class="node human"><small>4 / REVIEW</small><strong>短いHTMLで確認</strong><p>どこへ何を出すかを、副作用の前に確認します。</p></article>
+    </div>
+    <div class="note warn">この準備中は、merge、push、publish、deploy、migrationを実行しません。Release Planへの承認前に外部状態を変更しません。</div>
+  </section>
+
+  <section>
+    <h2>承認された計画だけを実行します。</h2>
+    <div class="flow" role="img" aria-label="人間またはPolicyのRelease権限を確認しCoreが一手ずつ実行して検証する図">
+      <article class="node human"><small>AUTHORITY</small><strong>Release権限を確認</strong><p>ProductionなどPolicy指定のTargetでは人間が明示承認します。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>PRE-FLIGHT</small><strong>直前状態を再確認</strong><p>承認後にTargetが変わっていたら実行せず再計画します。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>EXECUTE</small><strong>1 Stepずつ実行</strong><p>各結果と外部Operation IDをimmutable Receiptへ保存します。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>VERIFY</small><strong>Release後を確認</strong><p>合格または安全なrollback確定後だけST-09へ渡します。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>AWS、Azure、Vercelも同じ仕組みで扱います。</h2>
+    <p class="intro">Provider名ごとの巨大な分岐をCoreへ増やしません。</p>
+    <div class="capability" role="img" aria-label="人間管理のRelease CapabilityをCoreが検証して各Providerへ接続する図">
+      <article class="cap-box"><h3>人間管理のRelease Capability</h3><p>SpaceのMemoryで、使用可能な操作とTarget schemaを登録します。</p><code>source-promote</code><code>pipeline-trigger</code><code>artifact-publish</code><code>environment-deploy</code><code>post-release-verify</code><code>rollback</code></article>
+      <div class="arrow">→</div>
+      <article class="cap-box core"><h3>Coreが選択を検証</h3><p>AIは登録済みIDを提案するだけです。未知Capability、shell文字列、秘密値を拒否します。</p><code>Git / GitHub Actions</code><code>AWS CodePipeline / ECS</code><code>Azure DevOps</code><code>Vercel</code><code>任意のProject登録Adapter</code></article>
+    </div>
+    <div class="note good">資格情報そのものはArtifactへ保存しません。保存するのはcredential slot名だけです。実行時にHarnessが安全なCredential Storeから渡します。</div>
+  </section>
+
+  <section>
+    <h2>入力と出力。</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>種類</th><th>Artifact</th><th>初心者向けの意味</th></tr></thead>
+      <tbody>
+        <tr><td>入力</td><td>Review Current</td><td>ST-07が承認済みか、候補なしだったかを示します。</td></tr>
+        <tr><td>入力</td><td>Accepted Candidate</td><td>人間が実物確認した、変更してはいけない候補です。候補なしの場合はありません。</td></tr>
+        <tr><td>入力</td><td>Effective Policy</td><td>どのTargetで人間承認が必要か、禁止操作は何かを示します。</td></tr>
+        <tr><td>入力</td><td>Release Capability Snapshot</td><td>このSpaceで安全に使えるRelease操作の一覧です。</td></tr>
+        <tr><td>入力</td><td>Target Snapshot</td><td>main、Registry、staging、Productionなどの実行直前の現在値です。</td></tr>
+        <tr><td>途中</td><td>Release Plan + Review HTML</td><td>何を、どこへ、どの順番で出し、失敗時にどう戻すかです。</td></tr>
+        <tr><td>途中</td><td>Release Authority</td><td>exact PlanとTarget Snapshotに対する人間またはPolicyの実行許可です。</td></tr>
+        <tr><td>出力</td><td>Release Receipt</td><td>各操作の前後、外部Operation ID、検証、rollback結果です。</td></tr>
+        <tr><td>出力</td><td>Release Current</td><td>今回の最終状態と、ST-09が観測すべき対象です。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>3つの処理方法。</h2>
+    <div class="cards">
+      <article class="card blue"><b>EXECUTE</b><h3>新しいReleaseを行う</h3><p>Accepted Candidateがあり、正式なTargetへまだ昇格していない場合です。Plan、Authority、Attemptを新規作成します。</p></article>
+      <article class="card purple"><b>REUSE</b><h3>同じRelease結果を再利用する</h3><p>同じCandidate、Plan、Targetで、外部の現在状態まで一致するimmutable Receiptだけを再利用します。</p></article>
+      <article class="card green"><b>NOT APPLICABLE</b><h3>出す候補がない</h3><p>ST-07が候補なしで完了した場合だけ、同じEvidenceで自動通過します。Accepted Candidateがあるのに省略しません。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>失敗しても二重実行しません。</h2>
+    <div class="outcomes">
+      <article class="outcome"><b>事前検査NG</b><span>副作用なし。ST-08で停止します。</span></article>
+      <article class="outcome"><b>結果が不明</b><span>Operation IDで外部状態を照合します。推測で再実行しません。</span></article>
+      <article class="outcome"><b>検証NG</b><span>事前承認済みrollbackだけを実行します。</span></article>
+      <article class="outcome"><b>Rollback完了</b><span>失敗事実を固定し、ST-09へ渡します。</span></article>
+    </div>
+    <div class="note warn">ST-08からST-06へ勝手に戻るedgeは作りません。外部操作後の不具合は安全な状態へ戻し、ST-09でOutcomeとして記録して次の修正Intentへつなぎます。副作用前の不足はST-08で止めます。</div>
+  </section>
+
+  <section>
+    <h2>System MapとDeployment Mapを分けます。</h2>
+    <div class="cards">
+      <article class="card blue"><b>SYSTEM MAP</b><h3>承認済みコードの現在像</h3><p>ST-07で更新済みです。Repository、Component、API、関係を扱います。</p></article>
+      <article class="card purple"><b>DEPLOYMENT MAP</b><h3>実際に出ている場所の現在像</h3><p>Target、release ID、稼働version、観測時刻、Evidenceを扱います。</p></article>
+      <article class="card green"><b>CURRENT CONTEXT</b><h3>Intentが使った固定参照</h3><p>ST-09はRelease ReceiptとDeployment Map revisionをhash固定して使います。</p></article>
+    </div>
+    <div class="filebox">
+      <code>aidlc/spaces/&lt;space&gt;/codekb/deployment-map/baseline.json</code>
+      <code>aidlc/spaces/&lt;space&gt;/codekb/deployment-map/revisions/000001/deployment-map.json</code>
+    </div>
+    <div class="note">Deployment Mapも標準出力はJSONだけです。HTMLは人間から指示された場合だけ生成します。</div>
+  </section>
+
+  <section>
+    <h2>保存先の案。</h2>
+    <div class="filebox">
+      <code>artifacts/release/work-request.json</code>
+      <code>artifacts/release/release-plan-candidate.json</code>
+      <code>artifacts/release/review/release.html</code>
+      <code>artifacts/release/review/release-authority.json</code>
+      <code>artifacts/release/attempts/000001/steps/STEP-001/receipt.json</code>
+      <code>artifacts/release/attempts/000001/release-receipt.json</code>
+      <code>artifacts/release/current.json</code>
+    </div>
+    <div class="note">Release PlanとReceiptは上書きしません。再計画や再実行は新しいrevision／attemptになります。秘密値、認証token、passwordは保存禁止です。</div>
+  </section>
+
+  <section>
+    <h2>AI・人間・Coreの役割。</h2>
+    <div class="cards">
+      <article class="card purple"><b>AI</b><h3>計画候補を作る</h3><p>Target、順番、検証、rollback案を、登録済みCapabilityの範囲で提案します。</p></article>
+      <article class="card amber"><b>HUMAN / POLICY</b><h3>外部副作用を許可する</h3><p>TargetとPlanを見てRelease権限を与えます。継続deployはMemoryで事前承認できます。</p></article>
+      <article class="card green"><b>CORE</b><h3>固定して実行する</h3><p>hash、Target drift、Capability、Authority、Receipt、State、Auditを管理します。</p></article>
+      <article class="card red"><b>AI CANNOT</b><h3>勝手に出せない</h3><p>未知command、秘密値、Target変更、Production承認、Stage遷移を確定できません。</p></article>
+      <article class="card red"><b>ST-08 CANNOT</b><h3>候補を書き換えない</h3><p>PipelineやIaCが不足しても、このStageでコードを修正しません。</p></article>
+      <article class="card blue"><b>FIXED GRAPH</b><h3>次はST-09だけ</h3><p>Release結果が確定した場合だけ、Coreが固定edgeで進めます。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>実装前に確認してほしい6点。</h2>
+    <p class="intro">すべて提案どおりでよければ、その承認後にST-08だけをTDD実装します。</p>
+    <div class="questions">
+      <article class="question"><h3>1. ReleaseはSource昇格から始める</h3><p>Production deployがない変更でも、承認済みrevisionを正式なDelivery先へ反映します。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>2. 登録済みCapabilityだけ使う</h3><p>AWS、Azure、VercelなどはAdapter化し、AIが任意shellを作って実行しないようにします。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>3. Gateの厳しさはMemoryで決める</h3><p>staging自動、Production手動などをEffective Policyへ反映します。固定Profileは追加しません。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>4. 候補なしだけ自動not_applicable</h3><p>Accepted Candidateがある場合は、Release先不明を「省略」にせず停止して確認します。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>5. 外部操作後はST-09へ事実を渡す</h3><p>成功でもrollbackでもOutcomeを確定します。ST-08から自由な後戻りedgeは追加しません。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>6. Deployment MapはCodeKBへ置く</h3><p>System Mapとは別revisionにし、実際の配布状態だけを複数Intentで共有します。</p><p class="choice">提案：はい。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>TDDで作る範囲。</h2>
+    <div class="checks">
+      <article class="check"><span>CONTRACT</span><strong>厳格JSON</strong><p>Plan、Authority、Attempt、Step Receipt、Release Currentをfail closedで検証します。</p></article>
+      <article class="check"><span>AUTHORITY</span><strong>exact Plan固定</strong><p>Candidate、Target Snapshot、Capability、Planのhashが変われば再承認にします。</p></article>
+      <article class="check"><span>SIDE EFFECT</span><strong>二重実行防止</strong><p>idempotency key、Operation ID、target照合、中断再開を試験します。</p></article>
+      <article class="check"><span>ROLLBACK</span><strong>安全な失敗処理</strong><p>事前検査、結果不明、検証失敗、rollback成功・失敗を試験します。</p></article>
+      <article class="check"><span>MAP</span><strong>配布状態を分離</strong><p>承認済みReceipt後だけDeployment Mapを新revisionへ昇格します。</p></article>
+      <article class="check"><span>RUNTIME</span><strong>CoreからCodexまで</strong><p>State、Plan、Audit、Doctor、CLI、Skill、native配布を接続します。</p></article>
+    </div>
+  </section>
+
+  <section class="not-now">
+    <h2>今回まだ作らないもの。</h2>
+    <p>ST-09のOutcome評価、各Cloud Provider専用の全Adapter、秘密情報管理サービスそのもの、PipelineやIaCの新規実装、Productionの監視運用は含めません。ST-08 CoreはCapability interfaceを実装し、未登録のProvider操作は安全に停止します。</p>
+  </section>
+  <footer>AI-DLC vNext / M5 / ST-08 Release implementation plan / 2026-08-25</footer>
+</main></body>
+</html>

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-DLC vNext｜ST-06 Build &amp; Converge 実装前設計</title>
+  <style>
+    :root{color-scheme:light;--ink:#172033;--muted:#617087;--line:#dce4ef;--soft:#f5f8fc;--blue:#2563eb;--blue-soft:#eaf1ff;--green:#147a55;--green-soft:#e5f7ee;--amber:#a25c00;--amber-soft:#fff4d8;--purple:#6d3bc1;--purple-soft:#f1ebff;--red:#b33a2b;--red-soft:#fff0ee;--shadow:0 18px 46px rgba(30,48,78,.09)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(180deg,#eef5ff 0,#f8fafc 430px,#f8fafc 100%);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.72}main{width:min(1120px,calc(100% - 32px));margin:auto;padding:40px 0 74px}header,section{margin-bottom:24px;padding:clamp(22px,4vw,42px);border:1px solid var(--line);border-radius:24px;background:rgba(255,255,255,.98);box-shadow:var(--shadow)}.eyebrow{margin:0 0 8px;color:var(--blue);font-size:13px;font-weight:900;letter-spacing:.12em}h1{margin:0;font-size:clamp(31px,5vw,54px);line-height:1.18;letter-spacing:-.03em}h2{margin:0 0 8px;font-size:clamp(23px,3vw,34px);line-height:1.35}h3{margin:0 0 6px;font-size:18px}p{margin:0}.lead,.intro{color:var(--muted)}.lead{max-width:890px;margin-top:17px;font-size:18px}.metrics,.cards,.checks{display:grid;gap:12px;margin-top:22px}.metrics{grid-template-columns:repeat(4,1fr)}.cards,.checks{grid-template-columns:repeat(3,1fr)}.metric,.card,.check{padding:19px;border-radius:17px}.metric{background:var(--soft)}.metric span,.check span{display:block;color:var(--muted);font-size:12px;font-weight:900}.metric strong,.check strong{display:block;margin-top:4px;font-size:19px}.flow{display:grid;grid-template-columns:1fr 34px 1fr 34px 1fr 34px 1fr;align-items:stretch;gap:8px;margin-top:20px}.node{padding:18px;border:1px solid var(--line);border-radius:17px;background:var(--soft)}.node small{color:var(--blue);font-weight:900}.node strong{display:block;margin:9px 0 4px;font-size:17px}.node p{color:var(--muted);font-size:13px}.node.ai{background:var(--amber-soft);border-color:#edd18d}.node.core{background:var(--green-soft);border-color:#b7dfcc}.node.next{color:white;background:var(--blue);border-color:var(--blue)}.node.next small,.node.next p{color:#dce8ff}.arrow{display:grid;place-items:center;color:var(--blue);font-size:24px;font-weight:900}.loop{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px}.loop article{position:relative;padding:22px;border-radius:20px;border:1px solid var(--line)}.loop .inner{background:var(--amber-soft);border-color:#edd18d}.loop .bolt{background:var(--green-soft);border-color:#b7dfcc}.loop .outcome{background:var(--purple-soft);border-color:#d4c5f0}.loop b{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:white;color:var(--blue)}.loop p,.card p,.check p{color:var(--muted);font-size:14px}.card{border:1px solid var(--line)}.card.blue{background:var(--blue-soft);border-color:#bdd1ff}.card.green{background:var(--green-soft);border-color:#b7dfcc}.card.purple{background:var(--purple-soft);border-color:#d4c5f0}.card.red{background:var(--red-soft);border-color:#efc4bd}.card.amber{background:var(--amber-soft);border-color:#edd18d}.card b{display:inline-block;margin-bottom:8px;padding:3px 10px;border-radius:999px;background:white;font-size:12px}.split{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}.panel{padding:21px;border-radius:18px}.panel.ai{background:var(--amber-soft);border:1px solid #edd18d}.panel.core{background:var(--green-soft);border:1px solid #b7dfcc}.panel.stop{background:var(--red-soft);border:1px solid #efc4bd}.panel.map{background:var(--blue-soft);border:1px solid #bdd1ff}ul{margin:9px 0 0;padding-left:20px;color:var(--muted)}.note{margin-top:15px;padding:16px 18px;border-left:5px solid var(--blue);border-radius:12px;background:var(--blue-soft)}.warning{border-left-color:var(--amber);background:var(--amber-soft)}.filebox{margin-top:18px;padding:20px;border-radius:16px;background:#172033;color:#edf3ff}.filebox code{display:block;overflow-wrap:anywhere;color:#bcd1ff}.table-wrap{overflow-x:auto;margin-top:18px}table{width:100%;border-collapse:collapse;min-width:720px}th,td{padding:12px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--soft)}td{color:var(--muted)}.check{border:1px solid #b7dfcc;background:var(--green-soft)}.check span{color:var(--green)}.confirm{border:2px solid #bcd1ff;background:linear-gradient(180deg,#fff,#f4f8ff)}.questions{counter-reset:q;display:grid;gap:12px;margin-top:18px}.question{counter-increment:q;padding:18px;border:1px solid var(--line);border-radius:16px;background:white}.question h3:before{content:counter(q);display:inline-grid;place-items:center;width:28px;height:28px;margin-right:9px;border-radius:50%;color:white;background:var(--blue);font-size:14px}.choice{margin-top:8px;color:var(--green);font-weight:800}.not-now{color:white;background:linear-gradient(135deg,#17315c,#285eae)}.not-now p{color:#dce8ff}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}footer{text-align:center;color:var(--muted);font-size:13px}@media(max-width:900px){.metrics,.cards,.checks,.loop{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{min-height:22px;transform:rotate(90deg)}}@media(max-width:650px){main{width:min(100% - 18px,1120px);padding-top:18px}header,section{border-radius:18px}.metrics,.cards,.checks,.loop,.split{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M4 / ST-06 PLAN</p>
+    <h1>AIは作る。Coreは順番と合否を握る。</h1>
+    <p class="lead">ST-06 Build &amp; Convergeは、承認済みBuild Contractを実際のコードへ変えるStageです。Coreが実行可能なBoltを1つ指定し、AIはそのBoltだけを実装・検証・修正します。</p>
+    <div class="metrics">
+      <div class="metric"><span>入力</span><strong>承認済み契約</strong></div>
+      <div class="metric"><span>作業単位</span><strong>1 Boltずつ</strong></div>
+      <div class="metric"><span>通常の人間Gate</span><strong>なし</strong></div>
+      <div class="metric"><span>成功時</span><strong>ST-07へ</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>何をするStageですか？</h2>
+    <div class="flow" role="img" aria-label="Coreがready Boltを指定しAIが実装しCoreが検証し全Bolt完了後にST-07へ進む図">
+      <article class="node core"><small>1 / CORE</small><strong>ready Boltを指定</strong><p>依存Boltが完了したものから、Coreが次の1つを選びます。</p></article><div class="arrow">→</div>
+      <article class="node ai"><small>2 / AI</small><strong>実装と修正</strong><p>指定pathだけを変更し、必要なtestも作ります。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>3 / CORE</small><strong>独立して検証</strong><p>diffを確認し、承認済みVerifierをshellなしで実行します。</p></article><div class="arrow">→</div>
+      <article class="node next"><small>4 / FIXED GRAPH</small><strong>全Bolt後にST-07</strong><p>一部成功では進みません。統合検証まで成功した場合だけです。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>3つのループを混ぜません。</h2>
+    <div class="loop">
+      <article class="inner"><b>1</b><h3>AI内部loop</h3><p>今のBoltを実装 → 検証 → 修正します。ST-06の内側です。</p></article>
+      <article class="bolt"><b>2</b><h3>Bolt loop</h3><p>Coreが完了を記録し、依存関係から次のBoltを指定します。AI内部loopの外側ですが、ここもST-06の中です。</p></article>
+      <article class="outcome"><b>3</b><h3>Outcome loop</h3><p>人間が完成物を評価し、要求や次のIntentへ返します。ST-07〜ST-09で扱います。</p></article>
+    </div>
+    <div class="note">AIが「次は何を作ろう」と自由に決める余地はありません。今のBoltの実装方法だけを選べます。</div>
+  </section>
+
+  <section>
+    <h2>入力と出力は、こうなります。</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>種類</th><th>Artifact</th><th>初心者向けの意味</th></tr></thead>
+      <tbody>
+        <tr><td>入力</td><td>Build Contract Current</td><td>execute／reuse／not_applicableの確定結果です。</td></tr>
+        <tr><td>入力</td><td>Build Contract + Human Approval</td><td>何を作り、どう合格させるかを人間が承認した正本です。</td></tr>
+        <tr><td>入力</td><td>Effective Policy</td><td>試行上限、禁止操作、作業の分離方法などのProjectルールです。</td></tr>
+        <tr><td>途中</td><td>Build Session</td><td>現在のBolt、完了Bolt、試行回数をCoreが記録します。</td></tr>
+        <tr><td>途中</td><td>Attempt Checkpoint + Verifier Evidence</td><td>各試行で何を変え、何が成功・失敗したかの証拠です。</td></tr>
+        <tr><td>出力</td><td>Runnable Candidate</td><td>全Boltを統合し、ST-07で人間が確認できる完成候補です。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>1回のBoltで起きること。</h2>
+    <div class="cards">
+      <article class="card blue"><b>PREPARE</b><h3>作業場所を分ける</h3><p>Coreが基点revisionを固定し、対象Git RepositoryにBolt専用worktreeを作ります。</p></article>
+      <article class="card amber"><b>IMPLEMENT</b><h3>AIがコードを変更</h3><p>Work RequestにあるChange Contract、受入条件、target pathだけを扱います。</p></article>
+      <article class="card green"><b>VERIFY</b><h3>Coreがdiffとtestを検査</h3><p>対象外変更を拒否し、Verifierをargv配列で実行してEvidenceを保存します。</p></article>
+      <article class="card purple"><b>RETRY</b><h3>失敗なら同じBoltを直す</h3><p>失敗EvidenceをAIへ返します。次のBoltへ逃げることはできません。</p></article>
+      <article class="card green"><b>INTEGRATE</b><h3>成功Checkpointを統合</h3><p>成功した変更だけを基準branchへ統合し、後続Boltをreadyにします。</p></article>
+      <article class="card blue"><b>CONVERGE</b><h3>最後に全体検証</h3><p>全Bolt後にIntegration Contractを検証し、Runnable Candidateを確定します。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>AIとCoreの権限を分けます。</h2>
+    <div class="split">
+      <article class="panel ai"><h3>AIができること</h3><ul><li>指定Boltのコードとtestを作る</li><li>失敗Evidenceから同じBoltを修正する</li><li>実装内容と観測結果をCheckpoint候補として説明する</li><li>Contract矛盾や重大リスクを報告する</li></ul></article>
+      <article class="panel core"><h3>Coreだけができること</h3><ul><li>ready Boltを決める</li><li>試行番号と予算を管理する</li><li>実diff、対象path、source revisionを検査する</li><li>Verifierを実行してpass／failを決める</li><li>Checkpoint、Audit、Stateを保存する</li><li>ST-07へ進める</li></ul></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>自動修正を止める条件。</h2>
+    <div class="cards">
+      <article class="card red"><h3>同じ失敗が3回</h3><p>failure signatureが変わらなければ、改善していないと判断します。</p></article>
+      <article class="card red"><h3>Policyの試行上限</h3><p>Bolt別・全体のattempt上限に到達したら止まります。</p></article>
+      <article class="card red"><h3>Contract外の変更</h3><p>承認されていないsourceやpathへ変更が出たら拒否します。</p></article>
+      <article class="card red"><h3>基点が変わった</h3><p>人間や別作業がRepositoryを変更し、固定snapshotと一致しなくなった場合です。</p></article>
+      <article class="card red"><h3>重大・不可逆な操作</h3><p>deploy、外部送信、破壊的migration、秘密情報が必要なら人間へ戻します。</p></article>
+      <article class="card red"><h3>契約そのものが矛盾</h3><p>実装では解決できないRequirements／Architecture／Build Contract矛盾です。</p></article>
+    </div>
+    <div class="note warning">通常のtest失敗は人間へ聞かず自動修正します。人間へ戻すのは、実装技術では解けない判断・権限・安全性の問題だけです。</div>
+  </section>
+
+  <section>
+    <h2>3つの処理方法。</h2>
+    <div class="cards">
+      <article class="card blue"><b>execute</b><h3>Boltを製造する</h3><p>承認済みBuild Contractがあり、新しいコード変更が必要です。</p></article>
+      <article class="card purple"><b>reuse</b><h3>完成候補を再利用する</h3><p>同じBuild Contractとsource snapshotに結び付いた既存Runnable Candidateがある場合です。</p></article>
+      <article class="card green"><b>not_applicable</b><h3>製造しない</h3><p>ST-05がnot_applicableでBuild Contract本体がない場合だけ、Coreが決定的に認めます。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>保存先の案。</h2>
+    <div class="filebox">
+      <code>artifacts/build/build-session.json                         ← Coreの現在位置</code>
+      <code>artifacts/build/bolts/BOLT-001/work-request.json            ← AIへ渡す今の作業</code>
+      <code>artifacts/build/bolts/BOLT-001/attempts/000001/checkpoint.json</code>
+      <code>artifacts/build/bolts/BOLT-001/attempts/000001/verifiers/VER-001.json</code>
+      <code>artifacts/build/runnable-candidate.json                     ← 全Bolt成功後</code>
+      <code>artifacts/build/current.json                                ← ST-06の確定結果</code>
+    </div>
+    <div class="note">ソースコードの正本はRepositoryです。Intent配下へコードを複製せず、revision・変更file・SHA-256・Verifier Evidenceを記録します。</div>
+  </section>
+
+  <section>
+    <h2>ST-06の前に、ST-05を少し補強します。</h2>
+    <p class="intro">ST-06は実際にコマンドを実行します。候補SHA-256に含まれているだけでは、人間が安全性を読みやすいとは限りません。</p>
+    <div class="split">
+      <article class="panel map"><h3>Review HTMLを補強</h3><ul><li>Verifierの実行argv</li><li>実行cwdとsource</li><li>変更対象path</li><li>外部作用がないこと</li></ul></article>
+      <article class="panel core"><h3>Verifierを構造化</h3><ul><li>command: argv、timeout、終了条件</li><li>artifact: pathと機械判定</li><li>runtime: 起動commandとlocalhost probe</li><li>human-at-st07: ST-07へ明示的に延期</li></ul></article>
+    </div>
+    <div class="note warning">これはST-05の意味を変える作業ではありません。ST-06が安全に実行できる情報を追加する互換的な補強として、同じTDD実装に含めます。</div>
+  </section>
+
+  <section class="confirm">
+    <h2>実装前に確認してほしい4点。</h2>
+    <p class="intro">以下を採用する案です。すべて「はい」であれば、この設計をTDD実装します。</p>
+    <div class="questions">
+      <article class="question"><h3>初期版は1 Boltずつ実行する</h3><p>DAGは並列可能性を保持しますが、Codex初期版はCoreが決定的に1つずつ指定します。</p><p class="choice">提案: はい。安全な直列実行から始める。</p></article>
+      <article class="question"><h3>通常はBoltごとの人間承認を置かない</h3><p>test失敗はAIが同じBolt内で直します。価値判断・重大リスク・停止条件だけ人間へ戻します。</p><p class="choice">提案: はい。自律収束を基本にする。</p></article>
+      <article class="question"><h3>execute対象はGit Repositoryを必須にする</h3><p>回復可能なworktreeとrevisionを保証します。非Git directoryのexecuteは勝手に直接編集せず、Git初期化を人間へ依頼して停止します。not_applicableは影響を受けません。</p><p class="choice">提案: はい。回復不能な直接編集を避ける。</p></article>
+      <article class="question"><h3>同じ失敗3回を標準停止条件にする</h3><p>MemoryのBuild Policyに厳しい上限があればそちらを優先します。時間・費用上限もPolicyがあれば追加します。</p><p class="choice">提案: はい。無限修正を防ぐ最低限の既定値にする。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>TDDで作る範囲。</h2>
+    <div class="checks">
+      <article class="check"><span>CONTRACT</span><strong>厳格JSON</strong><p>Session、Work Request、Attempt、Evidence、Runnable Candidateをfail closedで検証します。</p></article>
+      <article class="check"><span>SCHEDULER</span><strong>Core ready判定</strong><p>DAG、完了Bolt、固定順から、次の1 Boltだけを決定します。</p></article>
+      <article class="check"><span>CONVERGENCE</span><strong>fail → retry → pass</strong><p>実command verifier、failure signature、3回停止、中断再開を試験します。</p></article>
+      <article class="check"><span>ISOLATION</span><strong>Git worktree</strong><p>対象path、diff、merge、競合、基点drift、複数Repositoryを試験します。</p></article>
+      <article class="check"><span>INTEGRATION</span><strong>全Bolt後だけCandidate</strong><p>一部成功では生成せず、統合Verifier成功後だけST-07へ進みます。</p></article>
+      <article class="check"><span>DISTRIBUTION</span><strong>Codex／native</strong><p>Directive、CLI、Doctor、Bundle、指定Sandboxまで確認します。</p></article>
+    </div>
+  </section>
+
+  <section class="not-now">
+    <h2>今回まだ作らないもの。</h2>
+    <p>ST-07の人間Feedbackと最終Approval、ST-08のRelease／deploy、ST-09のOutcome評価、複数Boltの同時並列実行は含めません。ST-06が作るのは、全Boltを統合した「人間に見せられる候補」までです。</p>
+  </section>
+  <footer>AI-DLC vNext / M4 / ST-06 Build &amp; Converge implementation plan / 2026-08-24</footer>
+</main></body></html>

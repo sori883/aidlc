@@ -30,6 +30,13 @@ Core can return:
 - `work`: Core fixed the current Stage and prepared a validated work-request
   Artifact. Read that request, produce only its requested proposal, and submit
   it through the named Core command. Never add a route or authority field.
+- `approval`: Core validated an ST-05 Build Contract candidate, ST-07 Runnable
+  Candidate, or ST-08 Release Plan and generated its human review. Show the review and
+  exact SHA-256. Run an approval or feedback command only after an actual human
+  explicitly decides; never infer approval or the feedback route.
+- `decision`: Core validated a non-achieved ST-09 Outcome Evaluation. Show its
+  HTML and exact SHA-256. Only an actual human may continue observation, accept
+  the recorded Outcome, or accept it while drafting a Follow-up Brief.
 - `parked`: show the Stage ID and reason, then stop. A missing Stage Contract is
   expected for Stages that are not implemented yet; never invent their work.
 - `done`: show the reason and stop.
@@ -66,6 +73,223 @@ Core alone writes `intent-definition.json`, pins the Design Brief and Current
 Context digests, records Audit and State, and advances through the fixed ST-02
 to ST-03 edge. ST-02 cannot be `not_applicable`; a small change receives a
 small Intent Definition instead of skipping the Stage.
+
+ST-03 Requirements & Constraints is a two-part Stage. Core prepares
+`artifacts/requirements/requirements-work-request.json` from the pinned Intent
+Definition, Current Context, and Effective Policy. AI proposes only observable
+functional and quality requirements, constraints, invariants, and open
+questions. Every item needs a stable category ID and one or more source JSON
+Pointers. Cover every source listed in `coverage_required` without expanding
+the Intent scope. Do not add architecture, test procedures, Bolt planning,
+implementation instructions, or routes. If an unresolved question is blocking,
+ask the human before submitting. Submit the proposal with:
+
+`./.codex/tools/aidlc requirements complete . <proposal.json>`
+
+Core rejects unknown fields, broken pointers, duplicate IDs, missing coverage,
+blocking questions, and stale Work Request hashes. Core alone writes the
+immutable `revisions/<revision>/requirements.json`, updates `current.json`,
+records Audit and State, and advances through the fixed ST-03 to ST-04 edge.
+ST-03 cannot be `not_applicable`; a small change receives a short Requirements
+Definition. JSON is canonical; do not generate HTML or Markdown unless a human
+explicitly asks.
+
+ST-04 Architecture Decision is a two-part Stage. Core prepares
+`artifacts/architecture/architecture-work-request.json` from the pinned
+Requirements revision, Current Context, System Map, and Effective Policy. AI
+must assess every `requirement_id` exactly once and propose one disposition:
+
+- `execute`: provide one or more Architecture Decision drafts. Each impacted
+  requirement must be covered. Keep proposed topology in `planned_changes`;
+  never edit or mix it into the current System Map.
+- `reuse`: reference an existing canonical `architecture-decision` and a
+  `human-decision` that approves reuse for the exact current Intent and
+  Requirements. Do not copy the old decision into a new revision.
+- `not_applicable`: every assessment must have `architecture_impact: false`,
+  and Evidence must pin the exact Requirements and System Map references. This
+  is a Core-verified no-impact result, not permission for AI to skip a Stage.
+
+Do not add detailed API fields, Database schema, test procedures, Bolt plans,
+implementation instructions, secrets, or routes. Ask the human before
+submitting provider/cost choices, destructive or migration choices,
+security/compliance exceptions, requirement conflicts, or hard-to-reverse
+decisions. Submit the proposal with:
+
+`./.codex/tools/aidlc architecture complete . <proposal.json>`
+
+Core rejects incomplete requirement coverage, dangling current entity IDs,
+invalid disposition bodies, stale references, unapproved reuse, and tampered
+artifacts. For `execute`, Core writes an immutable Architecture Decision
+revision. For all three dispositions, Core writes Intent-local `current.json`,
+revises the Core-owned Plan, records Audit and State, and advances only through
+the fixed ST-04 to ST-05 edge. JSON is canonical; HTML is not a standard runtime
+output.
+
+ST-05 Build Contract has a proposal and approval boundary. Core prepares
+`artifacts/build-contract/build-contract-work-request.json` from the pinned
+Requirements, Architecture Current, Current Context, System Map, and Effective
+Policy. AI assesses every requirement for build impact and proposes one of:
+
+- `execute`: change contracts, acceptance criteria, verifier definitions, a
+  dependency-based Bolt DAG, and an integration contract. A small change uses
+  one short contract and one Bolt. Do not force frontend/backend or walking
+  skeleton slices.
+- `reuse`: an exact compatible, already approved canonical Build Contract.
+- `not_applicable`: no implementation content, every assessment has
+  `build_impact: false`, and Evidence pins Requirements and Architecture
+  Current. This still needs final human confirmation.
+
+Command verifiers use an argv array plus repository source and relative cwd.
+Never execute a verifier in ST-05, place secrets in a proposal, assign batch
+numbers, claim approval, or choose the next Bolt or Stage. Submit a proposal:
+
+`./.codex/tools/aidlc build-contract review . <proposal.json>`
+
+Core validates requirement traceability, repository boundaries, verifier
+references, DAG cycles, cross-Bolt dependencies, and parallel target conflicts.
+It derives execution batches and writes an escaped static
+`review/build-contract-review.html`. When Core returns `approval`, show that
+file and SHA-256. Only after the human explicitly approves, run:
+
+`./.codex/tools/aidlc build-contract approve . <candidate-sha256> <reason>`
+
+Approval is bound to the exact candidate SHA-256. Core then writes the human
+decision, immutable Build Contract revision for `execute` (or an exact reuse/no
+work Current), Plan, Audit, and State, and advances only through ST-05 to ST-06.
+The review HTML is a deliberate human-approval output; System Map remains
+JSON-only by default.
+
+ST-06 Build & Converge executes only the human-approved Build Contract. When
+`aidlc next` returns an ST-06 `work` Directive, Core has selected exactly one
+ready Bolt and written its canonical `artifacts/build/bolts/<bolt-id>/work-request.json`.
+Read that request and edit only its listed targets, using the supplied
+`source_workspaces[].worktree_path`. These are isolated Git worktrees; do not
+edit the ordinary Repository working tree or choose another Bolt.
+
+After implementing and locally checking the selected Bolt, submit the exact
+Bolt to Core:
+
+`./.codex/tools/aidlc build verify . <bolt-id>`
+
+Core rejects changed paths outside the approved targets and runs only the
+verifier argv/cwd or machine assertion shown in the approved ST-05 review. A
+failed check creates an immutable attempt checkpoint and returns the same Bolt
+for repair. Three identical failure signatures park the Stage. Do not bypass
+that stop, alter checkpoints, or request another Bolt yourself.
+
+On pass, Core commits and fast-forwards the Bolt into the Intent integration
+worktree. It then either returns the next dependency-ready Bolt or, after all
+Bolts and integration verifiers pass, creates `runnable-candidate.json`, writes
+Build Current, and advances only through the fixed ST-06 to ST-07 edge.
+`human-at-st07` checks remain explicitly deferred; ST-06 never claims human
+approval. If Build Contract Current is `not_applicable`, Core deterministically
+records no build work and advances without creating a Git worktree or Runnable
+Candidate.
+
+If an earlier canonical Runnable Candidate is available for the exact same
+Intent, Build Contract, source revisions, changed-file set, and passed
+Checkpoint Evidence, ask Core to validate reuse with:
+
+`./.codex/tools/aidlc build reuse . <runnable-candidate.json> <reason>`
+
+Never claim compatibility from a filename or description. Core must verify the
+Artifact digest, Git revisions, diff, and Evidence references before it records
+the ST-06 `reuse` disposition.
+
+ST-07 Human Feedback & Approval snapshots the exact Runnable Candidate and
+generates a short escaped `artifacts/review/review.html`. Show that Review HTML,
+the Review Manifest SHA-256, the changed source revisions, every
+`human-at-st07` check, and known constraints. Do not modify the Candidate while
+it is awaiting a decision.
+
+After an actual human approves every human check, run:
+
+`./.codex/tools/aidlc review approve . <review-manifest-sha256> <reason> [human-checks.json]`
+
+If the human requests changes, record one or more feedback items with a known
+requirement ID and at least one confirmed impact, then run:
+
+`./.codex/tools/aidlc review feedback . <review-manifest-sha256> ../<feedback.json> <reason>`
+
+The four allowed impacts are `requirements_changed`, `architecture_impact`,
+`build_contract_impact`, and `candidate_defect`. AI may explain a classification
+but must not confirm it for the human. Core deterministically selects the
+earliest affected fixed Stage and invalidates that Stage through ST-07. A
+`candidate_defect` starts a new isolated ST-06 cycle from the rejected Candidate;
+older Candidate and Evidence snapshots remain immutable.
+
+Approval is bound to the Candidate, Review Manifest, Requirements,
+Architecture Current, Build Contract, Effective Policy, System Map, and Git
+revisions. Core promotes the accepted source revisions to a new JSON-only
+System Map revision and advances only to ST-08. ST-07 never releases, deploys,
+or changes Production. When ST-06 is `not_applicable`, Core reuses the exact
+ST-05 no-build human decision and advances without a duplicate review.
+
+ST-08 Release is proposal, authority, and execution in that order. Core first
+creates `artifacts/release/work-request.json` plus a pinned Capability Snapshot.
+AI may propose only structured Targets and Steps using a listed `capability_id`;
+never propose shell commands, credential values, an arbitrary provider adapter,
+or a destination Stage. Submit the JSON proposal with:
+
+`./.codex/tools/aidlc release review . <proposal.json>`
+
+Core re-observes every Target, pins an immutable Release Plan, and generates
+`artifacts/release/review/release.html`. Show that HTML to the human. Only the
+exact Plan SHA-256 can be authorized:
+
+`./.codex/tools/aidlc release authorize . <release-plan-sha256> <reason>`
+
+Authorization alone performs no external operation. After explicit human
+instruction to execute, run:
+
+`./.codex/tools/aidlc release execute .`
+
+If a prior immutable Release Current may already satisfy the exact Candidate,
+ask Core to validate Candidate revisions, Policy digest, Plan, Authority,
+Receipt, Deployment Map, and the live external Target before reuse:
+
+`./.codex/tools/aidlc release reuse . ../<release-current.json> <reason>`
+
+Never infer reuse from a filename, version label, or old Receipt alone.
+
+Core revalidates Target and Deployment Map state immediately before execution.
+The initial installed capability promotes an Accepted Candidate Git revision to
+an observed remote branch. Success records immutable Step Receipts, Release
+Receipt, Release Current, and a JSON-only CodeKB Deployment Map. If a later
+Source promotion fails, Core attempts the approved automatic rollback in reverse
+order. A completed rollback is a recorded ST-08 outcome; a preflight mismatch or
+ambiguous rollback stays blocked in ST-08 and requires a fresh authority. Core
+advances only through the fixed ST-08 to ST-09 edge. If ST-07 has no Accepted
+Candidate, ST-08 is deterministically `not_applicable`.
+
+ST-09 Outcome Evaluation is terminal and mandatory. Core creates
+`artifacts/outcome/work-request.json` by fixing every Intent expected outcome,
+success signal, Requirement, and available approved acceptance criterion to a
+stable signal ID. AI must assess every listed signal exactly once using only
+Project-bound Evidence references; it must not add shell commands, routes,
+authority, or a new Intent instruction. Submit the proposal with:
+
+`./.codex/tools/aidlc outcome evaluate . <proposal.json>`
+
+Core writes immutable Outcome Evidence and Evaluation JSON plus a derived,
+escaped `artifacts/outcome/outcome.html`. If every signal is `achieved`, Core
+may write Outcome Current and complete the Intent automatically. A
+`rolled_back` Release can never be auto-achieved. For `partially_achieved`,
+`not_achieved`, or `inconclusive`, show the HTML and exact Evaluation SHA-256,
+then wait for the human. The three decisions are:
+
+- `continue-observation`: remain in ST-09 with an explicit `not_before` and
+  optional deadline; Core never sleeps in-process.
+- `complete-with-outcome`: honestly close with the recorded result.
+- `complete-and-draft-follow-up`: close and create only a Follow-up Brief draft.
+
+Run the human's exact decision with:
+
+`./.codex/tools/aidlc outcome decide . <evaluation-sha256> <decision> <reason> [not-before] [deadline]`
+
+The Follow-up Brief never creates or activates a new Intent. ST-09 has no
+backward Graph edge and rejects `not_applicable`. After terminal completion,
+`aidlc next` returns `done`.
 
 ## Stage Execution Plan proposals
 

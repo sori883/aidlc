@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI-DLC"
+  short_description: "Run deterministic AI-DLC workflows in Codex"
+  default_prompt: "Use $aidlc to start or resume this project workflow."

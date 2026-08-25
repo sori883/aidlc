@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI-DLC vNext｜ST-09 Outcome Evaluation 実装結果</title>
+  <style>
+    :root{--ink:#172033;--muted:#607086;--line:#dce4ef;--blue:#2563eb;--green:#147a55;--green-soft:#e6f7ef;--amber:#9a5b00;--amber-soft:#fff4d8;--red:#b33a2b;--red-soft:#fff0ee;--purple:#6d3bc1;--purple-soft:#f1ebff;--soft:#f4f7fb;--shadow:0 18px 46px rgba(30,48,78,.09)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(180deg,#edf5ff 0,#f8fafc 430px);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.72}main{width:min(1100px,calc(100% - 30px));margin:auto;padding:38px 0 70px}header,section{margin-bottom:22px;padding:clamp(22px,4vw,40px);border:1px solid var(--line);border-radius:23px;background:#fff;box-shadow:var(--shadow)}.eyebrow{margin:0 0 8px;color:var(--blue);font-size:13px;font-weight:900;letter-spacing:.12em}h1{margin:0;font-size:clamp(31px,5vw,52px);line-height:1.18}h2{margin:0 0 8px;font-size:clamp(23px,3vw,33px)}h3{margin:0 0 5px;font-size:18px}p{margin:0}.lead,.card p,.check p,.node p{color:var(--muted)}.lead{max-width:900px;margin-top:15px;font-size:18px}.metrics,.cards,.checks{display:grid;gap:12px;margin-top:20px}.metrics{grid-template-columns:repeat(4,1fr)}.cards,.checks{grid-template-columns:repeat(3,1fr)}.metric,.card,.check{padding:18px;border-radius:17px}.metric{background:var(--soft)}.metric span,.check span{display:block;color:var(--muted);font-size:12px;font-weight:900}.metric strong,.check strong{display:block;margin-top:4px;font-size:18px}.flow{display:grid;grid-template-columns:1fr 32px 1fr 32px 1fr 32px 1fr;gap:8px;margin-top:19px}.node{padding:17px;border:1px solid var(--line);border-radius:16px;background:var(--soft)}.node small{color:var(--blue);font-weight:900}.node strong{display:block;margin:8px 0 4px}.node.human{background:var(--amber-soft);border-color:#ecd18e}.node.core{background:var(--green-soft);border-color:#b8dfcd}.node.end{color:#fff;background:var(--blue);border-color:var(--blue)}.node.end small,.node.end p{color:#dce8ff}.arrow{display:grid;place-items:center;color:var(--blue);font-size:23px;font-weight:900}.card{border:1px solid var(--line);background:var(--soft)}.card.green{background:var(--green-soft);border-color:#b8dfcd}.card.amber{background:var(--amber-soft);border-color:#ecd18e}.card.red{background:var(--red-soft);border-color:#efc4bd}.card.purple{background:var(--purple-soft);border-color:#d4c5ef}.card b{display:inline-block;margin-bottom:7px;padding:3px 9px;border-radius:999px;background:#fff;font-size:12px}.note{margin-top:15px;padding:15px 18px;border-left:5px solid var(--blue);border-radius:12px;background:#eaf1ff}.note.warn{border-left-color:var(--amber);background:var(--amber-soft)}.filebox{margin-top:17px;padding:19px;border-radius:16px;background:#172033;color:#edf3ff;overflow:auto}.filebox code{display:block;overflow-wrap:anywhere;color:#c1d3ff}.check{border:1px solid #b8dfcd;background:var(--green-soft)}.check span{color:var(--green)}.terminal{color:#fff;background:linear-gradient(135deg,#17315c,#285eae)}.terminal p{color:#dce8ff}footer{text-align:center;color:var(--muted);font-size:13px}@media(max-width:880px){.metrics,.cards,.checks{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{min-height:20px;transform:rotate(90deg)}}@media(max-width:620px){main{width:min(100% - 18px,1100px);padding-top:18px}header,section{border-radius:18px}.metrics,.cards,.checks{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M5 / ST-09 RESULT</p>
+    <h1>「作った」ではなく、「狙った結果」で終われるようになりました。</h1>
+    <p class="lead">ST-09 Outcome EvaluationをTDDで実装しました。最初に決めた成功条件を一つずつ事実と比較し、結果を正直に残してIntentを終了します。</p>
+    <div class="metrics">
+      <div class="metric"><span>比較</span><strong>約束 vs 事実</strong></div>
+      <div class="metric"><span>結果</span><strong>4種類</strong></div>
+      <div class="metric"><span>全体試験</span><strong>193件成功</strong></div>
+      <div class="metric"><span>次のStage</span><strong>なし</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>処理は4段階です。</h2>
+    <div class="flow" role="img" aria-label="成功条件を固定し、証拠を集め、比較し、Intentを終了する図">
+      <article class="node core"><small>1 / CORE</small><strong>約束を固定</strong><p>期待結果、成功signal、要求、受入条件にIDを付けます。</p></article><div class="arrow">→</div>
+      <article class="node"><small>2 / OBSERVE</small><strong>事実を集める</strong><p>Project内のEvidenceを条件ごとに結び付けます。</p></article><div class="arrow">→</div>
+      <article class="node human"><small>3 / DECIDE</small><strong>必要なら人間判断</strong><p>未達や不明を、継続するか終了するか決めます。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>4 / TERMINAL</small><strong>結果を固定</strong><p>Outcome Currentを残し、Intentをcompletedにします。</p></article>
+    </div>
+    <div class="note">全項目がEvidence付きで達成なら自動完了できます。一部達成、未達成、判断不能は、人間が決めるまでST-09に留まります。</div>
+  </section>
+
+  <section>
+    <h2>ごまかさないための境界。</h2>
+    <div class="cards">
+      <article class="card green"><b>ALL ACHIEVED</b><h3>全件だけ自動完了</h3><p>必須signalの漏れとEvidence欠落をCoreが拒否します。</p></article>
+      <article class="card red"><b>ROLLED BACK</b><h3>成功と呼ばない</h3><p>Releaseが戻された場合、AIだけで達成扱いにできません。</p></article>
+      <article class="card amber"><b>HUMAN VALUE</b><h3>未達は人間へ</h3><p>観測継続、正直な終了、Follow-up案の三択です。</p></article>
+      <article class="card purple"><b>NO BACK EDGE</b><h3>過去Stageへ戻らない</h3><p>改善はFollow-up Brief案にし、新Intent作成は別操作です。</p></article>
+      <article class="card green"><b>NO SLEEP</b><h3>時刻まで安全にpark</h3><p>not_beforeとdeadlineをStateに残し、後から再開します。</p></article>
+      <article class="card red"><b>FAIL CLOSED</b><h3>改ざんを止める</h3><p>Evidence、Evaluation、Decision、CurrentをDoctorが検査します。</p></article>
+    </div>
+    <div class="note warn">ST-08がnot_applicableでもST-09は省略しません。Releaseがない仕事でも「何が分かったか」「目的を満たしたか」を残します。</div>
+  </section>
+
+  <section>
+    <h2>保存される主な成果物。</h2>
+    <div class="filebox">
+      <code>artifacts/outcome/requests/000001/work-request.json</code>
+      <code>artifacts/outcome/revisions/000001/outcome-evidence.json</code>
+      <code>artifacts/outcome/revisions/000001/outcome-evaluation.json</code>
+      <code>artifacts/outcome/revisions/000001/outcome.html</code>
+      <code>artifacts/outcome/decisions/.../human-decision.json</code>
+      <code>artifacts/outcome/follow-up-brief.json</code>
+      <code>artifacts/outcome/current.json</code>
+    </div>
+    <div class="note">JSONが正本です。最終Outcome HTMLは、人間が結果を短く読めるように同じJSONから安全に生成します。</div>
+  </section>
+
+  <section>
+    <h2>TDDと実動確認。</h2>
+    <div class="checks">
+      <article class="check"><span>TRACEABILITY</span><strong>全signalを固定</strong><p>期待結果、成功signal、要求、受入条件を全件評価しました。</p></article>
+      <article class="check"><span>AUTO COMPLETE</span><strong>全件達成</strong><p>Outcome Currentを作り、State completedとdoneを確認しました。</p></article>
+      <article class="check"><span>HUMAN</span><strong>未達で停止</strong><p>三つの固定判断以外をAIが選べないことを確認しました。</p></article>
+      <article class="check"><span>FOLLOW-UP</span><strong>案だけ作成</strong><p>新Intentを自動生成・選択しないことを確認しました。</p></article>
+      <article class="check"><span>RESUME</span><strong>観測待ち</strong><p>sleepせずparkし、not_before後に同じStageから再開しました。</p></article>
+      <article class="check"><span>TAMPER</span><strong>Doctor fail closed</strong><p>Evaluation改ざんをresumeとDoctorが拒否しました。</p></article>
+      <article class="check"><span>SANDBOX</span><strong>ST-09 work</strong><p>指定ProjectでWork Requestを生成し、Doctor healthyを確認しました。</p></article>
+      <article class="check"><span>DISTRIBUTION</span><strong>Codex同期</strong><p>Codex bundleとdist/projectの同期確認に合格しました。</p></article>
+    </div>
+  </section>
+
+  <section class="terminal">
+    <h2>固定10 Stageの本文が、終端までつながりました。</h2>
+    <p>ST-09完了後は次のStageへ進みません。Coreは`done`を返します。これからはマイルストーン全体のE2E、運用性、配布前品質を仕上げます。</p>
+  </section>
+  <footer>AI-DLC vNext / M5 / ST-09 Outcome Evaluation result / 2026-08-25</footer>
+</main></body>
+</html>

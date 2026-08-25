@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "stage_id": "ST-08",
+  "name": "Release",
+  "purpose": "Promote only an ST-07 Accepted Candidate through an exact human-authorized Release Plan constrained by Effective Policy, record every external effect and stable result, and advance only through the fixed ST-08 to ST-09 edge.",
+  "inputs": [
+    { "artifact": "review-current", "required": true },
+    { "artifact": "accepted-candidate", "required": false },
+    { "artifact": "effective-policy", "required": true },
+    { "artifact": "release-capability-snapshot", "required": false },
+    { "artifact": "deployment-map", "required": false },
+    { "artifact": "release-authority", "required": false }
+  ],
+  "outputs": [
+    "release-capability-snapshot",
+    "release-work-request",
+    "release-plan",
+    "release-html",
+    "release-authority",
+    "release-step-receipt",
+    "release-receipt",
+    "release-current",
+    "deployment-map"
+  ],
+  "completion_criteria": [
+    "Core deterministically records not_applicable only when ST-07 produced no Accepted Candidate, reusing the exact Review Current Evidence.",
+    "Core records reuse only when the active Accepted Candidate source revisions, Effective Policy digest, immutable Plan, human Authority, Receipt, Deployment Map, and every live external Target still match exactly.",
+    "For a Candidate, Core pins the Accepted Candidate, Effective Policy, installed Release capabilities, target observations, exact ordered steps, post-release checks, and rollback modes before any external side effect.",
+    "Every externally mutating Release Plan is authorized by an actual human decision bound to the exact Plan SHA-256, Accepted Candidate, and observed target states.",
+    "Core executes only an installed structured capability, persists immutable step receipts and provider operation identity, and never guesses or blindly repeats an ambiguous external operation.",
+    "Core creates Release Current and a JSON-only Deployment Map revision only after the released state or a completed rollback is observed, then advances through the fixed ST-08 to ST-09 edge."
+  ],
+  "stop_conditions": [
+    "Review Current, Accepted Candidate, Effective Policy, capability snapshot, Release Plan, authority, target state, or referenced Evidence is missing, malformed, stale, tampered, or inconsistent.",
+    "A Candidate exists but a required source target, installed capability, exact pre-release state, post-release check, or safe rollback mode is unavailable.",
+    "The target changed after Plan review or authority, an operation result is ambiguous and cannot be reconciled, or retry would risk a duplicate external effect.",
+    "A rollback is required but was not authorized, fails, or leaves an unresolved external state.",
+    "A proposal contains an arbitrary shell command, secret value, credential material, unknown capability, Candidate mutation, or Stage transition instruction."
+  ],
+  "human_decisions": ["release_authority"],
+  "verifiers": [
+    "release-schema-validator",
+    "accepted-candidate-binding-validator",
+    "release-capability-validator",
+    "target-drift-validator",
+    "release-authority-validator",
+    "external-operation-reconciler",
+    "rollback-state-validator",
+    "deployment-map-promoter"
+  ]
+}

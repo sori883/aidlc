@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-DLC vNext｜ST-05 Build Contract 詳細設計</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033; --muted: #617087; --line: #dce4ef; --soft: #f5f8fc;
+      --blue: #2563eb; --blue-soft: #eaf1ff; --green: #147a55;
+      --green-soft: #e5f7ee; --amber: #a76000; --amber-soft: #fff4d8;
+      --purple: #7146b5; --purple-soft: #f1ebff; --red: #b43c2d;
+      --red-soft: #fff0ee; --navy: #17315c; --shadow: 0 18px 46px rgba(30, 48, 78, .09);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; color: var(--ink);
+      background: linear-gradient(180deg, #eef5ff 0, #f8fafc 460px, #f8fafc 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+      line-height: 1.72;
+    }
+    main { width: min(1120px, calc(100% - 32px)); margin: auto; padding: 40px 0 76px; }
+    header, section {
+      margin-bottom: 24px; padding: clamp(22px, 4vw, 42px); border: 1px solid var(--line);
+      border-radius: 24px; background: rgba(255, 255, 255, .98); box-shadow: var(--shadow);
+    }
+    .eyebrow { margin: 0 0 8px; color: var(--blue); font-size: 13px; font-weight: 900; letter-spacing: .12em; }
+    h1 { margin: 0; font-size: clamp(31px, 5vw, 54px); line-height: 1.18; letter-spacing: -.03em; }
+    h2 { margin: 0 0 8px; font-size: clamp(23px, 3vw, 34px); line-height: 1.35; }
+    h3 { margin: 0 0 6px; font-size: 18px; }
+    p { margin: 0; }
+    .lead { max-width: 900px; margin-top: 17px; color: var(--muted); font-size: 18px; }
+    .intro { margin-bottom: 18px; color: var(--muted); }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; margin-top: 26px; }
+    .metric { padding: 18px; border-radius: 16px; background: var(--soft); }
+    .metric span { display: block; color: var(--muted); font-size: 12px; font-weight: 800; }
+    .metric strong { display: block; margin-top: 4px; font-size: 19px; }
+    .flow {
+      display: grid; grid-template-columns: 1fr 34px 1fr 34px 1fr 34px 1fr 34px 1fr;
+      align-items: stretch; gap: 7px; margin-top: 20px;
+    }
+    .node { padding: 18px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); }
+    .node small { color: var(--blue); font-weight: 900; }
+    .node strong { display: block; margin: 8px 0 4px; font-size: 16px; }
+    .node p { color: var(--muted); font-size: 13px; }
+    .node.ai { background: var(--amber-soft); border-color: #edd18d; }
+    .node.core { background: var(--green-soft); border-color: #b7dfcc; }
+    .node.human { background: var(--purple-soft); border-color: #d4c5f0; }
+    .node.next { color: white; background: var(--blue); border-color: var(--blue); }
+    .node.next small, .node.next p { color: #dce8ff; }
+    .arrow { display: grid; place-items: center; color: var(--blue); font-size: 24px; font-weight: 900; }
+    .io { display: grid; grid-template-columns: 1fr 56px 1fr; align-items: stretch; gap: 12px; margin-top: 20px; }
+    .io-box { padding: 22px; border-radius: 18px; border: 1px solid var(--line); background: var(--soft); }
+    .io-box.input { background: var(--blue-soft); border-color: #bdd1ff; }
+    .io-box.output { background: var(--green-soft); border-color: #b7dfcc; }
+    .io-arrow { display: grid; place-items: center; color: var(--blue); font-size: 28px; font-weight: 900; }
+    ul { margin: 9px 0 0; padding-left: 20px; color: var(--muted); }
+    .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 18px; }
+    .card { padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--soft); }
+    .card b { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 50%; color: white; background: var(--blue); font-size: 13px; }
+    .card h3 { margin-top: 10px; }
+    .card p { color: var(--muted); font-size: 14px; }
+    .bolt-graph { display: grid; grid-template-columns: 1fr 48px 1fr 48px 1fr; align-items: center; margin-top: 20px; }
+    .bolt { padding: 20px; border-radius: 18px; border: 1px solid var(--line); background: var(--blue-soft); text-align: center; }
+    .bolt.backend { background: var(--green-soft); border-color: #b7dfcc; }
+    .bolt.frontend { background: var(--amber-soft); border-color: #edd18d; }
+    .bolt.integration { color: white; background: var(--navy); border-color: var(--navy); }
+    .bolt span { display: block; color: var(--muted); font-size: 13px; }
+    .bolt.integration span { color: #dce8ff; }
+    .parallel { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; margin-top: 14px; }
+    .parallel article { padding: 18px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); }
+    .parallel p { color: var(--muted); font-size: 14px; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+    .panel { padding: 21px; border-radius: 18px; }
+    .panel.good { background: var(--green-soft); border: 1px solid #b7dfcc; }
+    .panel.bad { background: var(--red-soft); border: 1px solid #efc4bd; }
+    .panel.ai { background: var(--amber-soft); border: 1px solid #edd18d; }
+    .panel.human { background: var(--purple-soft); border: 1px solid #d4c5f0; }
+    .choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; margin-top: 18px; }
+    .choice { padding: 21px; border: 1px solid var(--line); border-radius: 18px; }
+    .choice.execute { background: var(--blue-soft); border-color: #bdd1ff; }
+    .choice.reuse { background: var(--purple-soft); border-color: #d4c5f0; }
+    .choice.na { background: var(--green-soft); border-color: #b7dfcc; }
+    .choice b { display: inline-block; margin-bottom: 9px; padding: 3px 10px; border-radius: 999px; background: white; font-size: 12px; }
+    .choice p { color: var(--muted); font-size: 14px; }
+    .trace { display: grid; grid-template-columns: repeat(7, auto); align-items: center; gap: 8px; margin-top: 18px; }
+    .trace-box { padding: 16px; border-radius: 15px; border: 1px solid var(--line); background: var(--soft); text-align: center; }
+    .trace-box strong, .trace-box span { display: block; }
+    .trace-box span { color: var(--muted); font-size: 12px; }
+    .note { margin-top: 15px; padding: 16px 18px; border-left: 5px solid var(--blue); border-radius: 12px; background: var(--blue-soft); }
+    .warning { margin-top: 15px; padding: 16px 18px; border-left: 5px solid var(--red); border-radius: 12px; background: var(--red-soft); }
+    .filebox { margin-top: 18px; padding: 20px; border-radius: 16px; background: #172033; color: #edf3ff; }
+    .filebox code { display: block; overflow-wrap: anywhere; color: #bcd1ff; }
+    .checks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+    .check { padding: 18px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); }
+    .check strong { display: block; color: var(--green); }
+    .check p { color: var(--muted); font-size: 13px; }
+    .boundary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+    .boundary article { padding: 20px; border-radius: 17px; border: 1px solid var(--line); background: var(--soft); }
+    .boundary .current { background: var(--blue-soft); }
+    .boundary .here { color: white; background: var(--blue); border-color: var(--blue); }
+    .boundary .here p { color: #dce8ff; }
+    .boundary p { color: var(--muted); font-size: 14px; }
+    .questions { display: grid; gap: 12px; margin-top: 18px; }
+    .question { padding: 20px; border: 1px solid #d4c5f0; border-radius: 18px; background: var(--purple-soft); }
+    .question b { color: var(--purple); font-size: 12px; }
+    .question strong { display: block; margin: 5px 0; }
+    .question p { color: var(--muted); font-size: 14px; }
+    .implementation { color: white; background: linear-gradient(135deg, #17315c, #285eae); }
+    .implementation p { color: #dce8ff; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    footer { text-align: center; color: var(--muted); font-size: 13px; }
+    @media (max-width: 950px) {
+      .metrics, .cards, .checks { grid-template-columns: repeat(2, 1fr); }
+      .flow, .io, .bolt-graph, .trace { grid-template-columns: 1fr; }
+      .arrow, .io-arrow { min-height: 24px; transform: rotate(90deg); }
+    }
+    @media (max-width: 680px) {
+      main { width: min(100% - 18px, 1120px); padding-top: 18px; }
+      header, section { border-radius: 18px; }
+      .metrics, .cards, .split, .parallel, .choices, .checks, .boundary { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M3 / ST-05 DESIGN</p>
+    <h1>ST-05は、AIへ渡す「実装の契約書」を作ります。</h1>
+    <p class="lead">何を変えるか、どう合格を確認するか、どのBoltから実装するかを固定します。ここではまだコードを作りません。</p>
+    <div class="metrics">
+      <div class="metric"><span>Stage</span><strong>ST-05 Build Contract</strong></div>
+      <div class="metric"><span>主な成果物</span><strong>Build Contract JSON</strong></div>
+      <div class="metric"><span>人間の確認</span><strong>ST-06前に1回</strong></div>
+      <div class="metric"><span>次の固定Stage</span><strong>ST-06</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>一言でいうと。</h2>
+    <p class="intro">ST-04までは「何を、どの構成で作るか」を決めました。ST-05は、それをAIが迷わず実装できる作業契約へ変換します。</p>
+    <div class="io" role="img" aria-label="ST-04の設計判断をST-05で実装契約に変換する図">
+      <article class="io-box input"><h3>入力</h3><strong>要求と構成判断</strong><ul><li>何を満たすか</li><li>何を変えないか</li><li>構成変更があるか</li></ul></article>
+      <div class="io-arrow">→</div>
+      <article class="io-box output"><h3>出力</h3><strong>AIが実装できる契約</strong><ul><li>変更箇所と詳細</li><li>合格条件と確認方法</li><li>Boltの依存関係と順序</li></ul></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>ST-05の流れは、5手です。</h2>
+    <div class="flow" role="img" aria-label="Core準備から人間承認とST-06遷移までの流れ">
+      <article class="node core"><small>1 / CORE</small><strong>入力を固定</strong><p>Requirements、Architecture、Current、PolicyをSHA-256で固定します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node ai"><small>2 / AI</small><strong>契約を提案</strong><p>変更契約、受入条件、Verifier、Bolt DAGを提案します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node core"><small>3 / CORE</small><strong>機械検査</strong><p>抜け、循環、依存関係、危険なcommandを検査します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node human"><small>4 / HUMAN</small><strong>一度だけ承認</strong><p>短いHTMLを読み、承認または修正を伝えます。</p></article>
+      <div class="arrow">→</div>
+      <article class="node next"><small>5 / FIXED GRAPH</small><strong>ST-06へ</strong><p>承認後だけCoreが進めます。</p></article>
+    </div>
+    <div class="note">人間の確認はBoltごとではありません。AIが自走を始める直前に、Build Contract全体を1回確認します。</div>
+  </section>
+
+  <section>
+    <h2>Build Contractには、4つ入ります。</h2>
+    <div class="cards">
+      <article class="card"><b>1</b><h3>変更契約</h3><p>どのRepositoryの、どのpathやinterfaceを、どう変えるか。</p></article>
+      <article class="card"><b>2</b><h3>受入条件</h3><p>何が起きたら、そのRequirementを満たしたと言えるか。</p></article>
+      <article class="card"><b>3</b><h3>Verifier</h3><p>test、runtime確認、artifact確認など、合格を調べる方法。</p></article>
+      <article class="card"><b>4</b><h3>Bolt Plan</h3><p>作業単位、依存関係、統合条件、止める条件。</p></article>
+    </div>
+    <div class="note"><strong>Build Contract</strong>が、これまで呼んでいたDesign Contractの「実装可能な完成形」です。別々の正本を作らず、1つのimmutable JSONへまとめます。</div>
+  </section>
+
+  <section>
+    <h2>Boltは「依存関係付きの作業単位」です。</h2>
+    <p class="intro">画面、フロントエンド、バックエンドなどの固定分類ではありません。変更内容に合わせてAIが提案し、Coreが依存関係を検査します。</p>
+    <div class="bolt-graph" role="img" aria-label="バックエンドBoltの後にフロントエンドBoltを実行して統合する例">
+      <article class="bolt backend"><strong>BOLT-001</strong><span>APIを先に作る</span></article>
+      <div class="arrow">→</div>
+      <article class="bolt frontend"><strong>BOLT-002</strong><span>APIに依存する画面を作る</span></article>
+      <div class="arrow">→</div>
+      <article class="bolt integration"><strong>統合確認</strong><span>全体の受入条件を実行</span></article>
+    </div>
+    <div class="parallel">
+      <article><h3>依存する場合</h3><p><code>depends_on</code>で順序を固定します。Coreは前のBoltが完了するまで次をreadyにしません。</p></article>
+      <article><h3>独立している場合</h3><p>依存とpath競合がなければ同じbatchとして並行実行できます。batchはCoreがDAGから計算します。</p></article>
+    </div>
+    <div class="warning"><strong>v2の「必ずB1をwalking skeletonにする」規則は持ち込みません。</strong>必要なら縦にまとめたBoltを提案できますが、毎回同じ分け方を強制しません。</div>
+  </section>
+
+  <section>
+    <h2>依存関係を、二重に確認します。</h2>
+    <div class="split">
+      <article class="panel good"><h3>変更契約の依存</h3><ul><li>画面ContractがAPI Contractへ依存</li><li>Migrationが新しいschemaへ依存</li><li>Testが実装Contractへ依存</li></ul></article>
+      <article class="panel good"><h3>Boltの依存</h3><ul><li>別BoltのContractへ依存するならBoltも依存</li><li>同じBolt内なら追加Edgeは不要</li><li>循環したらCoreが拒否</li></ul></article>
+    </div>
+    <div class="note">依存するContractを別Boltへ入れたのに、Boltの<code>depends_on</code>がない場合はCoreが止めます。フロントエンドを早く作りすぎる問題を防ぎます。</div>
+  </section>
+
+  <section>
+    <h2>Requirementからtestまで、つながります。</h2>
+    <div class="trace" role="img" aria-label="Requirementから変更契約、受入条件、Verifier、Boltへつながる図">
+      <div class="trace-box"><strong>REQ-F-001</strong><span>何を満たすか</span></div><div class="arrow">→</div>
+      <div class="trace-box"><strong>CHG-001</strong><span>何を変えるか</span></div><div class="arrow">→</div>
+      <div class="trace-box"><strong>AC-001</strong><span>どうなれば合格か</span></div><div class="arrow">→</div>
+      <div class="trace-box"><strong>BOLT-001</strong><span>どこで実装・確認するか</span></div>
+    </div>
+    <div class="split">
+      <article class="panel good"><h3>Coreが必ず確認</h3><ul><li>全Requirementにbuild影響判定がある</li><li>影響ありのRequirementに変更契約がある</li><li>全ConstraintとInvariantに受入条件がある</li><li>全受入条件にVerifierがある</li><li>全変更契約がBoltに所属する</li></ul></article>
+      <article class="panel bad"><h3>Coreが拒否</h3><ul><li>根拠のない作業</li><li>testできない「良い感じにする」</li><li>循環したBolt DAG</li><li>並行Boltのpath競合</li><li>shell文字列やRepository外path</li></ul></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Verifierも契約として固定します。</h2>
+    <p class="intro">ST-05ではVerifierを実行しません。ST-06が安全に実行できる形かを検査して保存します。</p>
+    <div class="cards">
+      <article class="card"><b>A</b><h3>command</h3><p>shell文字列ではなくargv配列。cwdはRepository内だけ。</p></article>
+      <article class="card"><b>B</b><h3>runtime</h3><p>起動、HTTP、browser操作など、実物の動きを確認。</p></article>
+      <article class="card"><b>C</b><h3>artifact</h3><p>JSON schema、生成物、coverageなどを確認。</p></article>
+      <article class="card"><b>D</b><h3>human at ST-07</h3><p>見た目や使い心地など、人間にしか判断できない項目。</p></article>
+    </div>
+    <div class="note">ST-06用の機械VerifierがないRequirementは、理由と人間の例外承認が必要です。秘密値やcredentialはBuild Contractへ保存しません。</div>
+  </section>
+
+  <section>
+    <h2>小さな変更は、1 Boltで短くします。</h2>
+    <div class="split">
+      <article class="panel good"><h3>例：文字をAからBへ変更</h3><ul><li>変更契約：1件</li><li>受入条件：変更後の表示と既存動作</li><li>Verifier：既存testまたは小さなtest</li><li>Bolt：1件</li></ul></article>
+      <article class="panel ai"><h3>例：APIと画面を追加</h3><ul><li>API Contract</li><li>画面Contract</li><li>API → 画面の依存関係</li><li>統合Verifier</li></ul></article>
+    </div>
+    <div class="note">資料の量を先に決めません。Requirementと依存関係が少なければ、Build Contractも短くなります。</div>
+  </section>
+
+  <section>
+    <h2>ST-05にも3つの処理方法があります。</h2>
+    <div class="choices">
+      <article class="choice execute"><b>execute</b><h3>新しい契約を作る</h3><p>通常の実装変更です。小さな変更なら1 Boltの短いBuild Contractになります。</p></article>
+      <article class="choice reuse"><b>reuse</b><h3>既存契約を使う</h3><p>Requirements、Architecture、Currentが一致し、既存契約のSHA-256を再確認できる場合だけです。</p></article>
+      <article class="choice na"><b>not_applicable</b><h3>Build作業がない</h3><p>全Requirementがbuild影響なしの場合だけです。機能変更や修正が1つでもあれば使えません。</p></article>
+    </div>
+    <div class="note">3方式のどれでも、人間はST-06へ進む前に最終内容を1回確認します。AIだけでBuild Contractを承認できません。</div>
+  </section>
+
+  <section>
+    <h2>人間は、JSONを直接読まなくてよい設計です。</h2>
+    <p class="intro">CoreがProposalを検査した後、承認用の短いHTMLを自動生成します。</p>
+    <div class="filebox">
+      <code>artifacts/build-contract/build-contract-work-request.json</code>
+      <code>artifacts/build-contract/review/build-contract-candidate.json</code>
+      <code>artifacts/build-contract/review/build-contract-review.html  ← 人間向け</code>
+      <code>artifacts/build-contract/revisions/000001/build-contract.json  ← 承認後の正本</code>
+      <code>artifacts/build-contract/current.json</code>
+    </div>
+    <div class="note">JSONが正本です。HTMLは検査済みJSONからCoreがescapingして生成する閲覧用です。人間のApprovalはHTMLではなく、Candidate JSONのSHA-256へ結び付けます。</div>
+  </section>
+
+  <section>
+    <h2>承認と修正を、はっきり分けます。</h2>
+    <div class="split">
+      <article class="panel human"><h3>承認する</h3><ul><li>人間が明示的に「承認」と伝える</li><li>Coreがhuman-decisionを記録</li><li>Candidate SHA-256を固定</li><li>immutable revisionを作成</li><li>固定GraphでST-06へ進む</li></ul></article>
+      <article class="panel ai"><h3>修正する</h3><ul><li>人間が変更点を短文で伝える</li><li>StateはST-05のまま</li><li>AIがProposalを修正</li><li>Coreが再検査してHTMLを更新</li><li>承認されるまで遷移しない</li></ul></article>
+    </div>
+    <div class="warning">AIはProposal内へ<code>approved: true</code>や人間権限を入れられません。明示的な人間メッセージを受けたHarnessだけがApproval commandを実行します。</div>
+  </section>
+
+  <section>
+    <h2>Core Directiveに「承認待ち」を追加します。</h2>
+    <p class="intro">通常のAI作業と、人間が見る場面を混同しないためです。</p>
+    <div class="flow" style="grid-template-columns: 1fr 42px 1fr 42px 1fr" role="img" aria-label="work directiveからapproval directiveとadvanced directiveへ進む図">
+      <article class="node ai"><small>work</small><strong>AIの提案待ち</strong><p>Work Requestを返します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node human"><small>approval</small><strong>人間の確認待ち</strong><p>Candidateとreview HTMLを返します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node next"><small>advanced</small><strong>ST-06へ進行</strong><p>承認Evidenceを返します。</p></article>
+    </div>
+    <div class="note">State schemaへ新しい一時状態を増やさず、承認待ちはST-05の<code>parked</code>とApproval Directiveで表現します。</div>
+  </section>
+
+  <section>
+    <h2>Stageの境界です。</h2>
+    <div class="boundary">
+      <article class="current"><h3>ST-04</h3><p>大きな構成方針を決めます。現在像と将来案を分けます。</p></article>
+      <article class="here"><h3>ST-05</h3><p>詳細な変更契約、受入条件、Verifier、Bolt DAGを固定します。</p></article>
+      <article><h3>ST-06</h3><p>CoreがreadyなBoltを指定し、AIがTDD、実装、実行、修正を反復します。</p></article>
+    </div>
+    <div class="note">ST-05ではsource codeやtest codeを作りません。ST-06の実行方法を契約として決めるだけです。</div>
+  </section>
+
+  <section>
+    <h2>人間へ戻す条件です。</h2>
+    <div class="checks">
+      <article class="check"><strong>価値判断</strong><p>どちらの体験、費用、互換性を優先するか。</p></article>
+      <article class="check"><strong>不可逆・危険</strong><p>削除、migration、外部副作用、Security例外。</p></article>
+      <article class="check"><strong>仕様矛盾</strong><p>Requirement、Architecture、Policyが両立しない。</p></article>
+      <article class="check"><strong>検証不能</strong><p>合格条件を機械Verifierへできず、例外判断が必要。</p></article>
+      <article class="check"><strong>DAG不成立</strong><p>循環やpath競合を解消する設計判断が必要。</p></article>
+      <article class="check"><strong>最終Approval</strong><p>AI自走前のBuild Contract全体確認。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>実装時のTDD範囲です。</h2>
+    <div class="checks">
+      <article class="check"><strong>Contract test</strong><p>未知field、秘密field、ID重複、3方式の相互排他。</p></article>
+      <article class="check"><strong>Coverage test</strong><p>Requirement、Constraint、Invariant、受入条件の抜け。</p></article>
+      <article class="check"><strong>DAG test</strong><p>循環、dangling dependency、path競合、Core batch計算。</p></article>
+      <article class="check"><strong>Verifier test</strong><p>argv、cwd、Repository境界、Policy allowlist。</p></article>
+      <article class="check"><strong>Approval test</strong><p>未承認遷移、改ざん、古いCandidate、修正後の再承認。</p></article>
+      <article class="check"><strong>Recovery test</strong><p>Candidate、HTML、Approval、revision保存途中からの再開。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>実装前に確認するのは、3点です。</h2>
+    <div class="questions">
+      <article class="question"><b>確認 1</b><strong>ST-06の自走前に、Build Contract全体を人間が1回承認する形でよいですか？</strong><p>Boltごとの承認は置きません。修正の場合だけST-05内で再レビューします。</p></article>
+      <article class="question"><b>確認 2</b><strong>Boltは固定Sliceや必須walking skeletonを持たず、依存関係DAGで順序を決めてよいですか？</strong><p>バックエンド→フロントエンドのような必要順序をCoreが強制できます。</p></article>
+      <article class="question"><b>確認 3</b><strong>JSONを正本にしつつ、ST-05だけは承認用HTMLをCoreが毎回自動生成してよいですか？</strong><p>System Map HTMLは生成しません。Build Contractの人間レビュー専用HTMLだけです。</p></article>
+    </div>
+  </section>
+
+  <section class="implementation">
+    <h2>この時点では、まだ実装しません。</h2>
+    <p>3点の確認後、ST-05 Contract、Work Request、Candidate、DAG validator、review HTML、Approval、固定ST-06遷移をTDDで実装します。</p>
+  </section>
+
+  <footer>AI-DLC vNext / M3 / ST-05 Build Contract detailed design / 2026-08-24</footer>
+</main>
+</body>
+</html>

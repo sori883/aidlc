@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-DLC vNext｜ST-04をゼロから説明</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #617087;
+      --line: #dce4ef;
+      --soft: #f5f8fc;
+      --blue: #2563eb;
+      --blue-soft: #eaf1ff;
+      --green: #147a55;
+      --green-soft: #e5f7ee;
+      --amber: #956006;
+      --amber-soft: #fff4d8;
+      --purple: #7048b8;
+      --purple-soft: #f1ebff;
+      --red: #a33b2f;
+      --red-soft: #fff0ee;
+      --shadow: 0 18px 46px rgba(30, 48, 78, .09);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: linear-gradient(180deg, #eef5ff 0, #f8fafc 430px, #f8fafc 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+      line-height: 1.7;
+    }
+    main { width: min(1060px, calc(100% - 30px)); margin: auto; padding: 38px 0 72px; }
+    header, section {
+      margin-bottom: 22px;
+      padding: clamp(22px, 4vw, 40px);
+      border: 1px solid var(--line);
+      border-radius: 23px;
+      background: rgba(255, 255, 255, .98);
+      box-shadow: var(--shadow);
+    }
+    .eyebrow { margin: 0 0 8px; color: var(--blue); font-size: 13px; font-weight: 900; letter-spacing: .12em; }
+    h1 { margin: 0; font-size: clamp(31px, 5vw, 52px); line-height: 1.18; letter-spacing: -.03em; }
+    h2 { margin: 0 0 8px; font-size: clamp(23px, 3vw, 33px); line-height: 1.35; }
+    h3 { margin: 0 0 5px; font-size: 18px; }
+    p { margin: 0; }
+    .lead { max-width: 850px; margin-top: 16px; color: var(--muted); font-size: 18px; }
+    .summary { margin-top: 24px; padding: 20px; border-radius: 17px; color: white; background: var(--blue); font-size: 20px; font-weight: 800; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; margin-top: 22px; }
+    .metric { padding: 17px; border-radius: 15px; background: var(--soft); }
+    .metric span { display: block; color: var(--muted); font-size: 12px; font-weight: 800; }
+    .metric strong { display: block; margin-top: 4px; font-size: 19px; }
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr 36px 1fr 36px 1fr 36px 1fr;
+      align-items: stretch;
+      gap: 8px;
+      margin-top: 19px;
+    }
+    .step { padding: 18px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); }
+    .step small { color: var(--blue); font-weight: 900; }
+    .step strong { display: block; margin: 8px 0 4px; }
+    .step p { color: var(--muted); font-size: 13px; }
+    .step.ai { background: var(--amber-soft); border-color: #edd18d; }
+    .step.core { background: var(--green-soft); border-color: #b7dfcc; }
+    .step.next { color: white; background: var(--blue); border-color: var(--blue); }
+    .step.next small, .step.next p { color: #dce8ff; }
+    .arrow { display: grid; place-items: center; color: var(--blue); font-size: 24px; font-weight: 900; }
+    .io { display: grid; grid-template-columns: 1fr 56px 1fr; align-items: stretch; margin-top: 18px; }
+    .io-box { padding: 21px; border: 1px solid var(--line); border-radius: 18px; background: var(--soft); }
+    .io-box.output { background: var(--green-soft); border-color: #b7dfcc; }
+    ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); }
+    .term { margin-top: 16px; padding: 19px; border-left: 5px solid var(--blue); border-radius: 13px; background: var(--blue-soft); }
+    .term strong { display: block; }
+    .term p { color: var(--muted); }
+    .modes { display: grid; gap: 16px; margin-top: 20px; }
+    .mode { padding: 23px; border: 1px solid var(--line); border-radius: 19px; }
+    .mode.execute { background: var(--amber-soft); border-color: #edd18d; }
+    .mode.reuse { background: var(--blue-soft); border-color: #bdd0f7; }
+    .mode.na { background: var(--green-soft); border-color: #b7dfcc; }
+    .mode-head { display: grid; grid-template-columns: 54px 1fr; gap: 13px; align-items: center; }
+    .badge { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 15px; color: white; background: var(--blue); font-weight: 900; }
+    .mode.execute .badge { background: var(--amber); }
+    .mode.reuse .badge { background: var(--blue); }
+    .mode.na .badge { background: var(--green); }
+    .mode-head p { color: var(--muted); }
+    .actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
+    .action { padding: 14px; border-radius: 13px; background: rgba(255,255,255,.75); border: 1px solid rgba(85,100,125,.15); }
+    .action b { display: block; color: var(--blue); font-size: 12px; }
+    .action span { display: block; margin-top: 3px; font-size: 13px; }
+    .mode-result { margin-top: 13px; padding: 13px 15px; border-radius: 12px; background: rgba(255,255,255,.78); font-weight: 700; }
+    .examples { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+    .example { padding: 19px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); }
+    .example b { color: var(--blue); font-size: 12px; }
+    .example strong { display: block; margin: 5px 0; }
+    .example p { color: var(--muted); font-size: 14px; }
+    .compare { display: grid; grid-template-columns: 1fr 46px 1fr 46px 1fr; align-items: center; margin-top: 18px; }
+    .compare-box { padding: 20px; border: 1px solid var(--line); border-radius: 17px; text-align: center; background: var(--soft); }
+    .compare-box strong, .compare-box span { display: block; }
+    .compare-box span { color: var(--muted); font-size: 13px; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+    .panel { padding: 21px; border-radius: 18px; }
+    .panel.ai { background: var(--amber-soft); border: 1px solid #edd18d; }
+    .panel.core { background: var(--green-soft); border: 1px solid #b7dfcc; }
+    .panel.human { background: var(--purple-soft); border: 1px solid #d4c5f0; }
+    .panel.stop { background: var(--red-soft); border: 1px solid #efc4bd; }
+    .boundary { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+    .boundary article { padding: 21px; border-radius: 18px; }
+    .boundary .now { background: var(--blue-soft); border: 1px solid #bdd0f7; }
+    .boundary .later { background: var(--soft); border: 1px solid var(--line); }
+    .note { margin-top: 15px; padding: 16px 18px; border-left: 5px solid var(--blue); border-radius: 12px; background: var(--blue-soft); }
+    .warning { border-left-color: var(--amber); background: var(--amber-soft); }
+    .filebox { margin-top: 18px; padding: 20px; border-radius: 16px; background: #172033; color: #edf3ff; }
+    .filebox code { display: block; overflow-wrap: anywhere; color: #bcd1ff; }
+    .questions { display: grid; gap: 12px; margin-top: 18px; }
+    .question { padding: 20px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); }
+    .question b { color: var(--blue); }
+    .question strong { display: block; margin-top: 3px; font-size: 18px; }
+    .question p { margin-top: 5px; color: var(--muted); }
+    .answer { margin-top: 17px; padding: 17px; border-radius: 14px; color: white; background: var(--blue); font-weight: 800; }
+    .tdd { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; margin-top: 18px; }
+    .tdd article { padding: 18px; border: 1px solid #b7dfcc; border-radius: 16px; background: var(--green-soft); }
+    .tdd p { margin-top: 4px; color: var(--muted); font-size: 13px; }
+    .approval { color: white; background: linear-gradient(135deg, #17315c, #285eae); }
+    .approval p { color: #dce8ff; }
+    footer { text-align: center; color: var(--muted); font-size: 13px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .metrics, .actions, .examples, .tdd { grid-template-columns: repeat(2, 1fr); }
+      .flow { grid-template-columns: 1fr; }
+      .arrow { min-height: 22px; transform: rotate(90deg); }
+    }
+    @media (max-width: 680px) {
+      main { width: min(100% - 18px, 1060px); padding-top: 18px; }
+      header, section { border-radius: 18px; }
+      .metrics, .io, .actions, .examples, .compare, .split, .boundary, .tdd { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / ST-04 / BEGINNER GUIDE</p>
+    <h1>ST-04で決めるのは、<br>「システムの作り方」です。</h1>
+    <p class="lead">ST-03で「何を満たすか」が決まりました。ST-04では、それを今の構成で実現するか、新しい構成が必要かを判断します。</p>
+    <div class="summary">一言でいうと：要求を見て、システム構成を変える必要があるか判断するStageです。</div>
+    <div class="metrics">
+      <div class="metric"><span>現在</span><strong>ST-03まで完了</strong></div>
+      <div class="metric"><span>今回</span><strong>ST-04の設計だけ</strong></div>
+      <div class="metric"><span>実装</span><strong>まだ行わない</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>まず、全体の流れです。</h2>
+    <div class="flow" role="img" aria-label="ST-04の全体の流れ">
+      <article class="step core"><small>1 / CORE</small><strong>材料をそろえる</strong><p>要求、現在の構成、組織ルールを固定します。</p></article>
+      <div class="arrow">→</div>
+      <article class="step ai"><small>2 / AI</small><strong>構成への影響を調べる</strong><p>変更が必要か、既存判断を使えるかを提案します。</p></article>
+      <div class="arrow">→</div>
+      <article class="step core"><small>3 / CORE</small><strong>根拠を検査する</strong><p>参照、抜け、改ざん、権限を検査します。</p></article>
+      <div class="arrow">→</div>
+      <article class="step next"><small>4 / FIXED GRAPH</small><strong>ST-05へ進む</strong><p>AIではなくCoreが進めます。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>入力と出力は、これだけです。</h2>
+    <div class="io" role="img" aria-label="ST-04の入力と出力">
+      <article class="io-box">
+        <h3>入力</h3>
+        <ul>
+          <li>ST-03で決めた要求</li>
+          <li>ST-01で確認した現在の構成</li>
+          <li>組織やProjectのルール</li>
+        </ul>
+      </article>
+      <div class="arrow">→</div>
+      <article class="io-box output">
+        <h3>出力</h3>
+        <ul>
+          <li>どの方法でST-04を通ったか</li>
+          <li>新しい構成判断、または再利用した判断</li>
+          <li>判断不要なら、その理由と根拠</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Stage dispositionとは、作業方法の名前です。</h2>
+    <div class="term">
+      <strong>難しい仕組みではありません。</strong>
+      <p>「今回のST-04を、新しく作る・既存を使う・何もしない、のどれで処理するか」を表すラベルです。</p>
+    </div>
+    <div class="compare" role="img" aria-label="execute reuse not applicableの違い">
+      <div class="compare-box"><strong>execute</strong><span>新しく判断する</span></div>
+      <div class="arrow">／</div>
+      <div class="compare-box"><strong>reuse</strong><span>既存判断を使う</span></div>
+      <div class="arrow">／</div>
+      <div class="compare-box"><strong>not applicable</strong><span>構成判断がいらない</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3つの違いを、実際の動きで説明します。</h2>
+    <div class="modes">
+      <article class="mode execute">
+        <div class="mode-head">
+          <div class="badge">E</div>
+          <div><h3>execute：新しい構成判断を作る</h3><p>今の要求を満たすために、これまでにない構成判断が必要な場合です。</p></div>
+        </div>
+        <div class="actions">
+          <div class="action"><b>1</b><span>Coreが入力を固定</span></div>
+          <div class="action"><b>2</b><span>AIが選択肢を比較</span></div>
+          <div class="action"><b>3</b><span>Coreが新しい判断を保存</span></div>
+          <div class="action"><b>4</b><span>ST-05へ進む</span></div>
+        </div>
+        <div class="mode-result">結果：新しいArchitecture Decision JSONが作られます。</div>
+      </article>
+
+      <article class="mode reuse">
+        <div class="mode-head">
+          <div class="badge">R</div>
+          <div><h3>reuse：承認済みの構成判断をそのまま使う</h3><p>必要な構成判断はありますが、すでに有効な判断が存在する場合です。</p></div>
+        </div>
+        <div class="actions">
+          <div class="action"><b>1</b><span>既存判断を指定</span></div>
+          <div class="action"><b>2</b><span>Coreがhashと承認を確認</span></div>
+          <div class="action"><b>3</b><span>今の要求にも使えるか確認</span></div>
+          <div class="action"><b>4</b><span>新規設計せずST-05へ</span></div>
+        </div>
+        <div class="mode-result">結果：新しい判断本文は作らず、使った既存判断を固定参照します。</div>
+      </article>
+
+      <article class="mode na">
+        <div class="mode-head">
+          <div class="badge">N</div>
+          <div><h3>not applicable：今回、構成判断をする必要がない</h3><p>コードは変わっても、Component、API、Database、Providerなどの構成には影響しない場合です。</p></div>
+        </div>
+        <div class="actions">
+          <div class="action"><b>1</b><span>AIが全要求を確認</span></div>
+          <div class="action"><b>2</b><span>構成影響なしの根拠を提示</span></div>
+          <div class="action"><b>3</b><span>Coreが抜けと参照を確認</span></div>
+          <div class="action"><b>4</b><span>構成設計せずST-05へ</span></div>
+        </div>
+        <div class="mode-result">結果：Architecture Decisionは作らず、PlanとAuditへ理由・根拠を記録します。</div>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2>具体例で見ると、違いは明確です。</h2>
+    <div class="examples">
+      <article class="example"><b>EXECUTE</b><strong>新しいCacheを追加する</strong><p>性能要求を満たすため、Cache方式、配置、影響を新しく決めます。</p></article>
+      <article class="example"><b>REUSE</b><strong>既存の認証方式を使う</strong><p>会社で承認済みのIdP連携判断があり、今回もそのまま適用できます。</p></article>
+      <article class="example"><b>NOT APPLICABLE</b><strong>ボタンの文字を変える</strong><p>Login View内の文字だけを変えます。API、Database、配置、境界は変わりません。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>3つのうち、誰が選ぶのですか？</h2>
+    <div class="split">
+      <article class="panel ai"><h3>AI</h3><p>要求と現在の構成を調べ、execute／reuse／not applicableの候補と根拠を出します。</p></article>
+      <article class="panel core"><h3>Core</h3><p>固定ルールで根拠を検査し、正式なStage dispositionとしてPlanとAuditへ記録します。</p></article>
+      <article class="panel human"><h3>人間</h3><p>費用、リスク、Provider選択など、機械的に決められない場合だけ判断します。</p></article>
+      <article class="panel stop"><h3>AIだけでは決められない</h3><p>AIは候補を出せますが、Stateを書き換えたり、次のStageを選んだりできません。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>executeで新しく決める内容です。</h2>
+    <div class="examples">
+      <article class="example"><b>1</b><strong>どこが変わるか</strong><p>Component、API、Database、外部接続など。</p></article>
+      <article class="example"><b>2</b><strong>何を選ぶか</strong><p>構成方式、通信方式、Providerやserviceなど。</p></article>
+      <article class="example"><b>3</b><strong>なぜ選ぶか</strong><p>要求、制約、選択肢、良い点と悪い点。</p></article>
+      <article class="example"><b>4</b><strong>何に影響するか</strong><p>データ、Security、費用、運用、既存Component。</p></article>
+      <article class="example"><b>5</b><strong>戻しやすいか</strong><p>簡単に戻せるか、移行や損失が発生するか。</p></article>
+      <article class="example"><b>6</b><strong>要求とのつながり</strong><p>どの要求IDのための判断か。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>ST-04とST-05の境界です。</h2>
+    <div class="boundary">
+      <article class="now"><h3>ST-04：大きな作り方</h3><ul><li>Componentの境界</li><li>APIやデータの接続方針</li><li>Providerやserviceの選択</li><li>構成判断の理由と影響</li></ul></article>
+      <article class="later"><h3>ST-05：実装できる形へ分解</h3><ul><li>API fieldの詳細</li><li>Database schemaの詳細</li><li>受入テスト</li><li>Boltの分け方と実装順</li></ul></article>
+    </div>
+    <div class="note">ST-04ではコードを作りません。ST-05でもまだコードを作りません。実装はST-06です。</div>
+  </section>
+
+  <section>
+    <h2>現在の構成と、予定構成を混ぜません。</h2>
+    <div class="compare" role="img" aria-label="現在構成と予定構成の扱い">
+      <div class="compare-box"><strong>System Map</strong><span>現在の承認済み構成</span></div>
+      <div class="arrow">→</div>
+      <div class="compare-box"><strong>ST-04</strong><span>変更予定を別に保存</span></div>
+      <div class="arrow">→</div>
+      <div class="compare-box"><strong>ST-07</strong><span>承認後だけ現在へ反映</span></div>
+    </div>
+    <div class="note warning">ST-04の予定を、現在のSystem Mapへ直接書き込みません。</div>
+  </section>
+
+  <section>
+    <h2>保存されるものです。</h2>
+    <p>すべて機械検査用のJSONです。HTMLは標準生成しません。</p>
+    <div class="filebox">
+      <code>architecture-work-request.json　← Coreが固定した入力</code>
+      <code>current.json　　　　　　　　← どの方法でST-04を通ったか</code>
+      <code>architecture-decision.json　← executeのときだけ作る新しい判断</code>
+    </div>
+    <div class="note"><code>reuse</code>では既存判断への参照を保存します。<code>not applicable</code>では理由とEvidenceだけをPlan、Audit、<code>current.json</code>へ保存します。</div>
+  </section>
+
+  <section>
+    <h2>人間へ質問する条件です。</h2>
+    <div class="split">
+      <article class="panel core"><h3>質問せず進める</h3><ul><li>構成影響が明らかにない</li><li>承認済み判断をそのまま使える</li><li>組織ルールで方法が決まっている</li><li>容易に戻せる小さな判断</li></ul></article>
+      <article class="panel human"><h3>人間へ質問する</h3><ul><li>Providerや費用を選ぶ必要がある</li><li>データ移行や削除を伴う</li><li>SecurityやComplianceの例外が必要</li><li>要求同士が衝突している</li></ul></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>あなたに確認してほしいのは、3つだけです。</h2>
+    <div class="questions">
+      <article class="question"><b>確認 1</b><strong>文字変更など、構成に影響しない変更はnot applicableでよいですか？</strong><p>Architecture Decisionは作らず、理由と根拠だけを記録してST-05へ進みます。</p></article>
+      <article class="question"><b>確認 2</b><strong>承認済みの構成判断が使える場合はreuseでよいですか？</strong><p>Coreがhash、承認状態、現在の要求との整合を検査し、新しい判断本文は作りません。</p></article>
+      <article class="question"><b>確認 3</b><strong>ST-04は大きな構成方針までにして、APIやDBの詳細はST-05でよいですか？</strong><p>ST-04を細かくしすぎず、ST-05で実装可能な契約へ落とします。</p></article>
+    </div>
+    <div class="answer">3つとも問題なければ、「確認3点OK」と回答するだけで大丈夫です。</div>
+  </section>
+
+  <section>
+    <h2>承認後の実装方法です。</h2>
+    <div class="tdd">
+      <article><strong>RED</strong><p>3種類の動作、根拠不足、改ざん、AIの遷移指定が失敗するテストを先に作ります。</p></article>
+      <article><strong>GREEN</strong><p>Work Request、Disposition検証、Architecture Decision保存を実装します。</p></article>
+      <article><strong>CORE</strong><p>CoreだけがPlan、Audit、Stateと固定ST-05遷移を更新します。</p></article>
+      <article><strong>VERIFY</strong><p>resume、Doctor、配布、指定サンドボックス、全体回帰を確認します。</p></article>
+    </div>
+  </section>
+
+  <section class="approval">
+    <h2>このページは設計案です。</h2>
+    <p>まだST-04のTypeScript実装は始めていません。上の確認3点への回答を受けてから、TDD実装へ進みます。</p>
+  </section>
+
+  <footer>AI-DLC vNext / ST-04 Architecture Decision / beginner design / 2026-08-24</footer>
+</main>
+</body>
+</html>

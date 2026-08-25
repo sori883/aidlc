@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-DLC vNext｜ST-03 Requirements &amp; Constraints 実装結果</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #617087;
+      --line: #dce4ef;
+      --soft: #f5f8fc;
+      --blue: #2563eb;
+      --blue-soft: #eaf1ff;
+      --green: #147a55;
+      --green-soft: #e5f7ee;
+      --amber-soft: #fff4d8;
+      --purple-soft: #f1ebff;
+      --red-soft: #fff0ee;
+      --shadow: 0 18px 46px rgba(30, 48, 78, .09);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: linear-gradient(180deg, #eef5ff 0, #f8fafc 430px, #f8fafc 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+      line-height: 1.72;
+    }
+    main { width: min(1080px, calc(100% - 32px)); margin: auto; padding: 40px 0 74px; }
+    header, section {
+      margin-bottom: 24px;
+      padding: clamp(22px, 4vw, 42px);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: rgba(255, 255, 255, .98);
+      box-shadow: var(--shadow);
+    }
+    .eyebrow { margin: 0 0 8px; color: var(--blue); font-size: 13px; font-weight: 900; letter-spacing: .12em; }
+    h1 { margin: 0; font-size: clamp(31px, 5vw, 54px); line-height: 1.18; letter-spacing: -.03em; }
+    h2 { margin: 0 0 8px; font-size: clamp(23px, 3vw, 34px); line-height: 1.35; }
+    h3 { margin: 0 0 6px; font-size: 17px; }
+    p { margin: 0; }
+    .lead { max-width: 850px; margin-top: 17px; color: var(--muted); font-size: 18px; }
+    .intro { margin-bottom: 18px; color: var(--muted); }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; margin-top: 26px; }
+    .metric { padding: 18px; border-radius: 16px; background: var(--soft); }
+    .metric span { display: block; color: var(--muted); font-size: 12px; font-weight: 800; }
+    .metric strong { display: block; margin-top: 4px; font-size: 20px; }
+    .success { color: var(--green); }
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr 36px 1fr 36px 1fr 36px 1fr;
+      align-items: stretch;
+      gap: 8px;
+      margin-top: 20px;
+    }
+    .node { padding: 18px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); }
+    .node small { color: var(--blue); font-weight: 900; }
+    .node strong { display: block; margin: 9px 0 4px; font-size: 17px; }
+    .node p { color: var(--muted); font-size: 13px; }
+    .node.ai { background: var(--amber-soft); border-color: #edd18d; }
+    .node.core { background: var(--green-soft); border-color: #b7dfcc; }
+    .node.next { color: white; background: var(--blue); border-color: var(--blue); }
+    .node.next small, .node.next p { color: #dce8ff; }
+    .arrow { display: grid; place-items: center; color: var(--blue); font-size: 24px; font-weight: 900; }
+    .cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 11px; margin-top: 18px; }
+    .card { padding: 18px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); }
+    .card b { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: white; background: var(--blue); font-size: 13px; }
+    .card h3 { margin-top: 10px; }
+    .card p { color: var(--muted); font-size: 13px; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+    .panel { padding: 21px; border-radius: 18px; }
+    .panel.ai { background: var(--amber-soft); border: 1px solid #edd18d; }
+    .panel.core { background: var(--green-soft); border: 1px solid #b7dfcc; }
+    .panel.stop { background: var(--red-soft); border: 1px solid #efc4bd; }
+    .panel.next { background: var(--purple-soft); border: 1px solid #d4c5f0; }
+    ul { margin: 9px 0 0; padding-left: 20px; color: var(--muted); }
+    .trace {
+      display: grid;
+      grid-template-columns: 1fr 44px 1fr 44px 1fr;
+      align-items: center;
+      margin-top: 18px;
+    }
+    .trace-box { padding: 20px; border: 1px solid var(--line); border-radius: 17px; text-align: center; background: var(--blue-soft); }
+    .trace-box strong, .trace-box span { display: block; }
+    .trace-box span { color: var(--muted); font-size: 13px; }
+    .filebox { margin-top: 18px; padding: 20px; border-radius: 16px; background: #172033; color: #edf3ff; }
+    .filebox code { display: block; overflow-wrap: anywhere; color: #bcd1ff; }
+    .note { margin-top: 15px; padding: 16px 18px; border-left: 5px solid var(--blue); border-radius: 12px; background: var(--blue-soft); }
+    .checks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+    .check { padding: 19px; border: 1px solid #b7dfcc; border-radius: 17px; background: var(--green-soft); }
+    .check span { color: var(--green); font-size: 12px; font-weight: 900; }
+    .check strong { display: block; margin-top: 5px; }
+    .check p { margin-top: 4px; color: var(--muted); font-size: 14px; }
+    .next-step { color: white; background: linear-gradient(135deg, #17315c, #285eae); }
+    .next-step p { color: #dce8ff; }
+    .next-step .flow { grid-template-columns: 1fr 40px 1fr; }
+    .next-step .node { color: var(--ink); background: white; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    footer { text-align: center; color: var(--muted); font-size: 13px; }
+    @media (max-width: 900px) {
+      .metrics, .cards, .checks { grid-template-columns: repeat(2, 1fr); }
+      .flow, .trace { grid-template-columns: 1fr; }
+      .arrow { min-height: 22px; transform: rotate(90deg); }
+    }
+    @media (max-width: 650px) {
+      main { width: min(100% - 18px, 1080px); padding-top: 18px; }
+      header, section { border-radius: 18px; }
+      .metrics, .cards, .split, .checks { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M3 / ST-03 RESULT</p>
+    <h1>「何を満たすか」を、安全に固定できました。</h1>
+    <p class="lead">ST-03 Requirements &amp; Constraintsを実装しました。AIは要求を提案できます。根拠の検査、保存、次のStageはCoreだけが行います。</p>
+    <div class="metrics">
+      <div class="metric"><span>実装Stage</span><strong>ST-03だけ</strong></div>
+      <div class="metric"><span>全体試験</span><strong class="success">136 / 136</strong></div>
+      <div class="metric"><span>試験プロジェクト</span><strong class="success">Doctor healthy</strong></div>
+      <div class="metric"><span>次の固定Stage</span><strong>ST-04</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>実際の流れは、4手です。</h2>
+    <div class="flow" role="img" aria-label="Coreが入力を固定しAIが要求を提案しCoreが検査保存してST-04へ進む流れ">
+      <article class="node core"><small>1 / CORE</small><strong>入力を固定</strong><p>Intent、現在の事実、PolicyのpathとSHA-256を固定します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node ai"><small>2 / AI</small><strong>要求を提案</strong><p>必要な動き、品質、制約、変えないことだけを提案します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node core"><small>3 / CORE</small><strong>根拠を検査</strong><p>ID、参照先、抜け、改ざんを検査してJSONを保存します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node next"><small>4 / FIXED GRAPH</small><strong>ST-04へ進む</strong><p>AIは行き先を指定できません。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>整理するのは、5種類です。</h2>
+    <p class="intro">関係しない分類は空で構いません。小さな変更は短いままです。</p>
+    <div class="cards">
+      <article class="card"><b>1</b><h3>機能要求</h3><p>必要な動き。</p></article>
+      <article class="card"><b>2</b><h3>品質要求</h3><p>必要な品質だけ。</p></article>
+      <article class="card"><b>3</b><h3>制約</h3><p>守る規則。</p></article>
+      <article class="card"><b>4</b><h3>変えないこと</h3><p>壊してはいけない動作。</p></article>
+      <article class="card"><b>5</b><h3>未確定事項</h3><p>残った質問。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>要求には、元の根拠があります。</h2>
+    <p class="intro">AIが思いつきで要求を増やすことを防ぎます。</p>
+    <div class="trace" role="img" aria-label="Intent Definitionの成功条件からRequirements IDを経由して後の評価につなぐ図">
+      <div class="trace-box"><strong>ST-02</strong><span>期待結果と成功条件</span></div>
+      <div class="arrow">→</div>
+      <div class="trace-box"><strong>REQ-F-001</strong><span>JSON Pointerで根拠を固定</span></div>
+      <div class="arrow">→</div>
+      <div class="trace-box"><strong>ST-07</strong><span>完成物と比較できる</span></div>
+    </div>
+    <div class="note">Coreは、すべての期待結果と成功条件が質問以外の要求で覆われているか確認します。</div>
+  </section>
+
+  <section>
+    <h2>保存する正本は、JSONだけです。</h2>
+    <p class="intro">v2のMarkdownではなく、Coreが厳密に検査できるJSONを正本にしました。</p>
+    <div class="filebox">
+      <code>artifacts/requirements/requirements-work-request.json</code>
+      <code>artifacts/requirements/current.json</code>
+      <code>artifacts/requirements/revisions/000001/requirements.json</code>
+    </div>
+    <div class="note"><code>current.json</code>は最新revisionへのポインタです。過去revisionは上書きしません。HTMLやMarkdownは標準生成せず、人間から指示されたときだけ作ります。</div>
+  </section>
+
+  <section>
+    <h2>AIとCoreの権限を分けました。</h2>
+    <div class="split">
+      <article class="panel ai"><h3>AIができること</h3><ul><li>5分類の内容を提案する</li><li>各項目へ根拠を付ける</li><li>価値判断が必要なら人間へ聞く</li></ul></article>
+      <article class="panel core"><h3>Coreだけができること</h3><ul><li>入力とWork Requestを固定する</li><li>提案を厳格に検査する</li><li>immutable revisionを保存する</li><li>固定GraphでST-04へ進める</li></ul></article>
+      <article class="panel stop"><h3>拒否するもの</h3><ul><li>壊れた根拠とcoverage不足</li><li>重複IDと未知field</li><li>未解決のblocking question</li><li>構成、Bolt、実装、Routeの混入</li></ul></article>
+      <article class="panel next"><h3>改ざんにも対応</h3><ul><li>revisionのSHA-256をAuditへ固定</li><li>編集後はresumeが停止</li><li>Doctorも不健康として報告</li></ul></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>TDDと実プロジェクトで確認しました。</h2>
+    <div class="checks">
+      <article class="check"><span>RED → GREEN</span><strong>ST-03専用 11件</strong><p>厳格schema、根拠、coverage、固定遷移、中断復旧を確認しました。</p></article>
+      <article class="check"><span>REGRESSION</span><strong>全体 136件</strong><p>27 testファイルが成功しました。失敗は0件です。</p></article>
+      <article class="check"><span>SANDBOX</span><strong>ST-04 parked</strong><p>revision 1、Doctor healthy、固定遷移を確認しました。</p></article>
+    </div>
+    <div class="note">Codex SkillのProject pathも実行試験で修正しました。<code>--cwd .codex</code>ではProjectを<code>..</code>として渡します。</div>
+  </section>
+
+  <section class="next-step">
+    <h2>次は、ST-04の設計です。</h2>
+    <p>ST-03は「何を満たすか」を固定しました。ST-04では「どの構成で満たすか」を決めます。実装前に、同じように初心者向けHTMLで説明します。</p>
+    <div class="flow" role="img" aria-label="ST-03のRequirements DefinitionをST-04 Architecture Decisionへ渡す図">
+      <article class="node"><small>完了</small><strong>ST-03 Requirements Definition</strong><p>必要な動き、品質、制約、変えないこと。</p></article>
+      <div class="arrow">→</div>
+      <article class="node"><small>次の設計</small><strong>ST-04 Architecture Decision</strong><p>既存構成を使うか、どの構成を選ぶか。</p></article>
+    </div>
+  </section>
+
+  <footer>AI-DLC vNext / M3 / ST-03 Requirements &amp; Constraints result / 2026-08-24</footer>
+</main>
+</body>
+</html>

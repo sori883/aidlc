@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI-DLC vNext｜M6 Policy・Risk・Human Gate 詳細設計</title>
+  <style>
+    :root{--ink:#172033;--muted:#607086;--line:#dce4ef;--blue:#2563eb;--blue-soft:#eaf1ff;--green:#147a55;--green-soft:#e6f7ef;--amber:#9a5b00;--amber-soft:#fff4d8;--purple:#6d3bc1;--purple-soft:#f1ebff;--red:#b33a2b;--red-soft:#fff0ee;--navy:#17315c;--soft:#f5f8fc;--shadow:0 18px 46px rgba(30,48,78,.09)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(180deg,#edf5ff 0,#f8fafc 430px);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.72}main{width:min(1100px,calc(100% - 30px));margin:auto;padding:38px 0 74px}header,section{margin-bottom:23px;padding:clamp(22px,4vw,40px);border:1px solid var(--line);border-radius:23px;background:#fff;box-shadow:var(--shadow)}.eyebrow{margin:0 0 8px;color:var(--blue);font-size:13px;font-weight:900;letter-spacing:.12em}h1{margin:0;font-size:clamp(31px,5vw,51px);line-height:1.18;letter-spacing:-.025em}h2{margin:0 0 8px;font-size:clamp(23px,3vw,32px)}h3{margin:0 0 6px;font-size:18px}p{margin:0}.lead,.node p,.card p,.check p,.question p,td,.small{color:var(--muted)}.lead{max-width:920px;margin-top:16px;font-size:18px}.metrics,.cards,.checks,.questions{display:grid;gap:12px;margin-top:20px}.metrics{grid-template-columns:repeat(4,1fr)}.cards,.checks{grid-template-columns:repeat(3,1fr)}.questions{grid-template-columns:repeat(2,1fr)}.metric,.card,.check,.question{padding:18px;border-radius:17px}.metric{background:var(--soft)}.metric span,.check span{display:block;color:var(--muted);font-size:12px;font-weight:900}.metric strong,.check strong{display:block;margin-top:4px;font-size:18px}.flow{display:grid;grid-template-columns:1fr 32px 1fr 32px 1fr 32px 1fr;gap:8px;margin-top:19px}.node{padding:17px;border:1px solid var(--line);border-radius:16px;background:var(--soft)}.node small{color:var(--blue);font-weight:900}.node strong{display:block;margin:8px 0 4px}.node.core{background:var(--green-soft);border-color:#b8dfcd}.node.human{background:var(--amber-soft);border-color:#ecd18e}.node.end{color:#fff;background:var(--blue);border-color:var(--blue)}.node.end small,.node.end p{color:#dce8ff}.arrow{display:grid;place-items:center;color:var(--blue);font-size:23px;font-weight:900}.card{border:1px solid var(--line);background:var(--soft)}.card.blue{background:var(--blue-soft);border-color:#bdd1ff}.card.green{background:var(--green-soft);border-color:#b8dfcd}.card.amber{background:var(--amber-soft);border-color:#ecd18e}.card.purple{background:var(--purple-soft);border-color:#d4c5ef}.card.red{background:var(--red-soft);border-color:#efc4bd}.card b{display:inline-block;margin-bottom:7px;padding:3px 9px;border-radius:999px;background:#fff;font-size:12px}.note{margin-top:15px;padding:15px 18px;border-left:5px solid var(--blue);border-radius:12px;background:var(--blue-soft)}.note.warn{border-left-color:var(--amber);background:var(--amber-soft)}.note.good{border-left-color:var(--green);background:var(--green-soft)}.note.red{border-left-color:var(--red);background:var(--red-soft)}.table-wrap{overflow:auto;margin-top:17px}table{width:100%;min-width:780px;border-collapse:collapse}th,td{padding:12px 13px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--soft);color:var(--muted);font-size:12px}.compare{display:grid;grid-template-columns:1fr 70px 1fr;gap:14px;align-items:center;margin-top:20px}.compare-box{padding:23px;border-radius:18px;border:1px solid var(--line);background:var(--soft)}.compare-box.human{background:var(--blue-soft);border-color:#bdd1ff}.compare-box.machine{background:var(--green-soft);border-color:#b8dfcd}.compare .mark{display:grid;place-items:center;width:60px;height:60px;border-radius:50%;background:var(--navy);color:#fff;font-size:20px;font-weight:900}.filebox,.jsonbox{margin-top:17px;padding:19px;border-radius:16px;background:#172033;color:#edf3ff;overflow:auto}.filebox code{display:block;min-width:710px;color:#c1d3ff}.jsonbox pre{min-width:650px;margin:0;color:#d7e3ff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.62}.gate{display:grid;grid-template-columns:190px 1fr;gap:12px;align-items:start;margin-top:11px;padding:16px;border:1px solid var(--line);border-radius:15px;background:var(--soft)}.gate code{color:var(--blue);font-weight:900}.question{border:1px solid #bdd1ff;background:#f4f8ff}.question .choice{margin-top:9px;color:var(--ink);font-weight:900}.check{border:1px solid #b8dfcd;background:var(--green-soft)}.check span{color:var(--green)}.not-now{color:#fff;background:linear-gradient(135deg,#17315c,#285eae)}.not-now p{color:#dce8ff}footer{text-align:center;color:var(--muted);font-size:13px}@media(max-width:900px){.metrics,.cards,.checks{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{min-height:20px;transform:rotate(90deg)}.compare{grid-template-columns:1fr}.compare .mark{justify-self:center}}@media(max-width:620px){main{width:min(100% - 18px,1100px);padding-top:18px}header,section{border-radius:18px}.metrics,.cards,.checks,.questions{grid-template-columns:1fr}.gate{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M6 / POLICY GATE CONTRACT</p>
+    <h1>Projectの規則と今回のリスクを、人間の確認へ正しく足す。</h1>
+    <p class="lead">固定10 Stageは変えません。AIにGateを選ばせません。Memoryで決めたProject規則と、Intent中に見つかったリスクから、Coreが追加の確認項目を作ります。</p>
+    <div class="metrics">
+      <div class="metric"><span>Stage追加</span><strong>なし</strong></div>
+      <div class="metric"><span>Profile</span><strong>なし</strong></div>
+      <div class="metric"><span>規則の結合</span><strong>追加のみ</strong></div>
+      <div class="metric"><span>決定者</span><strong>Core＋人間</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>今、何が足りないのか。</h2>
+    <div class="flow" role="img" aria-label="現在のEffective Policyが保存まではできるがHuman Gateへ未接続である図">
+      <article class="node core"><small>DONE</small><strong>Memoryを読む</strong><p>Org、Team、Projectを読みます。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>DONE</small><strong>hashで固定する</strong><p>Effective Policyへ保存します。</p></article><div class="arrow">→</div>
+      <article class="node human"><small>MISSING</small><strong>確認項目へ変換する</strong><p>機械規則がまだありません。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>M6</small><strong>Gateで検査する</strong><p>今回ここまで接続します。</p></article>
+    </div>
+    <div class="note red">今のままでは、Memoryに「高リスクはRelease前に確認する」と書いても、Coreは文章の意味を判定できません。AIへ解釈を任せると、同じ文章でも結果が変わる可能性があります。</div>
+  </section>
+
+  <section>
+    <h2>MarkdownとJSONの役割を分けます。</h2>
+    <div class="compare">
+      <article class="compare-box human"><small>人間とAIが読む</small><h3>org.md / team.md / project.md</h3><p>背景、理由、働き方、説明を書きます。自由な文章で構いません。</p></article>
+      <div class="mark">同じ<br>Memory</div>
+      <article class="compare-box machine"><small>Coreが検査する</small><h3>org-policy.json など</h3><p>Human Gateへ追加する規則だけを、厳格なJSONで書きます。</p></article>
+    </div>
+    <div class="filebox">
+      <code>aidlc/spaces/&lt;space&gt;/memory/org.md</code>
+      <code>aidlc/spaces/&lt;space&gt;/memory/org-policy.json</code>
+      <code>aidlc/spaces/&lt;space&gt;/memory/team.md</code>
+      <code>aidlc/spaces/&lt;space&gt;/memory/team-policy.json</code>
+      <code>aidlc/spaces/&lt;space&gt;/memory/project.md</code>
+      <code>aidlc/spaces/&lt;space&gt;/memory/project-policy.json</code>
+    </div>
+    <div class="note good">どちらも同じSpaceのMemoryです。複数Spaceがあれば、現在選択中のSpaceだけを使います。KnowledgeやIntent内へProjectの基本規則を置きません。</div>
+  </section>
+
+  <section>
+    <h2>機械Policyは、小さな規則だけを持ちます。</h2>
+    <div class="jsonbox"><pre>{
+  "schema_version": 1,
+  "artifact": "human-gate-policy-source",
+  "layer": "org",
+  "rules": [
+    {
+      "rule_id": "org-high-risk-release",
+      "minimum_severity": "high",
+      "stage_ids": ["ST-08"],
+      "acknowledgement": "残っているリスクを確認してReleaseを判断する"
+    }
+  ]
+}</pre></div>
+    <div class="cards">
+      <article class="card blue"><b>WHEN</b><h3>どの強さから</h3><p><code>low</code>、<code>medium</code>、<code>high</code>、<code>critical</code>の固定値を使います。</p></article>
+      <article class="card green"><b>WHERE</b><h3>どの既存Stageで</h3><p>ST-04、05、07、08、09の人間境界だけを指定できます。</p></article>
+      <article class="card amber"><b>WHAT</b><h3>何を確認するか</h3><p>短い確認文を人間向けHTMLへ表示します。</p></article>
+    </div>
+    <div class="note">初期テンプレートの<code>rules</code>は空です。AI-DLC共通の固定Gateは別に存在します。各組織やProjectが必要な追加規則だけをMemoryへ書きます。</div>
+  </section>
+
+  <section>
+    <h2>Org、Team、Projectは上書きではなく足し算です。</h2>
+    <div class="flow" role="img" aria-label="Org Team Projectの規則を足してEffective Policyへ固定する図">
+      <article class="node"><small>1</small><strong>Org rules</strong><p>組織共通の追加確認です。</p></article><div class="arrow">＋</div>
+      <article class="node"><small>2</small><strong>Team rules</strong><p>Team固有の追加確認です。</p></article><div class="arrow">＋</div>
+      <article class="node"><small>3</small><strong>Project rules</strong><p>Project固有の追加確認です。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>SNAPSHOT</small><strong>Effective Policy</strong><p>Intent開始時のhashで固定します。</p></article>
+    </div>
+    <div class="cards">
+      <article class="card green"><b>ADD</b><h3>狭い層は追加できる</h3><p>ProjectはOrgより厳しい確認を追加できます。</p></article>
+      <article class="card red"><b>NO REMOVE</b><h3>削除できない</h3><p>TeamやProjectからOrgの規則を無効化できません。</p></article>
+      <article class="card amber"><b>NO OVERRIDE</b><h3>同じIDを拒否する</h3><p>規則IDが重複したら、Coreは推測せずIntent開始を止めます。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Intentリスクは、別のRisk Registerへ残します。</h2>
+    <div class="jsonbox"><pre>{
+  "schema_version": 1,
+  "artifact": "intent-risk-register",
+  "intent_id": "change-login",
+  "revision": 3,
+  "base_revision": 2,
+  "risks": [
+    {
+      "risk_id": "account-lockout",
+      "severity": "high",
+      "statement": "誤判定で利用者がログインできなくなる可能性がある",
+      "status": "active",
+      "evidence_refs": []
+    }
+  ]
+}</pre></div>
+    <div class="note">Policy SnapshotはProjectの基本規則です。Risk Registerは今回のIntentで変化する事実です。分けることで、途中でリスクが見つかっても固定Graphや過去Artifactを作り直しません。</div>
+    <div class="cards">
+      <article class="card blue"><b>AI</b><h3>追加・重大化を提案</h3><p>Evidence付きで新しいリスクを追加するか、severityを上げられます。</p></article>
+      <article class="card red"><b>AI CANNOT</b><h3>削除・軽減できない</h3><p>AIだけではseverityを下げたり、resolvedへ変更できません。</p></article>
+      <article class="card amber"><b>HUMAN</b><h3>修正・解消を判断</h3><p>誤検出のdismiss、severity変更、Evidence付きresolveは人間判断です。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>リスクはIntentの途中でも追加できます。</h2>
+    <div class="flow" role="img" aria-label="既知リスクと途中で見つかったリスクをRisk Registerへ追記する図">
+      <article class="node"><small>BIRTH</small><strong>最初から分かるリスク</strong><p>任意のrisk inputで登録します。</p></article><div class="arrow">→</div>
+      <article class="node"><small>ST-03 / 04 / 06</small><strong>途中で見つかるリスク</strong><p>AIまたは人間がproposalを出します。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>CORE</small><strong>追記だけを検証</strong><p>ID、severity、Evidence、改ざんを確認します。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>REVISION</small><strong>新しいRegister</strong><p>過去revisionは上書きしません。</p></article>
+    </div>
+    <div class="note warn">AIの誤検出は余分な人間確認を発生させる可能性があります。しかし、リスクを消して安全確認を回避することはできません。人間は理由を残して誤検出を訂正できます。</div>
+  </section>
+
+  <section>
+    <h2>Human Gateへ入る直前に、Coreが確認表を作ります。</h2>
+    <div class="flow" role="img" aria-label="Effective PolicyとRisk RegisterからGate Requirement Setを作り人間が判断する図">
+      <article class="node"><small>BASELINE</small><strong>Effective Policy</strong><p>どのseverityを、どのStageで確認するかです。</p></article><div class="arrow">＋</div>
+      <article class="node"><small>CURRENT</small><strong>Risk Register</strong><p>現在activeなIntentリスクです。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>CORE</small><strong>Gate Requirement Set</strong><p>今回確認すべき項目を固定します。</p></article><div class="arrow">→</div>
+      <article class="node human"><small>HUMAN</small><strong>HTMLを見て判断</strong><p>全項目へ明示回答します。</p></article>
+    </div>
+    <div class="jsonbox"><pre>{
+  "artifact": "human-gate-requirements",
+  "stage_id": "ST-08",
+  "effective_policy_ref": { "sha256": "sha256:..." },
+  "risk_register_ref": { "sha256": "sha256:..." },
+  "requirements": [
+    {
+      "requirement_id": "org-high-risk-release:account-lockout",
+      "rule_id": "org-high-risk-release",
+      "risk_id": "account-lockout",
+      "statement": "残っているリスクを確認してReleaseを判断する"
+    }
+  ]
+}</pre></div>
+    <div class="note good">追加規則がゼロなら確認表は空です。それでもST-05、ST-07、ST-08などの固定Human Gateは残ります。Policyは固定Gateを弱められません。</div>
+  </section>
+
+  <section>
+    <h2>人間の判断は、確認表のhashへ固定します。</h2>
+    <div class="gate"><code>gate_requirement_set_ref</code><p>人間が実際に見た確認表です。古い表への承認を使い回せません。</p></div>
+    <div class="gate"><code>policy_acknowledgements</code><p>確認表にある全<code>requirement_id</code>へ、人間が理由付きで回答します。</p></div>
+    <div class="gate"><code>decided_by: human</code><p>AI proposalだけでは承認になりません。既存のHuman Decisionへ追加します。</p></div>
+    <div class="note red">確認HTMLを作った後にRisk Registerが更新された場合、そのHTMLと承認は古くなります。Coreは承認を拒否し、新しい確認表を作り直します。</div>
+  </section>
+
+  <section>
+    <h2>保存場所。</h2>
+    <div class="filebox">
+      <code>aidlc/spaces/&lt;space&gt;/memory/*-policy.json</code>
+      <code>aidlc/spaces/&lt;space&gt;/intents/&lt;intent&gt;/effective-policy-r1.json</code>
+      <code>aidlc/spaces/&lt;space&gt;/intents/&lt;intent&gt;/artifacts/risks/current.json</code>
+      <code>aidlc/spaces/&lt;space&gt;/intents/&lt;intent&gt;/artifacts/risks/revisions/000001/intent-risk-register.json</code>
+      <code>aidlc/spaces/&lt;space&gt;/intents/&lt;intent&gt;/artifacts/risks/proposals/&lt;proposal-id&gt;.json</code>
+      <code>aidlc/spaces/&lt;space&gt;/intents/&lt;intent&gt;/artifacts/gates/ST-08/&lt;hash&gt;/requirements.json</code>
+      <code>aidlc/spaces/&lt;space&gt;/intents/&lt;intent&gt;/artifacts/gates/ST-08/&lt;hash&gt;/review.html</code>
+    </div>
+    <div class="note">JSONが正本です。Gate Review HTMLは人間判断用なので標準生成します。Risk RegisterやPolicy全体のHTMLは、指示がある場合だけ生成します。</div>
+  </section>
+
+  <section>
+    <h2>CLIとCodexの役割。</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>操作</th><th>誰が使うか</th><th>Coreが保証すること</th></tr></thead>
+      <tbody>
+        <tr><td><code>intent birth --risk-file ...</code></td><td>Codexが人間に確認した後</td><td>既知リスクを最初のRegisterへ固定します。</td></tr>
+        <tr><td><code>intent risk propose ...</code></td><td>AIまたは人間</td><td>追加またはseverity上昇だけを許可します。</td></tr>
+        <tr><td><code>intent risk decide ...</code></td><td>人間</td><td>dismiss、severity変更、resolveを理由とAudit付きで記録します。</td></tr>
+        <tr><td><code>next</code></td><td>Codex</td><td>Gate直前に最新PolicyとRiskから確認表を作ります。</td></tr>
+        <tr><td>既存のapprove／authorize／outcome decision</td><td>人間</td><td>確認表があれば全項目の回答を必須にします。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>TDDで確認すること。</h2>
+    <div class="checks">
+      <article class="check"><span>SCHEMA</span><strong>未知fieldを拒否</strong><p>曖昧なPolicyを実行しません。</p></article>
+      <article class="check"><span>ADDITIVE</span><strong>上位規則を消せない</strong><p>Org、Team、Projectを和集合にします。</p></article>
+      <article class="check"><span>RISK AUTHORITY</span><strong>AIは軽減できない</strong><p>削除、downgrade、resolveを拒否します。</p></article>
+      <article class="check"><span>TRACE</span><strong>Evidenceをhash確認</strong><p>Project外pathや改ざんを拒否します。</p></article>
+      <article class="check"><span>EXACT SET</span><strong>回答漏れを拒否</strong><p>未知、重複、不足のacknowledgementを拒否します。</p></article>
+      <article class="check"><span>STALE</span><strong>古いGate表を拒否</strong><p>Risk更新後は再確認します。</p></article>
+      <article class="check"><span>FIXED GATE</span><strong>空規則でもGate維持</strong><p>Policyで固定承認を消せません。</p></article>
+      <article class="check"><span>RESUME</span><strong>再開後も同じ表</strong><p>processを跨いでhashを保持します。</p></article>
+      <article class="check"><span>E2E</span><strong>低・高リスクを比較</strong><p>同じProject規則で確認項目の差を試します。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>実装前に確認いただきたい設計判断。</h2>
+    <div class="questions">
+      <article class="question"><h3>1. Markdownと機械Policyを分ける</h3><p>両方とも同じSpaceの<code>memory/</code>へ置きます。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>2. Org／Team／Projectは追加だけ</h3><p>上書きや無効化は許可しません。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>3. 初期追加規則は空</h3><p>共通の固定Gateは残し、Project固有規則だけを追加します。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>4. Risk RegisterをPolicyから分離する</h3><p>途中でリスクが増えても固定Graphを変えません。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>5. AIはリスクを減らせない</h3><p>追加と重大化だけを許可します。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>6. 人間だけが軽減・解消を決める</h3><p>理由とEvidenceをAuditへ残します。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>7. 既存Gate内で追加確認する</h3><p>通常は新しいStageや人間操作回数を増やしません。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>8. Gate表をhash固定する</h3><p>リスク更新後の古い承認を拒否します。</p><p class="choice">提案：はい。</p></article>
+    </div>
+  </section>
+
+  <section class="not-now">
+    <h2>今回まだ作らないもの。</h2>
+    <p>自由なPolicyプログラム、AIがMarkdownを実行規則へ変換する機能、Lightweight／Enterprise Profile、Work TypeによるRoute、固定10 Stage以外のGate Stage、Cloud Policy Serviceは作りません。M6では、Memory内の小さなJSON規則とIntent Risk Registerを既存Human Gateへ安全に接続します。</p>
+  </section>
+  <footer>AI-DLC vNext / M6 Policy, Intent Risk &amp; Human Gate detailed plan / 2026-08-25</footer>
+</main></body>
+</html>

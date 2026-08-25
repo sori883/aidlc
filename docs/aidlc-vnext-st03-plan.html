@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-DLC vNext｜ST-03 Requirements &amp; Constraints 実装計画</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #617087;
+      --line: #dce4ef;
+      --paper: #fff;
+      --soft: #f5f8fc;
+      --blue: #2563eb;
+      --blue-soft: #eaf1ff;
+      --green: #147a55;
+      --green-soft: #e5f7ee;
+      --amber: #956006;
+      --amber-soft: #fff4d8;
+      --purple: #7048b8;
+      --purple-soft: #f1ebff;
+      --red: #a23a2a;
+      --red-soft: #fff0ee;
+      --shadow: 0 18px 46px rgba(30, 48, 78, .09);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: linear-gradient(180deg, #eef5ff 0, #f8fafc 430px, #f8fafc 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+      line-height: 1.72;
+    }
+    main { width: min(1080px, calc(100% - 32px)); margin: auto; padding: 40px 0 76px; }
+    header, section {
+      margin-bottom: 24px;
+      padding: clamp(22px, 4vw, 42px);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: rgba(255, 255, 255, .98);
+      box-shadow: var(--shadow);
+    }
+    .eyebrow { margin: 0 0 8px; color: var(--blue); font-size: 13px; font-weight: 900; letter-spacing: .12em; }
+    h1 { margin: 0; font-size: clamp(31px, 5vw, 54px); line-height: 1.18; letter-spacing: -.03em; }
+    h2 { margin: 0 0 8px; font-size: clamp(23px, 3vw, 34px); line-height: 1.35; }
+    h3 { margin: 0 0 6px; font-size: 17px; }
+    p { margin: 0; }
+    .lead { max-width: 850px; margin-top: 17px; color: var(--muted); font-size: 18px; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; margin-top: 26px; }
+    .metric { padding: 18px; border-radius: 16px; background: var(--soft); }
+    .metric span { display: block; color: var(--muted); font-size: 12px; font-weight: 800; }
+    .metric strong { display: block; margin-top: 4px; font-size: 19px; }
+    .intro { margin-bottom: 19px; color: var(--muted); }
+    .stages { display: grid; grid-template-columns: repeat(6, 1fr); gap: 9px; margin-top: 18px; }
+    .stage { min-height: 112px; padding: 14px; border: 1px solid var(--line); border-radius: 15px; background: var(--soft); }
+    .stage b { color: var(--blue); font-size: 12px; }
+    .stage strong { display: block; margin-top: 7px; font-size: 14px; line-height: 1.35; }
+    .stage p { margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .stage.done { background: var(--green-soft); border-color: #b7dfcc; }
+    .stage.now { color: white; background: var(--blue); border-color: var(--blue); transform: translateY(-5px); }
+    .stage.now b, .stage.now p { color: #dce8ff; }
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr 34px 1fr 34px 1fr 34px 1fr;
+      align-items: stretch;
+      gap: 8px;
+      margin-top: 20px;
+    }
+    .node { padding: 18px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); }
+    .node small { color: var(--blue); font-weight: 900; }
+    .node strong { display: block; margin: 9px 0 4px; font-size: 17px; }
+    .node p { color: var(--muted); font-size: 13px; }
+    .node.ai { background: var(--amber-soft); border-color: #edd18d; }
+    .node.core { background: var(--green-soft); border-color: #b7dfcc; }
+    .node.next { color: white; background: var(--purple); border-color: var(--purple); }
+    .node.next small, .node.next p { color: #ece4ff; }
+    .arrow { display: grid; place-items: center; color: var(--blue); font-size: 24px; font-weight: 900; }
+    .compare, .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+    .panel { padding: 21px; border-radius: 18px; }
+    .panel.before { background: var(--blue-soft); border: 1px solid #c7d8fb; }
+    .panel.after { background: var(--green-soft); border: 1px solid #b7dfcc; }
+    .panel.ai { background: var(--amber-soft); border: 1px solid #edd18d; }
+    .panel.core { background: var(--green-soft); border: 1px solid #b7dfcc; }
+    .panel.stop { background: var(--red-soft); border: 1px solid #efc4bd; }
+    .panel.later { background: var(--purple-soft); border: 1px solid #d4c5f0; }
+    .panel p { color: var(--muted); }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+    .card { padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--soft); }
+    .card b { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 50%; color: white; background: var(--blue); font-size: 13px; }
+    .card h3 { margin-top: 10px; }
+    .card p { color: var(--muted); font-size: 14px; }
+    ul { margin: 9px 0 0; padding-left: 20px; color: var(--muted); }
+    .example {
+      display: grid;
+      grid-template-columns: .8fr 40px 1.5fr;
+      gap: 12px;
+      align-items: center;
+      margin-top: 18px;
+    }
+    .request { padding: 20px; border: 1px solid #edd18d; border-radius: 18px; background: var(--amber-soft); }
+    .result { padding: 20px; border: 1px solid #b7dfcc; border-radius: 18px; background: var(--green-soft); }
+    .result dl { display: grid; grid-template-columns: 94px 1fr; gap: 7px 12px; margin: 10px 0 0; font-size: 14px; }
+    .result dt { color: var(--green); font-weight: 900; }
+    .result dd { margin: 0; color: var(--muted); }
+    .trace {
+      display: grid;
+      grid-template-columns: 1fr 36px 1fr 36px 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-top: 18px;
+    }
+    .trace-box { padding: 18px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); text-align: center; }
+    .trace-box strong { display: block; }
+    .trace-box span { color: var(--muted); font-size: 13px; }
+    .filebox { margin-top: 18px; padding: 20px; border-radius: 16px; color: #edf3ff; background: #172033; }
+    .filebox code { display: block; overflow-wrap: anywhere; color: #bcd1ff; }
+    .checks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 18px; }
+    .check { padding: 19px; border-left: 5px solid var(--blue); border-radius: 13px; background: var(--blue-soft); }
+    .check strong { display: block; }
+    .check p { margin-top: 4px; color: var(--muted); font-size: 14px; }
+    .decision { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 18px; }
+    .decision article { padding: 19px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); }
+    .decision span { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: white; background: var(--purple); font-size: 12px; font-weight: 900; }
+    .decision strong { display: block; margin-top: 9px; }
+    .decision p { margin-top: 5px; color: var(--muted); font-size: 14px; }
+    .note { margin-top: 18px; padding: 17px; border-left: 5px solid var(--blue); border-radius: 12px; background: var(--blue-soft); }
+    .approval { color: white; background: linear-gradient(135deg, #17315c, #285eae); }
+    .approval p { color: #dce8ff; }
+    .approval ol { margin: 16px 0 0; padding-left: 22px; }
+    footer { text-align: center; color: var(--muted); font-size: 13px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .stages { grid-template-columns: repeat(3, 1fr); }
+      .cards { grid-template-columns: repeat(2, 1fr); }
+      .flow, .trace { grid-template-columns: 1fr; }
+      .arrow { min-height: 22px; transform: rotate(90deg); }
+    }
+    @media (max-width: 650px) {
+      main { width: min(100% - 18px, 1080px); padding-top: 18px; }
+      header, section { border-radius: 18px; }
+      .metrics, .stages, .compare, .split, .cards, .example, .checks, .decision { grid-template-columns: 1fr; }
+      .example .arrow { transform: rotate(90deg); }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M3 / ST-03 PLAN</p>
+    <h1>次は、「何を満たせばよいか」を具体化します。</h1>
+    <p class="lead">ST-03 Requirements &amp; Constraintsでは、ST-02の成功イメージを、後から確認できる要求と制約へ変えます。構成や実装方法はまだ決めません。</p>
+    <div class="metrics">
+      <div class="metric"><span>現在</span><strong>ST-02まで完了</strong></div>
+      <div class="metric"><span>次の実装候補</span><strong>ST-03だけ</strong></div>
+      <div class="metric"><span>この資料</span><strong>実装前の設計案</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>M3の中を、1 Stageだけ進めます。</h2>
+    <div class="stages" aria-label="M3のST-00からST-05">
+      <article class="stage done"><b>ST-00</b><strong>Bootstrap</strong><p>実行基盤を確認。完了。</p></article>
+      <article class="stage done"><b>ST-01</b><strong>Orient</strong><p>現在の事実を固定。完了。</p></article>
+      <article class="stage done"><b>ST-02</b><strong>Define Intent</strong><p>今回の成功を固定。完了。</p></article>
+      <article class="stage now"><b>ST-03</b><strong>Requirements &amp; Constraints</strong><p>満たす条件を具体化。</p></article>
+      <article class="stage"><b>ST-04</b><strong>Architecture Decision</strong><p>将来の構成を決める。</p></article>
+      <article class="stage"><b>ST-05</b><strong>Build Contract</strong><p>実装の合格方法を作る。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>ST-02とST-03は、役割が違います。</h2>
+    <div class="compare">
+      <article class="panel before"><h3>ST-02：何を成功にするか</h3><p>「ログイン操作の意味を分かりやすくする」</p></article>
+      <article class="panel after"><h3>ST-03：何が満たされれば成功か</h3><p>「ボタン表示を『送信』から『ログイン』へ変える。認証動作は変えない」</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>処理は、4手です。</h2>
+    <div class="flow" role="img" aria-label="CoreがST-03入力を固定しAIが要求候補を作りCoreが検査保存してST-04へ進む流れ">
+      <article class="node core"><small>1 / CORE</small><strong>入力を固定</strong><p>Intent Definition、Current Context、Policyのhashを固定します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node ai"><small>2 / AI</small><strong>要求を具体化</strong><p>必要な動き、品質、制約、変えないことを整理します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node core"><small>3 / CORE</small><strong>検査して保存</strong><p>ID、根拠、coverage、矛盾、改ざんを検査します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node next"><small>4 / FIXED GRAPH</small><strong>ST-04へ進む</strong><p>AIは行き先を選びません。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>整理するのは、5種類です。</h2>
+    <div class="cards">
+      <article class="card"><b>1</b><h3>機能要求</h3><p>利用者やシステムに必要な動き。</p></article>
+      <article class="card"><b>2</b><h3>品質要求</h3><p>速度、安全性、使いやすさなど。必要なものだけ。</p></article>
+      <article class="card"><b>3</b><h3>制約</h3><p>Policy、互換性、外部契約など守る条件。</p></article>
+      <article class="card"><b>4</b><h3>変えないこと</h3><p>既存動作を不用意に壊さないための条件。</p></article>
+      <article class="card"><b>5</b><h3>未確定事項</h3><p>人間の回答が必要か、後のStageで決めるかを明示。</p></article>
+    </div>
+    <div class="note"><strong>重要:</strong> すべての分類を無理に埋めません。関係しない品質要求や制約は空で構いません。</div>
+  </section>
+
+  <section>
+    <h2>小さな変更は、要求1件でも通れます。</h2>
+    <div class="example">
+      <article class="request"><h3>ST-02の定義</h3><p>ログインボタンの意味を分かりやすくする。</p></article>
+      <div class="arrow">→</div>
+      <article class="result"><h3>短いRequirements Definition</h3><dl><dt>機能要求</dt><dd>表示を「送信」から「ログイン」へ変える</dd><dt>変えないこと</dt><dd>クリック後の認証処理は変えない</dd><dt>品質要求</dt><dd>なし</dd><dt>未確定事項</dt><dd>なし</dd></dl></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>詳しい設計や実装は、まだ行いません。</h2>
+    <div class="split">
+      <article class="panel core"><h3>ST-03で決める</h3><ul><li>外から見える必要な動き</li><li>満たす品質</li><li>守る制約</li><li>変えてはいけない動作</li><li>未確定事項</li></ul></article>
+      <article class="panel later"><h3>後のStageで決める</h3><ul><li>AWSやVercelなどの構成はST-04</li><li>APIやDatabaseの設計判断はST-04</li><li>受入テストとBolt PlanはST-05</li><li>コード変更はST-06</li></ul></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>要求には、元の根拠を付けます。</h2>
+    <p class="intro">AIが思いつきで要求を増やさないためです。</p>
+    <div class="trace" role="img" aria-label="Intent Definitionの成功条件からST-03要求を経由してST-07比較へつなぐ流れ">
+      <div class="trace-box"><strong>ST-02</strong><span>成功条件と対象</span></div>
+      <div class="arrow">→</div>
+      <div class="trace-box"><strong>REQ-F-001</strong><span>元の項目を固定参照</span></div>
+      <div class="arrow">→</div>
+      <div class="trace-box"><strong>ST-07</strong><span>完成物と要求を比較</span></div>
+    </div>
+    <div class="note">Coreは、各要求の参照先が本当に存在することと、ST-02の成功条件が要求で覆われていることを検査します。</div>
+  </section>
+
+  <section>
+    <h2>後から戻ってきても、過去を上書きしません。</h2>
+    <p class="intro">ST-07で要求変更が起きる可能性があるため、最初からrevisionを残します。</p>
+    <div class="filebox">
+      <code>aidlc/spaces/&lt;space&gt;/intents/&lt;intent&gt;/artifacts/requirements/current.json</code>
+      <code>aidlc/spaces/&lt;space&gt;/intents/&lt;intent&gt;/artifacts/requirements/revisions/000001/requirements.json</code>
+      <code>aidlc/spaces/&lt;space&gt;/intents/&lt;intent&gt;/artifacts/requirements/revisions/000002/requirements.json</code>
+    </div>
+    <div class="note"><code>current.json</code>は最新revisionへのポインタです。ST-04以降は、利用したrevisionとSHA-256を固定します。標準HTMLは生成しません。</div>
+  </section>
+
+  <section>
+    <h2>機械検査と意味の確認を分けます。</h2>
+    <div class="checks">
+      <article class="check"><strong>Coreの機械検査</strong><p>未知field、秘密情報、重複ID、壊れた参照、coverage不足、古いbase revision、AIの遷移指定を拒否します。</p></article>
+      <article class="check"><strong>AIの意味確認</strong><p>要求同士の矛盾、曖昧な表現、対象外への拡張を探します。価値判断が残れば人間へ戻します。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>人間へ聞く境界も限定します。</h2>
+    <div class="split">
+      <article class="panel ai"><h3>質問せず進められる例</h3><ul><li>ST-02から変更前後が一意に分かる</li><li>既存動作を変えない条件が明確</li><li>Policyから制約を機械的に導ける</li><li>不明点がST-04の構成判断だけ</li></ul></article>
+      <article class="panel stop"><h3>人間へ確認する例</h3><ul><li>二つの動作のどちらを採るか不明</li><li>速度と費用の優先順位が必要</li><li>要求とPolicyが衝突する</li><li>安全性や互換性のリスク受容が必要</li></ul></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>承認後は、TDDでST-03だけを実装します。</h2>
+    <div class="checks">
+      <article class="check"><strong>RED</strong><p>未実装、重複ID、壊れた根拠、coverage不足、AIのRoute指定、中断復旧failureを先に確認。</p></article>
+      <article class="check"><strong>GREEN</strong><p>Work Request、Proposal、Requirements Definition、revision validatorを実装。</p></article>
+      <article class="check"><strong>CORE</strong><p>合格時だけimmutable revisionとAuditを保存し、固定GraphでST-04へ進行。</p></article>
+      <article class="check"><strong>VERIFY</strong><p>resume、Doctor、Codex、native配布、テスト3、全体回帰を確認。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>実装仕様として、5点を確認します。</h2>
+    <p class="intro">これはAI-DLC利用者に毎回設定させる項目ではありません。Runtimeが守る内部ルールです。</p>
+    <div class="decision">
+      <article><span>1</span><strong>成果物名</strong><p>正本を「Requirements Definition」とする。</p></article>
+      <article><span>2</span><strong>5種類の分類</strong><p>機能、品質、制約、変えないこと、未確定事項に分ける。</p></article>
+      <article><span>3</span><strong>revision保存</strong><p>ST-07から戻る場合に備え、最初からimmutable revisionを使う。</p></article>
+      <article><span>4</span><strong>人間確認</strong><p>価値判断、衝突、リスク受容が必要な場合だけ停止する。</p></article>
+      <article><span>5</span><strong>Stage disposition</strong><p>ST-03は全Intentに必要とし、<code>execute</code>または根拠付き<code>reuse</code>だけにする。</p></article>
+    </div>
+  </section>
+
+  <section class="approval">
+    <h2>この設計は承認され、実装へ反映済みです。</h2>
+    <p>上の5点は2026-08-24に承認されました。ST-03はTDDで実装し、実装結果は<code>aidlc-vnext-st03-result.html</code>に記録しています。</p>
+    <ol><li>Requirements Definitionという名前</li><li>要求の5分類</li><li>immutable revision</li><li>例外時だけ人間確認</li><li>execute／reuseのみ</li></ol>
+  </section>
+
+  <footer>AI-DLC vNext / M3 / ST-03 Requirements &amp; Constraints plan / 2026-08-24</footer>
+</main>
+</body>
+</html>

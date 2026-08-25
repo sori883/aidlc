@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-DLC vNext｜ST-07 Human Feedback &amp; Approval 実装前設計</title>
+  <style>
+    :root{color-scheme:light;--ink:#172033;--muted:#617087;--line:#dce4ef;--soft:#f5f8fc;--blue:#2563eb;--blue-soft:#eaf1ff;--green:#147a55;--green-soft:#e5f7ee;--amber:#9a5b00;--amber-soft:#fff4d8;--purple:#6d3bc1;--purple-soft:#f1ebff;--red:#b33a2b;--red-soft:#fff0ee;--navy:#17315c;--shadow:0 18px 46px rgba(30,48,78,.09)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(180deg,#eef5ff 0,#f8fafc 440px,#f8fafc 100%);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.72}main{width:min(1120px,calc(100% - 32px));margin:auto;padding:40px 0 74px}header,section{margin-bottom:24px;padding:clamp(22px,4vw,42px);border:1px solid var(--line);border-radius:24px;background:rgba(255,255,255,.98);box-shadow:var(--shadow)}.eyebrow{margin:0 0 8px;color:var(--blue);font-size:13px;font-weight:900;letter-spacing:.12em}h1{margin:0;font-size:clamp(31px,5vw,54px);line-height:1.18;letter-spacing:-.03em}h2{margin:0 0 8px;font-size:clamp(23px,3vw,34px);line-height:1.35}h3{margin:0 0 6px;font-size:18px}p{margin:0}.lead,.intro{color:var(--muted)}.lead{max-width:900px;margin-top:17px;font-size:18px}.metrics,.cards,.checks,.questions{display:grid;gap:12px;margin-top:22px}.metrics{grid-template-columns:repeat(4,1fr)}.cards,.checks{grid-template-columns:repeat(3,1fr)}.metric,.card,.check,.question{padding:19px;border-radius:17px}.metric{background:var(--soft)}.metric span,.check span{display:block;color:var(--muted);font-size:12px;font-weight:900}.metric strong,.check strong{display:block;margin-top:4px;font-size:19px}.flow{display:grid;grid-template-columns:1fr 34px 1fr 34px 1fr 34px 1fr;align-items:stretch;gap:8px;margin-top:20px}.node{padding:18px;border:1px solid var(--line);border-radius:17px;background:var(--soft)}.node small{color:var(--blue);font-weight:900}.node strong{display:block;margin:9px 0 4px;font-size:17px}.node p{color:var(--muted);font-size:13px}.node.human{background:var(--amber-soft);border-color:#edd18d}.node.core{background:var(--green-soft);border-color:#a9dfc8}.node.next{background:var(--blue-soft);border-color:#b8d0ff}.arrow{display:grid;place-items:center;color:#8ca0ba;font-size:25px;font-weight:900}.split{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px}.panel{padding:22px;border:1px solid var(--line);border-radius:18px}.panel ul{margin:10px 0 0;padding-left:20px}.panel.ai{background:var(--purple-soft)}.panel.human{background:var(--amber-soft)}.panel.core{background:var(--green-soft)}.panel.no{background:var(--red-soft)}.card{border:1px solid var(--line);background:var(--soft)}.card b{display:block;margin-bottom:7px;color:var(--blue);font-size:12px;letter-spacing:.1em}.card p,.check p,.question p{color:var(--muted);font-size:14px}.card.green{background:var(--green-soft);border-color:#afe0c9}.card.blue{background:var(--blue-soft);border-color:#bfd3ff}.card.purple{background:var(--purple-soft);border-color:#d5c2ff}.card.amber{background:var(--amber-soft);border-color:#efd18d}.card.red{background:var(--red-soft);border-color:#f0bdb7}.table-wrap{overflow:auto;margin-top:18px}table{width:100%;border-collapse:collapse;min-width:700px}th,td{padding:13px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--muted);background:var(--soft);font-size:12px;letter-spacing:.05em}td:first-child{font-weight:900;white-space:nowrap}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.note{margin-top:18px;padding:15px 17px;border-left:5px solid var(--blue);border-radius:10px;background:var(--blue-soft)}.note.warning{border-left-color:var(--amber);background:var(--amber-soft)}.note.good{border-left-color:var(--green);background:var(--green-soft)}.route-list{display:grid;gap:11px;margin-top:20px}.route{display:grid;grid-template-columns:145px minmax(0,1fr) 95px;gap:14px;align-items:center;padding:16px 18px;border:1px solid var(--line);border-radius:16px;background:var(--soft)}.route b{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--blue)}.route p{color:var(--muted);font-size:14px}.route strong{padding:7px 10px;border-radius:999px;text-align:center;background:#fff;border:1px solid var(--line)}.route.r3{border-left:6px solid #b33a2b}.route.r4{border-left:6px solid #6d3bc1}.route.r5{border-left:6px solid #9a5b00}.route.r6{border-left:6px solid #2563eb}.precedence{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:18px}.precedence div{position:relative;padding:16px;border-radius:15px;background:var(--soft);text-align:center}.precedence div:not(:last-child)::after{content:"→";position:absolute;right:-11px;top:50%;z-index:2;transform:translateY(-50%);color:#7f91aa;font-weight:900}.precedence b{display:block;color:var(--blue)}.precedence span{font-size:13px;color:var(--muted)}.binding{display:grid;grid-template-columns:1fr 34px 1fr;align-items:center;gap:10px;margin-top:20px}.bundle,.accepted{padding:22px;border-radius:18px;border:1px solid var(--line)}.bundle{background:var(--soft)}.accepted{background:var(--green-soft);border-color:#afe0c9}.bundle code,.accepted code{display:block;margin-top:6px;font-size:13px}.filebox{margin-top:18px;padding:20px;border-radius:17px;background:#13233c;color:#dce8ff;overflow:auto}.filebox code{display:block;min-width:720px;white-space:pre}.disposition{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}.disposition article{padding:19px;border:1px solid var(--line);border-radius:17px}.disposition b{display:block;color:var(--blue);font-size:13px}.disposition p{color:var(--muted);font-size:14px}.questions{grid-template-columns:repeat(2,1fr)}.question{border:1px solid #b8d0ff;background:#f4f8ff}.question .choice{margin-top:10px;color:var(--ink);font-weight:800}.check{border:1px solid var(--line);background:var(--soft)}.not-now{color:#fff;background:linear-gradient(135deg,#17315c,#285eae)}.not-now p{color:#dce8ff}footer{text-align:center;color:var(--muted);font-size:13px}@media(max-width:900px){.metrics,.cards,.checks,.precedence,.disposition{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{min-height:22px;transform:rotate(90deg)}.route{grid-template-columns:120px 1fr}.route strong{grid-column:1/-1}.precedence div:nth-child(2)::after{display:none}}@media(max-width:650px){main{width:min(100% - 18px,1120px);padding-top:18px}header,section{border-radius:18px}.metrics,.cards,.checks,.questions,.precedence,.disposition,.split,.binding{grid-template-columns:1fr}.binding>.arrow{transform:rotate(90deg)}.precedence div::after{display:none}.route{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M5 / ST-07 PLAN</p>
+    <h1>人間が実物を見て、承認か戻り先を確定する。</h1>
+    <p class="lead">ST-07 Human Feedback &amp; Approvalは、ST-06の完成候補を人間が確認するStageです。AIは説明と分類案を作れますが、承認も行き先も決めません。</p>
+    <div class="metrics">
+      <div class="metric"><span>入力</span><strong>Runnable Candidate</strong></div>
+      <div class="metric"><span>人間の選択</span><strong>承認 / Feedback</strong></div>
+      <div class="metric"><span>判断不能</span><strong>停止して確認</strong></div>
+      <div class="metric"><span>承認後</span><strong>固定ST-08</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>何をするStageですか？</h2>
+    <div class="flow" role="img" aria-label="Coreが確認資料を固定し、人間が完成候補を確認し、Coreが承認または固定の戻り先を確定する図">
+      <article class="node core"><small>1 / CORE</small><strong>確認対象を固定</strong><p>Candidate、要求、合格条件、EvidenceのSHA-256を固定します。</p></article><div class="arrow">→</div>
+      <article class="node human"><small>2 / HUMAN</small><strong>実物を確認</strong><p>動作、見た目、使い心地、既知制約を確認します。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>3 / CORE</small><strong>決定を検証</strong><p>承認かFeedbackかを厳格JSONとして記録します。</p></article><div class="arrow">→</div>
+      <article class="node next"><small>4 / FIXED GRAPH</small><strong>進むか戻る</strong><p>承認ならST-08。Feedbackなら許可済みのStageだけへ戻ります。</p></article>
+    </div>
+    <div class="note warning">ST-07は「AIに次を相談するStage」ではありません。人間の明示的な判断を、Coreが固定Graphへ接続するStageです。</div>
+  </section>
+
+  <section>
+    <h2>人間が見るものは、1つのReview画面です。</h2>
+    <p class="intro">JSONを直接読ませません。Coreが固定したReview Manifestから、短文の静的HTMLを生成します。</p>
+    <div class="cards">
+      <article class="card blue"><b>WHAT</b><h3>何が変わったか</h3><p>Repository、変更file、基点revision、候補revisionを表示します。</p></article>
+      <article class="card blue"><b>WHY</b><h3>何を満たすべきか</h3><p>ST-03の要求とST-05の受入条件を短文で表示します。</p></article>
+      <article class="card green"><b>EVIDENCE</b><h3>機械検証の結果</h3><p>ST-06で合格したtestとVerifier Evidenceを表示します。</p></article>
+      <article class="card amber"><b>TRY</b><h3>どう確認するか</h3><p>localhostの起動方法、確認手順、必要な試験データを表示します。</p></article>
+      <article class="card purple"><b>HUMAN CHECK</b><h3>人間だけの確認</h3><p>見た目や使い心地など、human-at-st07項目を表示します。</p></article>
+      <article class="card red"><b>LIMITS</b><h3>まだ対象外のこと</h3><p>既知制約、未確認事項、今回変えない範囲を表示します。</p></article>
+    </div>
+    <div class="note">System MapのHTMLとは扱いが違います。System Mapは指示時だけ生成しますが、このReview HTMLは人間の承認Gateそのものなので、ST-07の<code>execute</code>時に標準生成します。</div>
+  </section>
+
+  <section>
+    <h2>入力と出力</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>種類</th><th>Artifact</th><th>初心者向けの意味</th></tr></thead>
+      <tbody>
+        <tr><td>入力</td><td>Build Current</td><td>ST-06をexecute／reuse／not_applicableのどれで通ったかです。</td></tr>
+        <tr><td>入力</td><td>Runnable Candidate</td><td>全Boltと統合検証に合格した完成候補です。not_applicable時はありません。</td></tr>
+        <tr><td>入力</td><td>Requirements + Build Contract</td><td>「何を満たすか」と「どう合格させるか」の承認済み正本です。</td></tr>
+        <tr><td>入力</td><td>Checkpoint + Verifier Evidence</td><td>どの変更と機械検証を通ったかを示す証拠です。</td></tr>
+        <tr><td>途中</td><td>Review Manifest + Review HTML</td><td>確認対象を固定するJSONと、人間が読む画面です。</td></tr>
+        <tr><td>出力</td><td>Human Decision</td><td>承認、またはFeedbackの種類と理由を記録した人間の判断です。</td></tr>
+        <tr><td>承認時</td><td>Accepted Candidate</td><td>候補SHA-256とsource revisionへ固定した、ST-08へ渡す承認済み成果です。</td></tr>
+        <tr><td>Feedback時</td><td>Feedback Current</td><td>どの正本と比較し、どこから見直すかを固定した記録です。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Feedbackは4種類だけです。</h2>
+    <p class="intro">人間には専門用語だけを選ばせません。次の質問で、何を見直す必要があるかを明示します。</p>
+    <div class="route-list">
+      <article class="route r3"><b>requirements_changed</b><p>目的、対象範囲、成功条件、制約そのものを変えたい。</p><strong>ST-03へ</strong></article>
+      <article class="route r4"><b>architecture_impact</b><p>Component境界、API、データ流、Providerなど、構成判断を変える必要がある。</p><strong>ST-04へ</strong></article>
+      <article class="route r5"><b>build_contract_impact</b><p>受入条件、Verifier、変更対象path、Boltの分け方や順番を変える必要がある。</p><strong>ST-05へ</strong></article>
+      <article class="route r6"><b>candidate_defect</b><p>要求も構成も合格条件も変えず、実装だけを直せばよい。</p><strong>ST-06へ</strong></article>
+    </div>
+    <div class="note good">「ログインできるはずなのに動かない」はST-06です。「ログイン後に二要素認証も必須にしたい」は要求変更なのでST-03です。</div>
+  </section>
+
+  <section>
+    <h2>複数の指摘がある場合も、行き先は1つです。</h2>
+    <p class="intro">人間が各指摘への影響を確認します。Coreは、必要な見直し範囲が最も広いStageを機械的に選びます。</p>
+    <div class="precedence" role="img" aria-label="複数FeedbackではST-03、ST-04、ST-05、ST-06の順に最も手前のStageを選ぶ図">
+      <div><b>ST-03</b><span>要求を見直す</span></div>
+      <div><b>ST-04</b><span>構成を見直す</span></div>
+      <div><b>ST-05</b><span>作り方を見直す</span></div>
+      <div><b>ST-06</b><span>実装だけ直す</span></div>
+    </div>
+    <div class="note warning">例：実装不具合と要求変更が同時にある場合はST-03へ戻ります。ST-04〜ST-07を再評価するため、不具合修正も取りこぼしません。分類が曖昧なら、Coreは勝手に選ばずST-07で停止します。</div>
+  </section>
+
+  <section>
+    <h2>ST-03との矛盾を残しません。</h2>
+    <div class="split">
+      <article class="panel human"><h3>人間が変えたいこと</h3><ul><li>Feedbackを対象要求IDへ結び付ける</li><li>「要求を変える」か「既存要求への不具合」かを明示する</li><li>必要なら複数の影響分類を確認する</li></ul></article>
+      <article class="panel core"><h3>Coreが必ず比較するもの</h3><ul><li>ST-03 Requirements revisionとSHA-256</li><li>ST-04 Architecture Current</li><li>ST-05 Build Contractと受入条件</li><li>ST-06 CandidateとVerifier Evidence</li></ul></article>
+    </div>
+    <div class="cards">
+      <article class="card red"><h3>ST-03へ戻る</h3><p>ST-03〜ST-07のCurrentをstaleにし、要求から再評価します。</p></article>
+      <article class="card purple"><h3>ST-04へ戻る</h3><p>ST-04〜ST-07をstaleにし、構成判断から再評価します。</p></article>
+      <article class="card amber"><h3>ST-05へ戻る</h3><p>ST-05〜ST-07をstaleにし、合格条件とBoltを再作成します。</p></article>
+      <article class="card blue"><h3>ST-06へ戻る</h3><p>ST-06〜ST-07をstaleにし、承認済みContract内で修正します。</p></article>
+      <article class="card green"><h3>過去は消さない</h3><p>immutable revision、判断、EvidenceはAuditのため保存します。</p></article>
+      <article class="card green"><h3>Currentだけ切り替える</h3><p>古い成果物を正本として再利用しないよう、参照を更新します。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>承認は「その候補だけ」に効きます。</h2>
+    <p class="intro">画面を見た後でコードが変わっても、古い承認を使えないようにします。</p>
+    <div class="binding" role="img" aria-label="Review Manifestと人間承認がAccepted Candidateへ固定される図">
+      <div class="bundle"><h3>承認に固定する値</h3><code>Runnable Candidate SHA-256</code><code>Review Manifest SHA-256</code><code>Requirements revision / SHA-256</code><code>Architecture Current SHA-256</code><code>Build Contract revision / SHA-256</code><code>Repositoryごとのcandidate revision</code></div>
+      <div class="arrow">→</div>
+      <div class="accepted"><h3>Accepted Candidate</h3><p>すべて一致した場合だけ作ります。</p><code>approval_ref</code><code>runnable_candidate_ref</code><code>accepted_source_revisions</code><code>system_map_revision_ref</code></div>
+    </div>
+    <div class="note good">承認後に1 byteでもReview ManifestやCandidateが変わればSHA-256が変わります。Coreは承認を無効として扱い、再確認を要求します。</div>
+  </section>
+
+  <section>
+    <h2>System Mapは、承認後だけ更新します。</h2>
+    <div class="flow" role="img" aria-label="候補コードからSystem Map Patch候補を作り、Coreが検証し、人間承認後に共有revisionへ昇格する図">
+      <article class="node"><small>CANDIDATE</small><strong>候補コードを観測</strong><p>AIが変更部分だけを読み、Map Patch候補を作ります。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>CORE</small><strong>Evidenceを検証</strong><p>candidate revision、base revision、ID、relationを検査します。</p></article><div class="arrow">→</div>
+      <article class="node human"><small>HUMAN</small><strong>完成候補を承認</strong><p>Patch単独ではなく、同じ候補への承認へ結び付けます。</p></article><div class="arrow">→</div>
+      <article class="node next"><small>CODEKB</small><strong>新revisionへ昇格</strong><p>承認後だけ共有System Mapのbaselineを切り替えます。</p></article>
+    </div>
+    <div class="note">System Mapの正本は引き続きJSONだけです。ここでもSystem Map HTMLは自動生成しません。Review HTMLへは、変更された構成の短い要約だけを表示します。</div>
+  </section>
+
+  <section>
+    <h2>AI・人間・Coreの役割</h2>
+    <div class="split">
+      <article class="panel ai"><h3>AIができること</h3><ul><li>変更内容を短く説明する</li><li>確認手順と既知制約を整理する</li><li>Feedback分類案を理由付きで出す</li><li>System Map Patch候補を作る</li></ul></article>
+      <article class="panel human"><h3>人間だけが決めること</h3><ul><li>実物を受け入れるか</li><li>human-at-st07項目の合否</li><li>要求を変える意思があるか</li><li>Feedbackの影響分類</li></ul></article>
+      <article class="panel core"><h3>Coreだけができること</h3><ul><li>確認対象のSHA-256を固定する</li><li>Decision JSONを検証・保存する</li><li>複数指摘の戻り先を機械決定する</li><li>Plan、State、Audit、Currentを更新する</li></ul></article>
+      <article class="panel no"><h3>誰も勝手にできないこと</h3><ul><li>AIだけで承認する</li><li>固定GraphにないStageへ戻る</li><li>Feedback中に候補コードを書き換える</li><li>ST-07から外部Releaseする</li></ul></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>3つの処理方法</h2>
+    <div class="disposition">
+      <article><b>execute</b><h3>新しく人間が確認する</h3><p>新しいRunnable Candidateがあり、Review HTMLを作って明示的な判断を待ちます。</p></article>
+      <article><b>reuse</b><h3>同じ判断を再開する</h3><p>同じIntentで、Candidateと全参照SHA-256が完全一致する保存済み判断だけを再利用します。別Intentへ承認を流用しません。</p></article>
+      <article><b>not_applicable</b><h3>確認する候補がない</h3><p>ST-06がnot_applicableでRunnable Candidateがない場合だけ、ST-05の承認をEvidenceにCoreが決定します。Accepted Candidateは作りません。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>保存先の案</h2>
+    <div class="filebox">
+      <code>artifacts/review/review-manifest.json                   ← 確認対象の正本</code>
+      <code>artifacts/review/review.html                           ← 人間向けの静的画面</code>
+      <code>artifacts/review/system-map-patch-candidate.json        ← 変更構成がある場合</code>
+      <code>artifacts/review/human-decision.json                    ← 承認またはFeedback</code>
+      <code>artifacts/review/accepted-candidate.json                ← 承認時だけ</code>
+      <code>artifacts/review/feedback-current.json                  ← Feedback時だけ</code>
+      <code>artifacts/review/current.json                           ← ST-07の確定結果</code>
+    </div>
+    <div class="note">JSONは厳格schemaで検証します。未知field、参照切れ、SHA-256不一致、秘密情報、Repository外path、HTML未escape文字を拒否します。</div>
+  </section>
+
+  <section class="questions-wrap">
+    <h2>実装前に確認してほしい4点</h2>
+    <p class="intro">このHTMLは設計案です。次の4点を承認いただいた後、ST-07だけをTDD実装します。</p>
+    <div class="questions">
+      <article class="question"><h3>Review HTMLは標準生成する</h3><p>System Map HTMLとは別物です。人間が承認するための短い画面として、execute時だけ生成します。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>複数Feedbackは最も手前へ戻す</h3><p>ST-03 → ST-04 → ST-05 → ST-06の順で、必要な再評価範囲が最大のStageをCoreが選びます。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>候補なしは重複承認しない</h3><p>ST-06 not_applicable時はST-05の人間承認をEvidenceにし、ST-07を決定的にnot_applicableとします。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>承認は候補と設計正本へ固定する</h3><p>CandidateだけでなくRequirements、Architecture、Build Contract、Review ManifestのSHA-256も固定します。</p><p class="choice">提案：はい。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>TDDで作る範囲</h2>
+    <div class="checks">
+      <article class="check"><span>CONTRACT</span><strong>厳格JSON</strong><p>Manifest、Decision、Accepted Candidate、Feedback Currentをfail closedで検証します。</p></article>
+      <article class="check"><span>REVIEW</span><strong>安全な静的HTML</strong><p>短文、確認手順、human verifier、既知制約、escapingを試験します。</p></article>
+      <article class="check"><span>APPROVAL</span><strong>SHA-256固定</strong><p>改ざん、古い候補、別Intent、source revision driftを拒否します。</p></article>
+      <article class="check"><span>FEEDBACK</span><strong>4本の固定edge</strong><p>単一・複数・曖昧なFeedbackとCurrent失効範囲を試験します。</p></article>
+      <article class="check"><span>SYSTEM MAP</span><strong>承認後だけ昇格</strong><p>base revision競合、Evidence、candidate revisionを検証します。</p></article>
+      <article class="check"><span>RECOVERY</span><strong>中断再開</strong><p>Plan、State、Audit、Doctor、Codex／native配布まで確認します。</p></article>
+    </div>
+  </section>
+
+  <section class="not-now">
+    <h2>今回まだ作らないもの</h2>
+    <p>ST-08のRelease、deploy、Production接続、外部環境への変更、ST-09のOutcome評価は含めません。ST-07の承認は「完成候補を受け入れる」判断であり、「Productionへ出してよい」という権限ではありません。</p>
+  </section>
+  <footer>AI-DLC vNext / M5 / ST-07 Human Feedback &amp; Approval implementation plan / 2026-08-24</footer>
+</main></body></html>

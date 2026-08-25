@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI-DLC vNext｜ST-06 実装結果</title>
+  <style>
+    :root{--ink:#172033;--muted:#607086;--line:#dce4ef;--blue:#2563eb;--blue-soft:#eaf1ff;--green:#147a55;--green-soft:#e6f7ef;--amber:#a25c00;--amber-soft:#fff4d8;--purple:#6d3bc1;--purple-soft:#f1ebff;--red:#b33a2b;--red-soft:#fff0ee;--shadow:0 18px 46px rgba(30,48,78,.09)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(180deg,#edf5ff 0,#f8fafc 430px);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.7}main{width:min(1100px,calc(100% - 30px));margin:auto;padding:38px 0 70px}header,section{margin-bottom:22px;padding:clamp(22px,4vw,40px);border:1px solid var(--line);border-radius:23px;background:#fff;box-shadow:var(--shadow)}.eyebrow{margin:0 0 8px;color:var(--blue);font-size:13px;font-weight:900;letter-spacing:.12em}h1{margin:0;font-size:clamp(31px,5vw,52px);line-height:1.18}h2{margin:0 0 8px;font-size:clamp(23px,3vw,33px)}h3{margin:0 0 5px;font-size:18px}p{margin:0}.lead,.intro,.card p,.check p,.node p,td{color:var(--muted)}.lead{max-width:880px;margin-top:15px;font-size:18px}.metrics,.cards,.checks{display:grid;gap:12px;margin-top:20px}.metrics{grid-template-columns:repeat(4,1fr)}.cards,.checks{grid-template-columns:repeat(3,1fr)}.metric,.card,.check{padding:18px;border-radius:17px}.metric{background:#f4f7fb}.metric span,.check span{display:block;color:var(--muted);font-size:12px;font-weight:900}.metric strong,.check strong{display:block;margin-top:4px;font-size:18px}.flow{display:grid;grid-template-columns:1fr 32px 1fr 32px 1fr 32px 1fr;gap:8px;margin-top:19px}.node{padding:17px;border:1px solid var(--line);border-radius:16px;background:#f5f8fc}.node small{color:var(--blue);font-weight:900}.node strong{display:block;margin:8px 0 4px}.node.ai{background:var(--amber-soft);border-color:#ecd18e}.node.core{background:var(--green-soft);border-color:#b8dfcd}.node.end{color:#fff;background:var(--blue);border-color:var(--blue)}.node.end small,.node.end p{color:#dce8ff}.arrow{display:grid;place-items:center;color:var(--blue);font-size:23px;font-weight:900}.card{border:1px solid var(--line)}.card.blue{background:var(--blue-soft);border-color:#bdd1ff}.card.green{background:var(--green-soft);border-color:#b8dfcd}.card.amber{background:var(--amber-soft);border-color:#ecd18e}.card.purple{background:var(--purple-soft);border-color:#d4c5ef}.card.red{background:var(--red-soft);border-color:#efc4bd}.card b{display:inline-block;margin-bottom:7px;padding:3px 9px;border-radius:999px;background:#fff;font-size:12px}.check{border:1px solid #b8dfcd;background:var(--green-soft)}.check span{color:var(--green)}.note{margin-top:15px;padding:15px 18px;border-left:5px solid var(--blue);border-radius:12px;background:var(--blue-soft)}.filebox{margin-top:17px;padding:19px;border-radius:16px;background:#172033;color:#edf3ff}.filebox code{display:block;overflow-wrap:anywhere;color:#c1d3ff}.table-wrap{overflow:auto;margin-top:17px}table{width:100%;min-width:680px;border-collapse:collapse}th,td{padding:11px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f4f7fb}.next{color:#fff;background:linear-gradient(135deg,#17315c,#285eae)}.next p{color:#dce8ff}footer{text-align:center;color:var(--muted);font-size:13px}@media(max-width:880px){.metrics,.cards,.checks{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{min-height:20px;transform:rotate(90deg)}}@media(max-width:620px){main{width:min(100% - 18px,1100px);padding-top:18px}header,section{border-radius:18px}.metrics,.cards,.checks{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M4 / ST-06 RESULT</p>
+    <h1>AIは指定されたBoltだけを作ります。</h1>
+    <p class="lead">ST-06 Build &amp; ConvergeをTDDで実装しました。Coreが順番、作業場所、変更範囲、合否、次Stageを管理します。AIが自分で次の作業へ進むことはできません。</p>
+    <div class="metrics">
+      <div class="metric"><span>作業単位</span><strong>1 Boltずつ</strong></div>
+      <div class="metric"><span>作業場所</span><strong>Git worktree</strong></div>
+      <div class="metric"><span>同一失敗</span><strong>3回で停止</strong></div>
+      <div class="metric"><span>成功後</span><strong>固定ST-07</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>実装された流れ。</h2>
+    <div class="flow" role="img" aria-label="CoreがBoltを選びAIがworktreeで実装しCoreが検証し全Bolt後に候補を作る図">
+      <article class="node core"><small>1 / CORE</small><strong>ready Boltを1つ選ぶ</strong><p>承認済みDAGと完了記録だけで決めます。</p></article><div class="arrow">→</div>
+      <article class="node ai"><small>2 / AI</small><strong>隔離場所で実装</strong><p>Work Requestの対象pathだけを変更します。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>3 / CORE</small><strong>diffとVerifierを検査</strong><p>合格なら統合、失敗なら同じBoltを返します。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>4 / FIXED GRAPH</small><strong>全体合格後だけST-07</strong><p>一部成功ではRunnable Candidateを作りません。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>安全のためにCoreが握るもの。</h2>
+    <div class="cards">
+      <article class="card blue"><b>ORDER</b><h3>次のBolt</h3><p>並列可能なBatchでも初期版は決定的に1つずつ選択します。</p></article>
+      <article class="card green"><b>BOUNDARY</b><h3>変更できるpath</h3><p>承認されたtarget外の変更を、Verifier実行前に拒否します。</p></article>
+      <article class="card amber"><b>VERIFIER</b><h3>実行するcommand</h3><p>人間がST-05で読んだargv、cwd、timeoutだけを実行します。</p></article>
+      <article class="card purple"><b>EVIDENCE</b><h3>試行の記録</h3><p>変更file、hash、exit code、stdout／stderr hashを保存します。</p></article>
+      <article class="card red"><b>STOP</b><h3>収束しない修正</h3><p>同じfailure signatureが3回続くとparkedで止まります。</p></article>
+      <article class="card green"><b>ROUTE</b><h3>次のStage</h3><p>全Boltと統合検証が通った場合だけ固定GraphでST-07へ進みます。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>3つの処理方法も実装済みです。</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>処理</th><th>Coreが確認すること</th><th>結果</th></tr></thead>
+      <tbody>
+        <tr><td><strong>execute</strong></td><td>Git基点、対象diff、各Bolt Verifier、Integration Verifier</td><td>新しいRunnable Candidate</td></tr>
+        <tr><td><strong>reuse</strong></td><td>同じIntent、Build Contract、source revision、Git diff、合格Checkpoint</td><td>既存Candidateをhash固定で再利用</td></tr>
+        <tr><td><strong>not_applicable</strong></td><td>ST-05で人間承認済みの「製造対象なし」</td><td>Git作業なしでBuild Currentだけ記録</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>保存される成果物。</h2>
+    <div class="filebox">
+      <code>artifacts/build/build-session.json</code>
+      <code>artifacts/build/bolts/BOLT-001/work-request.json</code>
+      <code>artifacts/build/bolts/BOLT-001/attempts/000001/checkpoint.json</code>
+      <code>artifacts/build/bolts/BOLT-001/attempts/000001/verifiers/VER-001.json</code>
+      <code>artifacts/build/runnable-candidate.json</code>
+      <code>artifacts/build/current.json</code>
+    </div>
+    <div class="note">コードそのものはIntent配下へコピーしません。GitのIntent専用integration branchに残し、JSONはrevisionとEvidenceを固定します。</div>
+  </section>
+
+  <section>
+    <h2>TDDと実動確認。</h2>
+    <div class="checks">
+      <article class="check"><span>RED</span><strong>未実装moduleで失敗</strong><p>ST-06が存在しない状態からテストを開始しました。</p></article>
+      <article class="check"><span>SCHEDULER</span><strong>ready Bolt固定</strong><p>並列Batch、依存Bolt、1つずつの選択を確認しました。</p></article>
+      <article class="check"><span>CONVERGENCE</span><strong>fail → retry → stop</strong><p>同じ失敗3回、対象外変更、dirty基点を確認しました。</p></article>
+      <article class="check"><span>GIT</span><strong>2 Repository統合</strong><p>依存する2 Boltを別Repositoryで統合してから候補を作りました。</p></article>
+      <article class="check"><span>STATE</span><strong>改ざんfail closed</strong><p>Candidate変更時にresumeとDoctorが失敗することを確認しました。</p></article>
+      <article class="check"><span>SANDBOX</span><strong>ST-07 parked</strong><p>製造対象なしをPlan revision 4へ記録し、Doctor healthyを確認しました。</p></article>
+    </div>
+  </section>
+
+  <section class="next">
+    <h2>次はST-07です。</h2>
+    <p>ST-07 Human Feedback &amp; Approvalでは、人間がRunnable Candidateを確認し、承認するか、どの固定feedback edgeへ戻すかを設計します。ST-07の中身はまだ実装していません。</p>
+  </section>
+  <footer>AI-DLC vNext / M4 / ST-06 Build &amp; Converge result / 2026-08-24</footer>
+</main></body>
+</html>

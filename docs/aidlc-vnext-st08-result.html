@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI-DLC vNext｜ST-08 Release 実装結果</title>
+  <style>
+    :root{--ink:#172033;--muted:#607086;--line:#dce4ef;--blue:#2563eb;--blue-soft:#eaf1ff;--green:#147a55;--green-soft:#e6f7ef;--amber:#9a5b00;--amber-soft:#fff4d8;--red:#b33a2b;--red-soft:#fff0ee;--purple:#6d3bc1;--purple-soft:#f1ebff;--shadow:0 18px 46px rgba(30,48,78,.09)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(180deg,#edf5ff 0,#f8fafc 430px);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.7}main{width:min(1100px,calc(100% - 30px));margin:auto;padding:38px 0 70px}header,section{margin-bottom:22px;padding:clamp(22px,4vw,40px);border:1px solid var(--line);border-radius:23px;background:#fff;box-shadow:var(--shadow)}.eyebrow{margin:0 0 8px;color:var(--blue);font-size:13px;font-weight:900;letter-spacing:.12em}h1{margin:0;font-size:clamp(31px,5vw,52px);line-height:1.18}h2{margin:0 0 8px;font-size:clamp(23px,3vw,33px)}h3{margin:0 0 5px;font-size:18px}p{margin:0}.lead,.intro,.card p,.check p,.node p{color:var(--muted)}.lead{max-width:900px;margin-top:15px;font-size:18px}.metrics,.cards,.checks{display:grid;gap:12px;margin-top:20px}.metrics{grid-template-columns:repeat(4,1fr)}.cards,.checks{grid-template-columns:repeat(3,1fr)}.metric,.card,.check{padding:18px;border-radius:17px}.metric{background:#f4f7fb}.metric span,.check span{display:block;color:var(--muted);font-size:12px;font-weight:900}.metric strong,.check strong{display:block;margin-top:4px;font-size:18px}.flow{display:grid;grid-template-columns:1fr 32px 1fr 32px 1fr 32px 1fr;gap:8px;margin-top:19px}.node{padding:17px;border:1px solid var(--line);border-radius:16px;background:#f5f8fc}.node small{color:var(--blue);font-weight:900}.node strong{display:block;margin:8px 0 4px}.node.human{background:var(--amber-soft);border-color:#ecd18e}.node.core{background:var(--green-soft);border-color:#b8dfcd}.node.end{color:#fff;background:var(--blue);border-color:var(--blue)}.node.end small,.node.end p{color:#dce8ff}.arrow{display:grid;place-items:center;color:var(--blue);font-size:23px;font-weight:900}.card{border:1px solid var(--line)}.card.blue{background:var(--blue-soft);border-color:#bdd1ff}.card.green{background:var(--green-soft);border-color:#b8dfcd}.card.amber{background:var(--amber-soft);border-color:#ecd18e}.card.purple{background:var(--purple-soft);border-color:#d4c5ef}.card.red{background:var(--red-soft);border-color:#efc4bd}.card b{display:inline-block;margin-bottom:7px;padding:3px 9px;border-radius:999px;background:#fff;font-size:12px}.note{margin-top:15px;padding:15px 18px;border-left:5px solid var(--blue);border-radius:12px;background:var(--blue-soft)}.note.warn{border-left-color:var(--amber);background:var(--amber-soft)}.filebox{margin-top:17px;padding:19px;border-radius:16px;background:#172033;color:#edf3ff;overflow:auto}.filebox code{display:block;overflow-wrap:anywhere;color:#c1d3ff}.check{border:1px solid #b8dfcd;background:var(--green-soft)}.check span{color:var(--green)}.branch{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:19px}.branch article{padding:19px;border-radius:17px;border:1px solid var(--line)}.branch .ok{background:var(--green-soft);border-color:#b8dfcd}.branch .stop{background:var(--red-soft);border-color:#efc4bd}.next{color:#fff;background:linear-gradient(135deg,#17315c,#285eae)}.next p{color:#dce8ff}footer{text-align:center;color:var(--muted);font-size:13px}@media(max-width:880px){.metrics,.cards,.checks{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{min-height:20px;transform:rotate(90deg)}}@media(max-width:620px){main{width:min(100% - 18px,1100px);padding-top:18px}header,section{border-radius:18px}.metrics,.cards,.checks,.branch{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M5 / ST-08 RESULT</p>
+    <h1>承認した計画だけを、安全にReleaseできるようになりました。</h1>
+    <p class="lead">ST-08 ReleaseをTDDで実装しました。AIは行き先や任意コマンドを決めません。Coreが登録済み操作、現在の配布先、人間の実行許可を確認してから外部操作を行います。</p>
+    <div class="metrics">
+      <div class="metric"><span>最初のCapability</span><strong>Git Source昇格</strong></div>
+      <div class="metric"><span>実行許可</span><strong>人間だけ</strong></div>
+      <div class="metric"><span>全体試験</span><strong>187件成功</strong></div>
+      <div class="metric"><span>次のStage</span><strong>固定ST-09</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Releaseまでの4段階。</h2>
+    <div class="flow" role="img" aria-label="AIのRelease提案をCoreが検証し、人間が承認し、Coreが外部操作する図">
+      <article class="node"><small>1 / AI</small><strong>計画を提案</strong><p>登録済みTargetとStepのIDだけを選びます。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>2 / CORE</small><strong>現在値を固定</strong><p>Candidate、Remote revision、PlanをSHA-256で固定します。</p></article><div class="arrow">→</div>
+      <article class="node human"><small>3 / HUMAN</small><strong>実行を許可</strong><p>短いHTMLを見て、exact Planだけを承認します。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>4 / CORE</small><strong>再確認して実行</strong><p>状態が変わっていなければ、一手ずつ実行します。</p></article>
+    </div>
+    <div class="note warn">「計画の承認」と「実行」は別操作です。承認した時点ではpushしません。実行直前にTargetが変わっていたら、外部操作なしで停止します。</div>
+  </section>
+
+  <section>
+    <h2>失敗時の動きも固定しました。</h2>
+    <div class="branch">
+      <article class="stop"><h3>外部作用の前に不一致</h3><p>ST-08で停止します。古い承認を破棄し、新しいTarget状態を見て再承認します。</p></article>
+      <article class="ok"><h3>途中失敗後にrollback完了</h3><p>成功済みStepを逆順に戻し、その失敗と復旧結果をReceiptへ残してST-09へ渡します。</p></article>
+    </div>
+    <div class="note">途中結果が曖昧なまま自動再実行しません。外部状態を観測できない場合はfail closedです。</div>
+  </section>
+
+  <section>
+    <h2>今回実装した安全境界。</h2>
+    <div class="cards">
+      <article class="card blue"><b>STRUCTURED</b><h3>任意shellを拒否</h3><p>AIは登録済みCapability ID、Target、StepだけをJSONで提案します。</p></article>
+      <article class="card amber"><b>AUTHORITY</b><h3>人間の許可を分離</h3><p>Release Authorityはexact PlanとAccepted Candidateに固定します。</p></article>
+      <article class="card green"><b>PREFLIGHT</b><h3>直前に再観測</h3><p>承認後のTarget driftとDeployment Map競合を検知します。</p></article>
+      <article class="card purple"><b>ROLLBACK</b><h3>逆順に戻す</h3><p>後続Stepが失敗すると、成功済みGit昇格をforce-with-lease付きで戻します。</p></article>
+      <article class="card red"><b>FAIL CLOSED</b><h3>改ざんを拒否</h3><p>Plan、Authority、Receipt、MapのJSONとSHA-256をresumeとDoctorが検査します。</p></article>
+      <article class="card green"><b>NO CANDIDATE</b><h3>不要なら自動通過</h3><p>Accepted Candidateがない場合だけ、Releaseをnot_applicableとして記録します。</p></article>
+    </div>
+    <div class="note">Reuseは、同じCandidate revision、Policy、Plan、Authority、Receipt、Deployment Mapに加え、現在の外部Targetまで一致した場合だけ採用します。</div>
+  </section>
+
+  <section>
+    <h2>保存される主な成果物。</h2>
+    <div class="filebox">
+      <code>artifacts/release/release-capability-snapshot.json</code>
+      <code>artifacts/release/work-request.json</code>
+      <code>artifacts/release/revisions/000001/release-plan.json</code>
+      <code>artifacts/release/review/release.html</code>
+      <code>artifacts/release/decisions/.../release-authority.json</code>
+      <code>artifacts/release/attempts/000001/steps/*.json</code>
+      <code>artifacts/release/attempts/000001/release-receipt.json</code>
+      <code>artifacts/release/current.json</code>
+      <code>aidlc/spaces/&lt;space&gt;/codekb/deployment-map/revisions/000001/deployment-map.json</code>
+    </div>
+    <div class="note">Release確認HTMLだけは人間の承認に必要なので生成します。Deployment Mapは標準ではJSONだけです。人間から指示された場合だけHTML化します。</div>
+  </section>
+
+  <section>
+    <h2>TDDと実動確認。</h2>
+    <div class="checks">
+      <article class="check"><span>SUCCESS</span><strong>Source昇格</strong><p>Accepted CandidateだけがRemote branchへ反映されました。</p></article>
+      <article class="check"><span>AUTHORITY</span><strong>承認時は副作用なし</strong><p>authorize後もRemoteが変わらないことを確認しました。</p></article>
+      <article class="check"><span>DRIFT</span><strong>変更後は停止</strong><p>承認後のTarget変更を検知し、ST-08に留まりました。</p></article>
+      <article class="check"><span>ROLLBACK</span><strong>複数Repository</strong><p>2番目の失敗後、1番目を元revisionへ戻しました。</p></article>
+      <article class="check"><span>TAMPER</span><strong>Doctor fail closed</strong><p>Receipt改ざんをresumeとDoctorが拒否しました。</p></article>
+      <article class="check"><span>REUSE</span><strong>外部状態まで照合</strong><p>古いReceiptだけでは通さず、Remoteが違えば再利用を拒否しました。</p></article>
+      <article class="check"><span>SANDBOX</span><strong>Plan revision 6</strong><p>候補なしを記録し、ST-09 parked、Doctor healthyを確認しました。</p></article>
+    </div>
+  </section>
+
+  <section class="next">
+    <h2>次はST-09の詳細設計です。</h2>
+    <p>ST-09 Outcome Evaluationの中身はまだ実装していません。Release ReceiptとDeployment Mapを使って「狙った結果になったか」をどう観測し、Intentを完了するかを次に設計します。</p>
+  </section>
+  <footer>AI-DLC vNext / M5 / ST-08 Release result / 2026-08-25</footer>
+</main></body>
+</html>

@@ -26,7 +26,18 @@ test("renders a vNext-only native Codex project layout", () => {
   assert.doesNotMatch(allText, /bun run --cwd \.codex aidlc/);
   assert.doesNotMatch(allText, /--scope|scope-grid/);
   assert.match(allText, /\.\/\.codex\/tools\/aidlc/);
-  assert.match(files.get(".agents/skills/aidlc/SKILL.md") ?? "", /next Stage itself/);
+  const skill = files.get(".agents/skills/aidlc/SKILL.md") ?? "";
+  assert.match(skill, /next Stage itself/);
+  assert.match(skill, /aidlc next \.`/);
+  assert.match(skill, /aidlc requirements complete \. <proposal\.json>/);
+  assert.match(skill, /aidlc architecture complete \. <proposal\.json>/);
+  assert.match(skill, /aidlc build-contract review \. <proposal\.json>/);
+  assert.match(skill, /aidlc build-contract approve \. <candidate-sha256> <reason>/);
+  assert.match(skill, /aidlc build verify \. <bolt-id>/);
+  assert.match(skill, /aidlc build reuse \. <runnable-candidate\.json> <reason>/);
+  assert.match(skill, /aidlc outcome evaluate \. <proposal\.json>/);
+  assert.match(skill, /aidlc outcome decide \. <evaluation-sha256>/);
+  assert.doesNotMatch(skill, /aidlc next \.\./);
 });
 
 test("renders the same project-local native command on all platforms", () => {

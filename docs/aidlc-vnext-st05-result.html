@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-DLC vNext｜ST-05 Build Contract 実装結果</title>
+  <style>
+    :root{color-scheme:light;--ink:#172033;--muted:#617087;--line:#dce4ef;--soft:#f5f8fc;--blue:#2563eb;--blue-soft:#eaf1ff;--green:#147a55;--green-soft:#e5f7ee;--amber-soft:#fff4d8;--purple-soft:#f1ebff;--red-soft:#fff0ee;--shadow:0 18px 46px rgba(30,48,78,.09)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(180deg,#eef5ff 0,#f8fafc 430px,#f8fafc 100%);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.72}main{width:min(1080px,calc(100% - 32px));margin:auto;padding:40px 0 74px}header,section{margin-bottom:24px;padding:clamp(22px,4vw,42px);border:1px solid var(--line);border-radius:24px;background:rgba(255,255,255,.98);box-shadow:var(--shadow)}.eyebrow{margin:0 0 8px;color:var(--blue);font-size:13px;font-weight:900;letter-spacing:.12em}h1{margin:0;font-size:clamp(31px,5vw,54px);line-height:1.18;letter-spacing:-.03em}h2{margin:0 0 8px;font-size:clamp(23px,3vw,34px);line-height:1.35}h3{margin:0 0 6px;font-size:18px}p{margin:0}.lead,.intro{color:var(--muted)}.lead{max-width:860px;margin-top:17px;font-size:18px}.metrics,.checks,.three{display:grid;gap:12px;margin-top:22px}.metrics{grid-template-columns:repeat(4,1fr)}.checks,.three{grid-template-columns:repeat(3,1fr)}.metric,.card,.check{padding:19px;border-radius:17px}.metric{background:var(--soft)}.metric span,.check span{display:block;color:var(--muted);font-size:12px;font-weight:900}.metric strong,.check strong{display:block;margin-top:4px;font-size:20px}.success{color:var(--green)}.flow{display:grid;grid-template-columns:1fr 34px 1fr 34px 1fr 34px 1fr;align-items:stretch;gap:8px;margin-top:20px}.node{padding:18px;border:1px solid var(--line);border-radius:17px;background:var(--soft)}.node small{color:var(--blue);font-weight:900}.node strong{display:block;margin:9px 0 4px;font-size:17px}.node p{color:var(--muted);font-size:13px}.node.ai{background:var(--amber-soft);border-color:#edd18d}.node.human{background:var(--purple-soft);border-color:#d4c5f0}.node.next{color:white;background:var(--blue);border-color:var(--blue)}.node.next small,.node.next p{color:#dce8ff}.arrow{display:grid;place-items:center;color:var(--blue);font-size:24px;font-weight:900}.card{border:1px solid var(--line)}.card.blue{background:var(--blue-soft);border-color:#bdd1ff}.card.purple{background:var(--purple-soft);border-color:#d4c5f0}.card.green{background:var(--green-soft);border-color:#b7dfcc}.card p,.check p{color:var(--muted);font-size:14px}.card b{display:inline-block;margin-bottom:8px;padding:3px 10px;border-radius:999px;background:white;font-size:12px}.split{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}.panel{padding:21px;border-radius:18px}.panel.ai{background:var(--amber-soft);border:1px solid #edd18d}.panel.core{background:var(--green-soft);border:1px solid #b7dfcc}.panel.stop{background:var(--red-soft);border:1px solid #efc4bd}.panel.human{background:var(--purple-soft);border:1px solid #d4c5f0}ul{margin:9px 0 0;padding-left:20px;color:var(--muted)}.note{margin-top:15px;padding:16px 18px;border-left:5px solid var(--blue);border-radius:12px;background:var(--blue-soft)}.filebox{margin-top:18px;padding:20px;border-radius:16px;background:#172033;color:#edf3ff}.filebox code{display:block;overflow-wrap:anywhere;color:#bcd1ff}.check{border:1px solid #b7dfcc;background:var(--green-soft)}.check span{color:var(--green)}.waiting{border-color:#e4c36c;background:#fffaf0}.waiting strong{color:#986800}.next-step{color:white;background:linear-gradient(135deg,#17315c,#285eae)}.next-step p{color:#dce8ff}.next-step .flow{grid-template-columns:1fr 40px 1fr}.next-step .node{color:var(--ink);background:white}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}footer{text-align:center;color:var(--muted);font-size:13px}@media(max-width:900px){.metrics,.checks,.three{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{min-height:22px;transform:rotate(90deg)}}@media(max-width:650px){main{width:min(100% - 18px,1080px);padding-top:18px}header,section{border-radius:18px}.metrics,.checks,.three,.split{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M3 / ST-05 RESULT</p>
+    <h1>実装前の約束を、人間が読んで承認できます。</h1>
+    <p class="lead">ST-05 Build ContractをTDDで実装しました。AIが変更内容とBoltの依存関係を提案し、Coreが検査し、人間が候補のSHA-256を承認したときだけST-06へ進みます。</p>
+    <div class="metrics">
+      <div class="metric"><span>実装Stage</span><strong>ST-05だけ</strong></div>
+      <div class="metric"><span>全体試験</span><strong class="success">156 / 156</strong></div>
+      <div class="metric"><span>ST-05専用試験</span><strong class="success">11 / 11</strong></div>
+      <div class="metric"><span>次の固定Stage</span><strong>ST-06</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>実際の流れは、4手です。</h2>
+    <div class="flow" role="img" aria-label="Coreが入力を固定しAIがBuild Contractを提案しCoreが検査して人間承認後にST-06へ進む図">
+      <article class="node"><small>1 / CORE</small><strong>入力を固定</strong><p>Requirements、Architecture、現在像、PolicyのpathとSHA-256を固定します。</p></article><div class="arrow">→</div>
+      <article class="node ai"><small>2 / AI</small><strong>実装契約を提案</strong><p>変更、合格条件、Verifier、Bolt DAGを提案します。行き先や承認は書けません。</p></article><div class="arrow">→</div>
+      <article class="node"><small>3 / CORE</small><strong>機械的に検査</strong><p>抜け、循環、参照切れ、path競合を拒否し、短いレビューHTMLを作ります。</p></article><div class="arrow">→</div>
+      <article class="node next"><small>4 / HUMAN + CORE</small><strong>承認後だけST-06</strong><p>人間が同じ候補SHA-256を承認すると、Coreが固定Graphで進めます。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>3つの処理方法を実装しました。</h2>
+    <div class="three">
+      <article class="card blue"><b>execute</b><h3>新しい契約を作る</h3><p>変更Contract、受入条件、Verifier、Boltを保存します。</p></article>
+      <article class="card purple"><b>reuse</b><h3>承認済み契約を使う</h3><p>固定入力が完全一致する既存Build Contractだけを参照します。</p></article>
+      <article class="card green"><b>not_applicable</b><h3>製造対象がない</h3><p>全Requirementがbuild_impact=falseの場合だけ認めます。</p></article>
+    </div>
+    <div class="note">3方式すべてで、最後の人間確認が必要です。<code>not_applicable</code>もAIだけでは確定できません。</div>
+  </section>
+
+  <section>
+    <h2>Boltは、技術レイヤーではなく依存関係で分けます。</h2>
+    <div class="split">
+      <article class="panel ai"><h3>AIが提案するもの</h3><ul><li>各Boltが満たすChange Contract</li><li>Bolt間のdepends_on</li><li>変更するRepository内path</li><li>受入条件とVerifier</li></ul></article>
+      <article class="panel core"><h3>Coreが決めるもの</h3><ul><li>DAGが循環していないこと</li><li>実行できるBatchの自動導出</li><li>次にreadyなBolt</li><li>固定Graphの次Stage</li></ul></article>
+    </div>
+    <div class="note">frontend、backend、画面などの固定Sliceはありません。小さな変更なら、短いBuild Contractと1つのBoltだけです。</div>
+  </section>
+
+  <section>
+    <h2>Coreは、将来困る設計を先に止めます。</h2>
+    <div class="split">
+      <article class="panel stop"><h3>拒否する例</h3><ul><li>Requirementの確認漏れ</li><li>Change Contractや受入条件の孤立</li><li>Bolt DAGの循環・参照切れ</li><li>並列Boltによる同じpathの競合</li><li>Repository外へ出るpath</li><li>shell文字列、秘密情報、偽の承認</li></ul></article>
+      <article class="panel core"><h3>守る約束</h3><ul><li>commandはargv配列で保存</li><li>ST-05ではVerifierを実行しない</li><li>レビューHTMLは静的・escape済み</li><li>承認は候補SHA-256へ固定</li><li>Plan、Audit、StateはCoreだけが更新</li><li>中断後も二重記録せず再開</li></ul></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>保存先も分離しました。</h2>
+    <div class="filebox">
+      <code>artifacts/build-contract/build-contract-work-request.json</code>
+      <code>artifacts/build-contract/review/build-contract-candidate.json</code>
+      <code>artifacts/build-contract/review/build-contract-review.html</code>
+      <code>artifacts/build-contract/review/build-contract-approval.json  ← 人間承認後</code>
+      <code>artifacts/build-contract/revisions/000001/build-contract.json  ← executeだけ</code>
+      <code>artifacts/build-contract/current.json  ← 承認後</code>
+    </div>
+    <div class="note">System MapのHTMLは自動生成しません。ST-05のレビューHTMLだけは、人間が承認内容を読めるようにするための例外です。</div>
+  </section>
+
+  <section>
+    <h2>TDDと実環境で確認しました。</h2>
+    <div class="checks">
+      <article class="check"><span>RED → GREEN</span><strong>ST-05専用 11件</strong><p>3方式、coverage、DAG、競合、escape、承認、改ざん、中断再開を確認しました。</p></article>
+      <article class="check"><span>REGRESSION</span><strong>全体 156件</strong><p>29 testファイル、TypeScript、固定Graph、Codex／native配布が成功しました。</p></article>
+      <article class="check"><span>SANDBOX</span><strong>ST-06 parked</strong><p>人間承認をCoreへ記録し、Plan revision 3、固定ST-06遷移、Doctor healthyを確認しました。</p></article>
+    </div>
+    <div class="note">試験プロジェクトでは、AIが承認を代行せず、実際の人間承認後にだけ進みました。承認対象の候補SHA-256は <code>sha256:28cc7f4162929533c2ff8bcd49f9acb076e459d326ef1c222d02c14eda95ddee</code> です。</div>
+  </section>
+
+  <section class="next-step">
+    <h2>承認されれば、次はST-06です。</h2>
+    <p>ST-05は「何を、どの順で、どう合格させるか」を固定しました。ST-06では、CoreがreadyなBoltを選び、AIが実装・テスト・修正を反復する仕組みを設計します。ST-06の中身はまだ実装していません。</p>
+    <div class="flow" role="img" aria-label="ST-05の承認済みBuild ContractをST-06へ渡す図">
+      <article class="node"><small>今回</small><strong>ST-05 Build Contract</strong><p>実装契約、合格条件、Bolt DAG、人間承認。</p></article><div class="arrow">→</div>
+      <article class="node"><small>次の設計</small><strong>ST-06 Build &amp; Converge</strong><p>Bolt単位の実装、検証、修正、統合。</p></article>
+    </div>
+  </section>
+  <footer>AI-DLC vNext / M3 / ST-05 Build Contract result / 2026-08-24</footer>
+</main></body></html>

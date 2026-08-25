@@ -5,9 +5,10 @@
 AI-DLC vNextの検討を別のエージェントへ引き継ぐ。
 
 現時点では、vNextの思想、全体フロー、固定10 StageのID、名前、Graph、共通Contract、
-Core Route、ST-00 Bootstrap、ST-01 Orient、ST-02 Define Intentが実装済みである。
-ST-03〜ST-09の詳細設計は完成していない。
-マイルストーンや可視化に書かれた短い説明を未設計Stageの本文として実装してはならない。
+Core Route、ST-00 Bootstrap、ST-01 Orient、ST-02 Define Intent、
+ST-03 Requirements & Constraints、ST-04 Architecture Decision、
+ST-05 Build Contract、ST-06 Build & Converge、ST-07 Human Feedback & Approval、
+ST-08 Release、終端ST-09 Outcome Evaluationまで実装済みである。
 
 各Stageの目的、入力、出力、完了条件、AIの停止条件、人間の判断境界を、
 ユーザーと一つずつ共同設計し、明示的な承認後に実装すること。
@@ -37,11 +38,12 @@ ST-03〜ST-09の詳細設計は完成していない。
 | Branch | `codex/aidlc-vnext` |
 | Base | `origin/main` |
 | Base commit | `cb4f0db61fca711c3b49251370568f3013148f41` |
-| 実装状況 | M0、M1、M2完了。M3のST-00 Bootstrap、ST-01 Orient、ST-02 Define Intent完了 |
-| 次の作業 | M3のST-03 Requirements & Constraintsを詳細設計し、承認後に1 Stageだけ実装する |
+| 実装状況 | M0〜M5の固定10 Stage本文を実装・検証済み |
+| 次の作業 | M6全体計画は承認済み。`docs/aidlc-vnext-m6-policy-gates-plan.html`をレビューし、明示承認後にM6をTDD実装する |
 
-M0〜M2はcommit `c9e259a`、ST-00はcommit `714d5bb`、ST-01はcommit `5a0ee9c`として
-`origin/codex/aidlc-vnext`へpush済みである。ST-02はこの文書を含む最新commitで実装済みである。
+M0〜M2はcommit `c9e259a`、ST-00はcommit `714d5bb`、ST-01はcommit `5a0ee9c`、
+ST-02はcommit `98b8c41`として`origin/codex/aidlc-vnext`へpush済みである。
+ST-03、ST-04、ST-05、ST-06、ST-07、ST-08、ST-09は作業ツリーで実装・検証済みだが、まだcommit／pushしていない。
 作業ツリーにはユーザー所有の`.vscode/`、生成確認用`dist/codex/`、
 `docs/aidlc-vnext-visual-guide.html`がある。一括削除や無関係な上書きをしないこと。
 
@@ -67,6 +69,14 @@ pathとSHA-256を固定した`define-intent-work-request.json`を作り、AIは�
 未知field、秘密情報、範囲重複、入力hash、後続Stageの設計・遷移指定を拒否し、合格時だけ
 Intent配下へcanonical `intent-definition.json`を保存して固定GraphでST-03へ進む。
 標準HTMLは生成しない。価値判断が未解決ならAIが提案前に人間へ確認し、AIはRouteを選ばない。
+
+ST-03 Requirements & Constraintsも二段階で動く。CoreがIntent Definition、Current Context、
+Effective PolicyのpathとSHA-256を固定し、要求coverageを列挙した
+`requirements-work-request.json`を作る。AIは安定IDとJSON Pointer根拠を持つ機能要求、品質要求、
+制約、不変条件、未確定事項だけを提案する。Coreは未知field、秘密情報、重複ID、壊れた参照、
+coverage不足、blocking question、古いWork Request、後続Stage内容とRoute指定を拒否する。
+合格時だけIntent配下へimmutable Requirements revisionと`current.json`を保存し、固定Graphで
+ST-04へ進む。Requirementsの正本はJSONだけで、HTML／Markdownは人間の指示時にだけ生成する。
 
 承認済みM0として`bun run release:check`を実行し、
 version、typecheck、32 Stage Graph、46文書のRuntime Contract、45ファイル243 testが
@@ -99,8 +109,71 @@ ST-02 Contract、Define Intent Work Request、Intent Definition Proposal／正�
 厳格validator、固定ST-03遷移、resume／Doctor検証、中断後の冪等再開、Codex／native配布を
 実装した。`bun run release:check`は26ファイル125 testがすべて成功した。
 指定サンドボックスへ生成済みCodex bundleを配置し、`intent-definition.json`だけが保存され、
-`ST-03 parked → Doctor healthy`となることを確認した。active Intentは試験用ST-03のままでよいと
-ユーザーから許可されている。
+`ST-03 parked → Doctor healthy`となることを確認した。
+
+承認済みST-03としてTDDを実施した。未実装moduleのREDから始め、ST-03 Contract、
+Requirements Work Request、Proposal／Definition／Current contract、安定ID、source JSON Pointer、
+Intent coverage、immutable revision、固定ST-04遷移、resume／Doctor検証、中断後の冪等再開、
+Codex／native配布を実装した。Codex SkillのProject pathも実行試験で修正し、
+`bun run release:check`は27ファイル136 testがすべて成功した。指定サンドボックスでは
+Requirements revision 1と`current.json`を保存し、`ST-04 parked → Doctor healthy`を確認した。
+承認済みST-04としてTDDを実施した。未実装moduleのREDから始め、ST-04 Contract、
+Architecture Work Request、Assessment Proposal／Decision／Current contract、`execute`／`reuse`／
+`not_applicable`の相互排他、全Requirement coverage、現在entity参照、immutable revision、
+人間承認付きreuse、Core Plan改訂、固定ST-05遷移、resume／Doctor検証、中断後の冪等再開、
+Codex／native配布を実装した。`bun run release:check`は28ファイル145 testがすべて成功した。
+指定サンドボックスでは構成影響なしをCoreが検証して`not_applicable`を記録し、
+Plan revision 2、`ST-05 parked → Doctor healthy`を確認した。active Intentは試験用ST-05のままでよい。
+
+承認済みST-05としてTDDを実施した。未実装moduleのREDから始め、ST-05 Contract、
+Build Contract Work Request／Proposal／Candidate／Current、Requirement trace、command Verifier、
+依存関係ベースのBolt DAG、Core導出Batch、`execute`／`reuse`／`not_applicable`、静的Review HTML、
+候補SHA-256へ固定した人間Approval、`approval` Directive、固定ST-06遷移、resume／Doctor検証、
+中断後の冪等再開、Codex／native配布を実装した。`bun run release:check`は29ファイル156 testが
+すべて成功した。指定Sandboxでは既存ST-03確認Intentに製造対象がない候補を作り、Coreが検証した
+CandidateとReview HTML、`approval` Directive、Doctor healthyを確認した。AIは人間承認を代行せず、
+実際の承認後にPlan revision 3、固定ST-06遷移、Doctor healthyを確認した。この時点ではactive
+IntentがST-06 parkedになった。候補SHA-256は
+`sha256:28cc7f4162929533c2ff8bcd49f9acb076e459d326ef1c222d02c14eda95ddee`。
+
+承認済みST-06としてTDDを実施した。未実装moduleのREDから始め、ST-06 Contract、厳格な
+Build Session／Bolt Work Request／Attempt Checkpoint／Verifier Evidence／Runnable Candidate／
+Build Current contract、Coreのready Bolt選択、Intent専用Git worktree、対象外diff拒否、
+command／artifact／localhost runtime Verifier、同一failure signature 3回停止、複数Repository、
+全Bolt後の統合検証、`execute`／厳格な`reuse`／決定的`not_applicable`、固定ST-07遷移、
+resume／Doctor改ざん検知、CLI、Codex／native配布を実装した。ST-05 Review HTMLも、承認前に
+正確な対象path、argv、cwd、timeout、終了条件を読めるよう補強した。指定Sandboxでは
+製造対象なしをCoreが処理し、Build Current
+`sha256:4d7c2ebedfe0ec9dafe6e23b725e004c2310e1ab77cde9606ace823026e1e3ee`、
+Plan revision 4、固定ST-07遷移、Doctor healthyを確認した。active IntentはST-07 parkedである。
+`bun run release:check`は30ファイル168 testがすべて成功し、Codex bundleと`dist/project`も
+同期済みである。
+
+承認済みST-07としてTDDを実施した。未実装moduleのREDから始め、ST-07 Contract、厳格な
+Review Manifest／Human Decision／Accepted Candidate／Feedback Current contract、escaped静的Review
+HTML、人間確認項目の全件合格、候補と上流正本へのSHA-256固定、4種類の固定Feedback経路、
+最も手前のStageを選ぶ決定規則、却下候補のimmutable保存、承認後だけのSystem Map source revision
+昇格、resume／Doctor改ざん検知、CLI、Codex／native配布を実装した。`candidate_defect`では、
+却下候補を開始点としてST-06の新しいcycleとattempt 2を作り、修正版を別のReview Manifestで
+再確認・承認できるところまで接続した。`bun run release:check`は31ファイル178 testがすべて
+成功した。指定SandboxではST-06の製造対象なしを根拠にST-07も決定的に通過し、Plan revision 5、
+固定ST-08遷移、Doctor healthyを確認した。active IntentはST-08 parkedである。
+
+承認済みST-08としてTDDを実施した。厳格なCapability Snapshot／Work Request／Release Plan／
+Human Release Authority／Step Receipt／Release Receipt／Release Current／Deployment Map contract、
+escaped Release確認HTML、初期Git Source昇格adapter、人間承認と実行の分離、実行直前Target drift検知、
+複数Repository途中失敗時の逆順rollback、Deployment Mapのimmutable revision、resume／Doctor改ざん検知、
+厳格なRelease reuse検証、CLI、Codex／native配布を実装した。`bun test`は32ファイル187 testがすべて成功した。指定Sandboxでは
+Accepted Candidateなしを根拠にST-08を決定的に通過し、Plan revision 6、固定ST-09遷移、Doctor healthyを
+確認した。このST-08実装時点ではactive IntentをST-09 parkedに置き、ST-09本文へは進めなかった。
+
+承認済みST-09としてTDDを実施した。固定signal付きOutcome Work Request、Project-bound Outcome
+Evidence、4値のOutcome Evaluation、JSON正本から生成するescaped HTML、全件達成時だけの自動完了、
+未達・一部達成・判断不能に対する三つの人間判断、not_before／deadline付きparkと再開、Follow-up Brief
+案、terminal Outcome Current、State completed／`done`、resume／Doctor改ざん検知、CLI、Codex／native配布を
+実装した。ST-09から過去Stageへのedgeと自動新Intent作成は追加していない。`bun run release:check`は
+33ファイル193 testがすべて成功し、Codex bundleと`dist/project`も同期済みである。指定Sandboxでは
+ST-09 Work Request revision 1を生成し、Doctor healthyを確認した。active IntentはST-09でEvidence提案待ちである。
 
 ## 4. 参照資料
 
@@ -141,6 +214,34 @@ ST-02 Contract、Define Intent Work Request、Intent Definition Proposal／正�
   - 承認済みST-02詳細設計。Define Intentの責務、人間確認境界、JSON-only方針
 - `docs/aidlc-vnext-st02-result.html`
   - ST-02実装、厳格validator、固定遷移、中断復旧、試験結果の初心者向け図解
+- `docs/aidlc-vnext-st03-plan.html`
+  - 承認済みST-03詳細設計。要求の5分類、根拠参照、immutable revision、JSON-only方針
+- `docs/aidlc-vnext-st03-result.html`
+  - ST-03実装、coverage validator、固定遷移、中断復旧、試験結果の初心者向け図解
+- `docs/aidlc-vnext-st04-plan.html`
+  - 承認済みST-04詳細設計。3つの処理方法、現在像と将来案の分離、人間判断境界
+- `docs/aidlc-vnext-st04-result.html`
+  - ST-04実装、3方式validator、Core Plan改訂、固定遷移、試験結果の初心者向け図解
+- `docs/aidlc-vnext-st05-plan.html`
+  - 承認済みST-05詳細設計。Build Contract、Bolt DAG、Verifier、人間承認境界
+- `docs/aidlc-vnext-st05-result.html`
+  - ST-05実装、Core導出Batch、Approval Directive、固定遷移、試験結果の初心者向け図解
+- `docs/aidlc-vnext-st06-plan.html`
+  - 承認済みST-06詳細設計。Bolt実行、Git worktree、Verifier、収束停止条件
+- `docs/aidlc-vnext-st06-result.html`
+  - ST-06実装、Runnable Candidate、再試行、固定ST-07遷移、試験結果の初心者向け図解
+- `docs/aidlc-vnext-st07-plan.html`
+  - 承認済みST-07詳細設計。人間Review、Approval、4種類の固定Feedback経路
+- `docs/aidlc-vnext-st07-result.html`
+  - ST-07実装、差戻し再製造、Accepted Candidate、固定ST-08遷移、試験結果の初心者向け図解
+- `docs/aidlc-vnext-st08-plan.html`
+  - 承認済みST-08詳細設計。Release Target、Capability、Authority、Receipt、rollback、Deployment Map
+- `docs/aidlc-vnext-st08-result.html`
+  - ST-08実装、Git Source昇格、rollback、Deployment Map、固定ST-09遷移の初心者向け図解
+- `docs/aidlc-vnext-st09-plan.html`
+  - 承認済みST-09実装前設計。成功条件とOutcomeの比較、観測待ち、人間判断、Intent完了条件
+- `docs/aidlc-vnext-st09-result.html`
+  - ST-09実装、Outcome評価、観測待ち、人間判断、Intent終端、試験結果の初心者向け図解
 - `docs/aidlc-vnext-visual-guide.html`
   - 未追跡ファイル。所有者とcommit可否を確認するまで変更しない
 - `docs/aidlc-v2-harness-architecture.md`
@@ -158,9 +259,12 @@ ST-02 Contract、Define Intent Work Request、Intent Definition Proposal／正�
 - `core/tools/aidlc-vnext-orient.ts`
 - `core/tools/aidlc-vnext-define-intent-contract.ts`
 - `core/tools/aidlc-vnext-define-intent.ts`
+- `core/tools/aidlc-vnext-requirements-contract.ts`
+- `core/tools/aidlc-vnext-requirements.ts`
 - `core/aidlc-common/stages/st-00-bootstrap.json`
 - `core/aidlc-common/stages/st-01-orient.json`
 - `core/aidlc-common/stages/st-02-define-intent.json`
+- `core/aidlc-common/stages/st-03-requirements-constraints.json`
 - `harness/codex/skills/aidlc/SKILL.md`
 
 ### リポジトリ外の設計可視化
@@ -266,15 +370,10 @@ AIが情報を持っていないことではなく、価値判断、権限、不
 
 ### 6.2 vNext自体を設計するために必要な人間判断
 
-次はまだ確定していない。該当マイルストーンの実装前に、ユーザーと決めること。
-
-1. ST-03〜ST-09の責務境界と、隣接Stageへ渡すArtifact
-2. Design BriefとDesign Contractの必須項目
-3. Co-Design完了時の「確認」と「Approval」の意味
-4. AI内部loopの評価器、改善停滞、試行回数、時間、費用の停止条件
-5. Boltの粒度、依存関係、統合完了の定義
-6. Runnable Candidateが満たすべき起動性、データ、確認シナリオ
-7. ST-08で人間Approvalを要求する外部副作用の境界
+ST-05のBuild ContractとApproval境界、ST-06のBolt実行とRunnable Candidate境界、ST-07の
+Human FeedbackとAccepted Candidate境界、ST-08のRelease Authorityと外部作用境界、ST-09の
+Outcome観測とIntent終端境界は確定済みである。次は固定10 Stage全体を一つの製品として扱い、
+E2E、UX、運用性、性能、配布品質に関する人間判断を共同設計する。
 
 ## 7. 各Stageで共同設計する項目
 
@@ -298,26 +397,24 @@ Stageごとに、最低限次をユーザーと確認する。名前と一行説
 
 1. ルート`AGENTS.md`を読み、実装前承認とBun／TypeScript要件に従う
 2. `work/`はユーザーの明示指示がない限り読まない
-3. マイルストーンを完成仕様として扱わず、次にST-03の詳細設計計画を提示する
+3. マイルストーンを完成仕様として扱わず、次にM6の品質Gate設計計画を提示する
 4. 一度に10 Stageを設計せず、一つのStageまたは一つの横断Contractずつ進める
-5. M1共通Contract、M2 Core Route、ST-00 Bootstrap、ST-01 Orient、ST-02 Define Intentを前提にし、ST-03から順に目的、入出力、
-   完了条件、人間境界をユーザーと確定する
-7. 各設計を`docs/`へ保存し、ユーザーの明示的承認後にTypeScript実装へ進む
-8. 実装中もStageごとに結果とtestを説明する
+5. M1共通Contract、M2 Core Route、ST-00〜ST-09の実装を前提にし、小変更、依存機能、Release、
+   Outcomeを含む代表E2Eと運用上の停止・再開をユーザーと確定する
+6. 各設計を`docs/`へ保存し、ユーザーの明示的承認後にTypeScript実装へ進む
+7. 実装中もStageごとに結果とtestを説明する
 
 ## 9. 次に提案する設計セッション
 
-次のエージェントは、いきなりST-03の実装を始めないこと。まず次をユーザーへ提示する。
+次のエージェントは、いきなり最適化や配布変更を始めず、まず次をユーザーへ提示する。
 
-**テーマ: ST-03 Requirements & Constraintsの詳細設計**
+**テーマ: M6 E2E、UX、運用性、性能、品質Gateの詳細設計**
 
-- ST-02のIntent Definitionと固定入力参照から何を受け取るか
-- 機能要求、非機能要求、制約、受入条件候補、未確定事項をどう分けるか
-- 小さな変更を重くせず、必要な要求だけを短く確定する境界
-- ST-04へ渡すRequirements Artifactと完了条件
-- 推測せず人間へ確認する条件
-- State／Audit EventとCodex表示
-- unit、contract、resume、failure、E2E test
+- 小さな文字変更、依存関係を持つ機能追加、Release、Outcomeの代表E2E
+- 中断、再開、差戻し、外部drift、改ざん時の運用手順
+- 初心者がDirective、HTML、JSON成果物を迷わず扱えるUX
+- 大規模Repositoryや複数Repositoryで計測する性能指標
+- Release候補に要求する品質Gateと残課題
 
-設計を初心者向けHTMLで説明し、ユーザーの明示的承認後にST-03だけを実装する。
+設計を初心者向けHTMLで説明し、ユーザーの明示的承認後にM6だけを実装する。
 AIは行き先を決めず、M2の固定GraphとCore Directiveを使う。

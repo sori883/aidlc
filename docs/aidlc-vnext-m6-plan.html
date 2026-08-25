@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI-DLC vNext｜M6 製品全体のE2E・Codex UX 実装前計画</title>
+  <style>
+    :root{--ink:#172033;--muted:#607086;--line:#dce4ef;--blue:#2563eb;--blue-soft:#eaf1ff;--green:#147a55;--green-soft:#e6f7ef;--amber:#9a5b00;--amber-soft:#fff4d8;--purple:#6d3bc1;--purple-soft:#f1ebff;--red:#b33a2b;--red-soft:#fff0ee;--navy:#17315c;--soft:#f5f8fc;--shadow:0 18px 46px rgba(30,48,78,.09)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(180deg,#edf5ff 0,#f8fafc 470px);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.72}main{width:min(1120px,calc(100% - 30px));margin:auto;padding:38px 0 74px}header,section{margin-bottom:23px;padding:clamp(22px,4vw,41px);border:1px solid var(--line);border-radius:23px;background:#fff;box-shadow:var(--shadow)}.eyebrow{margin:0 0 8px;color:var(--blue);font-size:13px;font-weight:900;letter-spacing:.12em}h1{margin:0;font-size:clamp(31px,5vw,53px);line-height:1.18;letter-spacing:-.025em}h2{margin:0 0 8px;font-size:clamp(23px,3vw,33px)}h3{margin:0 0 6px;font-size:18px}p{margin:0}.lead,.intro,.node p,.card p,.check p,.question p,.lane p,td,.small{color:var(--muted)}.lead{max-width:940px;margin-top:16px;font-size:18px}.metrics,.cards,.checks,.questions,.lanes{display:grid;gap:12px;margin-top:20px}.metrics{grid-template-columns:repeat(4,1fr)}.cards,.checks{grid-template-columns:repeat(3,1fr)}.questions{grid-template-columns:repeat(2,1fr)}.metric,.card,.check,.question,.lane{padding:18px;border-radius:17px}.metric{background:var(--soft)}.metric span,.check span,.lane small{display:block;color:var(--muted);font-size:12px;font-weight:900}.metric strong,.check strong{display:block;margin-top:4px;font-size:18px}.flow{display:grid;grid-template-columns:1fr 32px 1fr 32px 1fr 32px 1fr;gap:8px;margin-top:19px}.node{padding:17px;border:1px solid var(--line);border-radius:16px;background:var(--soft)}.node small{color:var(--blue);font-weight:900}.node strong{display:block;margin:8px 0 4px}.node.core{background:var(--green-soft);border-color:#b8dfcd}.node.human{background:var(--amber-soft);border-color:#ecd18e}.node.end{color:#fff;background:var(--blue);border-color:var(--blue)}.node.end small,.node.end p{color:#dce8ff}.arrow{display:grid;place-items:center;color:var(--blue);font-size:23px;font-weight:900}.card{border:1px solid var(--line);background:var(--soft)}.card.blue{background:var(--blue-soft);border-color:#bdd1ff}.card.green{background:var(--green-soft);border-color:#b8dfcd}.card.amber{background:var(--amber-soft);border-color:#ecd18e}.card.purple{background:var(--purple-soft);border-color:#d4c5ef}.card.red{background:var(--red-soft);border-color:#efc4bd}.card b{display:inline-block;margin-bottom:7px;padding:3px 9px;border-radius:999px;background:#fff;font-size:12px}.note{margin-top:15px;padding:15px 18px;border-left:5px solid var(--blue);border-radius:12px;background:var(--blue-soft)}.note.warn{border-left-color:var(--amber);background:var(--amber-soft)}.note.good{border-left-color:var(--green);background:var(--green-soft)}.note.red{border-left-color:var(--red);background:var(--red-soft)}.table-wrap{overflow:auto;margin-top:17px}table{width:100%;min-width:800px;border-collapse:collapse}th,td{padding:12px 13px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--soft);color:var(--muted);font-size:12px}.lanes{grid-template-columns:180px 1fr}.lane{border:1px solid var(--line);background:var(--soft)}.lane.title{display:grid;place-items:center;text-align:center;background:var(--navy);color:#fff}.lane.title small{color:#c8d8f3}.lane.green{background:var(--green-soft);border-color:#b8dfcd}.lane.blue{background:var(--blue-soft);border-color:#bdd1ff}.lane.amber{background:var(--amber-soft);border-color:#ecd18e}.lane.purple{background:var(--purple-soft);border-color:#d4c5ef}.sequence{display:flex;align-items:stretch;gap:8px;margin-top:18px;overflow:auto;padding-bottom:5px}.step{min-width:130px;flex:1;padding:14px;border:1px solid var(--line);border-radius:15px;background:var(--soft)}.step b{display:block;color:var(--blue);font-size:12px}.step span{display:block;margin-top:5px;font-weight:800}.join{display:grid;place-items:center;color:var(--blue);font-weight:900}.gate{display:grid;grid-template-columns:190px 1fr;gap:12px;align-items:start;margin-top:11px;padding:16px;border:1px solid var(--line);border-radius:15px;background:var(--soft)}.gate code{color:var(--blue);font-weight:900}.filebox{margin-top:17px;padding:19px;border-radius:16px;background:#172033;color:#edf3ff;overflow:auto}.filebox code{display:block;min-width:760px;color:#c1d3ff}.question{border:1px solid #bdd1ff;background:#f4f8ff}.question .choice{margin-top:9px;color:var(--ink);font-weight:900}.check{border:1px solid #b8dfcd;background:var(--green-soft)}.check span{color:var(--green)}.not-now{color:#fff;background:linear-gradient(135deg,#17315c,#285eae)}.not-now p{color:#dce8ff}footer{text-align:center;color:var(--muted);font-size:13px}@media(max-width:900px){.metrics,.cards,.checks{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{min-height:20px;transform:rotate(90deg)}.lanes{grid-template-columns:1fr}.lane.title{place-items:start;text-align:left}.sequence{display:grid;grid-template-columns:1fr}.join{min-height:18px;transform:rotate(90deg)}}@media(max-width:620px){main{width:min(100% - 18px,1120px);padding-top:18px}header,section{border-radius:18px}.metrics,.cards,.checks,.questions{grid-template-columns:1fr}.gate{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M6 IMPLEMENTATION PLAN</p>
+    <h1>10個のStageを、「使える一つの製品」にする。</h1>
+    <p class="lead">ST-00からST-09の中身は完成しました。M6では新しいStageを作りません。Codexから開始し、人間が必要な場所で判断し、中断後に再開し、最後のOutcomeまで安全に完走できることを、配布物そのもので確認します。</p>
+    <div class="metrics">
+      <div class="metric"><span>新しいStage</span><strong>追加しない</strong></div>
+      <div class="metric"><span>固定Graph</span><strong>ST-00〜ST-09</strong></div>
+      <div class="metric"><span>現在の自動試験</span><strong>193 tests</strong></div>
+      <div class="metric"><span>M6の中心</span><strong>製品全体の接続</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>M6は「部品試験」ではなく「通し試験」です。</h2>
+    <div class="flow" role="img" aria-label="利用者の依頼からIntent完了までを配布済みCodex版で通す図">
+      <article class="node human"><small>1 / HUMAN</small><strong>短い依頼を伝える</strong><p>Codexへ目的と変更内容を伝えます。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>2 / CORE</small><strong>固定Stageを進める</strong><p>AIではなくCoreが次のStageを決めます。</p></article><div class="arrow">→</div>
+      <article class="node human"><small>3 / HUMAN GATE</small><strong>必要な箇所だけ判断</strong><p>Build、Candidate、Release、Outcomeを確認します。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>4 / TERMINAL</small><strong>Outcomeで完了</strong><p>Evidence付きの終了結果を残します。</p></article>
+    </div>
+    <div class="note">各Stageのunit testが緑でも、Bundleへの入れ忘れ、古い利用手順、再開時の表示不足は残り得ます。M6は、その「部品と部品の間」を検証します。</div>
+  </section>
+
+  <section>
+    <h2>今回の入力と出力。</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>種類</th><th>内容</th><th>初心者向けの意味</th></tr></thead>
+      <tbody>
+        <tr><td>入力</td><td>ST-00〜ST-09の実装と193 tests</td><td>Stageの個別機能は既にあります。M6は作り直しません。</td></tr>
+        <tr><td>入力</td><td>固定Catalog／Graph／Core Directive</td><td>AIに行き先を任せない仕組みです。</td></tr>
+        <tr><td>入力</td><td>Codex Bundle／native binary／Installer</td><td>開発用ソースではなく、利用者へ渡す実物です。</td></tr>
+        <tr><td>入力</td><td>Effective Policy／Intent固有リスク</td><td>Projectの基本ルールと、今回だけの危険要因です。</td></tr>
+        <tr><td>出力</td><td>代表シナリオのE2E test</td><td>開始から完了までを実際の公開CLIで通します。</td></tr>
+        <tr><td>出力</td><td>Codex表示Contractのtest</td><td>次に何をすればよいか、初心者が迷わない表示を固定します。</td></tr>
+        <tr><td>出力</td><td>開始・再開・障害対応の利用手順</td><td>通常時と停止時の操作を短文でまとめます。</td></tr>
+        <tr><td>出力</td><td>配布前Quality Gate</td><td>何が全部緑ならRelease候補にできるかを固定します。</td></tr>
+        <tr><td>出力</td><td>M6 Result HTML</td><td>人間向けに試験結果と残課題を説明します。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>4つの代表シナリオを通します。</h2>
+    <div class="cards">
+      <article class="card blue"><b>SCENARIO A</b><h3>小さな文字変更</h3><p>1 Repository、1 Boltです。必要な確認は省かず、不要な新規設計を作らない短い経路を確認します。</p></article>
+      <article class="card green"><b>SCENARIO B</b><h3>依存関係のある機能</h3><p>複数Boltまたは複数Repositoryです。DAG順序、統合、ST-07の不具合差戻し、修正版の再承認を確認します。</p></article>
+      <article class="card purple"><b>SCENARIO C</b><h3>実装を伴わない仮説検証</h3><p>調査や設計のIntentです。BuildやReleaseが該当しなくても、根拠を残してST-09まで進むことを確認します。</p></article>
+      <article class="card amber"><b>SCENARIO D</b><h3>Releaseと復旧</h3><p>外部作用はローカルの安全な模擬Targetで試します。drift、失敗、rollback、中断後の再開を確認します。</p></article>
+    </div>
+    <div class="note warn">4シナリオを全配布形式で何度も重複実行はしません。開発Runtimeで全分岐を通し、Codex Bundleとnative版では重要な接続点を代表実行します。</div>
+  </section>
+
+  <section>
+    <h2>小さな変更でも、AIがStageを飛ばすわけではありません。</h2>
+    <div class="sequence" role="img" aria-label="小さな文字変更でも固定10 Stageを短く通る図">
+      <div class="step"><b>ST-00</b><span>環境確認</span></div><div class="join">→</div>
+      <div class="step"><b>ST-01</b><span>対象確認</span></div><div class="join">→</div>
+      <div class="step"><b>ST-02〜04</b><span>短く目的・条件・構成再利用</span></div><div class="join">→</div>
+      <div class="step"><b>ST-05〜07</b><span>1 Boltを製造・確認</span></div><div class="join">→</div>
+      <div class="step"><b>ST-08〜09</b><span>配布結果・Outcome</span></div>
+    </div>
+    <div class="note good">短い経路とは、Stageを削除することではありません。各StageをCoreが確認し、<code>execute</code>、<code>reuse</code>、<code>not_applicable</code>の根拠を短く残すことです。</div>
+  </section>
+
+  <section>
+    <h2>どの実物を、どこまで試すか。</h2>
+    <div class="lanes">
+      <article class="lane title"><div><small>TEST TARGET</small><strong>開発Runtime</strong></div></article>
+      <article class="lane green"><h3>4シナリオと失敗分岐を全部通す</h3><p>各Stageの公開CLIだけを使います。テスト専用の直接書き込みで人間Gateを迂回しません。</p></article>
+      <article class="lane title"><div><small>TEST TARGET</small><strong>Codex Bundle</strong></div></article>
+      <article class="lane blue"><h3>小変更を開始から完了まで通す</h3><p>生成されたSkill、Runtime、Stage定義、Directive表示が揃っていることを確認します。中断後の再開も試します。</p></article>
+      <article class="lane title"><div><small>TEST TARGET</small><strong>native binary</strong></div></article>
+      <article class="lane purple"><h3>PATHにBun／Nodeがなくても動かす</h3><p>開始、次の作業表示、再開、Doctorまでを試し、同梱漏れを検知します。</p></article>
+      <article class="lane title"><div><small>TEST TARGET</small><strong>HTTP Installer</strong></div></article>
+      <article class="lane amber"><h3>安全な導入後に起動する</h3><p>既存の改ざん・404・更新・競合試験に加え、導入したCLIでvNext Intentを開始できることを確認します。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Codexが見せる短文を固定します。</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Directive</th><th>Codexが必ず見せる内容</th><th>人間がすること</th></tr></thead>
+      <tbody>
+        <tr><td><code>advanced</code></td><td>完了したStage、根拠、次の固定Stage</td><td>通常は何もしません。</td></tr>
+        <tr><td><code>work</code></td><td>現在Stageの目的、入力file、AIが作るproposal</td><td>不足情報だけを補います。</td></tr>
+        <tr><td><code>approval</code></td><td>Review HTML、対象hash、承認または修正の選択肢</td><td>内容を見て明示判断します。</td></tr>
+        <tr><td><code>decision</code></td><td>Outcome HTML、観測結果、終了に関する選択肢</td><td>価値判断を行います。</td></tr>
+        <tr><td><code>parked</code></td><td>止まった理由、再開条件、必要なEvidence</td><td>条件が揃った後に再開します。</td></tr>
+        <tr><td><code>done</code></td><td>最終Outcome、Intentの終了状態、次Stageなし</td><td>結果を確認します。</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note">JSONは正本です。人間向けHTMLは、既に設計したApproval、Release、Outcomeなどの判断境界だけを標準生成します。System Mapなどを一律HTML化はしません。</div>
+  </section>
+
+  <section>
+    <h2>Human Gateは、AIに増減させません。</h2>
+    <div class="flow" role="img" aria-label="固定Human GateにProject規則とIntentリスクの追加制約を重ねる図">
+      <article class="node core"><small>FIXED</small><strong>固定Human Gate</strong><p>Build Contract、Candidate、Release authority、未達Outcomeです。</p></article><div class="arrow">＋</div>
+      <article class="node"><small>MEMORY</small><strong>Projectの基本規則</strong><p>Org、Team、Projectの順で追加します。</p></article><div class="arrow">＋</div>
+      <article class="node human"><small>INTENT</small><strong>今回の高いリスク</strong><p>該当リスクの確認を追加します。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>EFFECTIVE</small><strong>実際の確認項目</strong><p>Coreが固定し、人間が明示判断します。</p></article>
+    </div>
+    <div class="note red"><strong>現在の不足：</strong>Effective PolicyはMemoryとIntentリスクをhash付きで保存しますが、それをHuman Gateの追加確認へ変換する機械規則がまだありません。このままではM6の完了条件を満たしたとは言えません。</div>
+    <div class="cards">
+      <article class="card green"><b>M6 PROPOSAL</b><h3>厳しさは追加だけ</h3><p>Project規則や高・重大リスクは確認項目を追加できます。固定Gateを削除したり弱めたりはできません。</p></article>
+      <article class="card blue"><b>NO PROFILE</b><h3>二値Profileは作らない</h3><p>Lightweight、Enterprise、Work TypeをRoute軸へ戻しません。</p></article>
+      <article class="card amber"><b>FAIL CLOSED</b><h3>AIの自由解釈を禁止</h3><p>Markdown文章をAIが読んでGateを勝手に変えません。M6で小さな構造化Contractを別途設計し、Coreだけが解決します。</p></article>
+    </div>
+    <div class="note warn">詳細は<code>docs/aidlc-vnext-m6-policy-gates-plan.html</code>へ分離しました。field名、保存場所、Risk Register、Gate確認表をレビューしてから実装します。</div>
+  </section>
+
+  <section>
+    <h2>Hookと旧Sensorを復活させません。</h2>
+    <div class="cards">
+      <article class="card blue"><b>CODEX HOOK</b><h3>空の設定を正しく扱う</h3><p>現在の<code>hooks.json</code>は空です。必要性のない自動処理は追加せず、Installerが安全に保持できることを試します。</p></article>
+      <article class="card purple"><b>OBSERVATION</b><h3>vNext Evidenceを使う</h3><p>ST-06のVerifier、ST-08のReceipt、ST-09のOutcome Evidenceを正本として接続確認します。</p></article>
+      <article class="card red"><b>V2 SENSOR</b><h3>進行権限へ戻さない</h3><p>旧Sensor receiptにStage遷移を決めさせません。互換性は「旧機構がなくてもvNextが壊れない」こととして検証します。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>中断と失敗も、通常の製品動作として試します。</h2>
+    <div class="checks">
+      <article class="check"><span>RESUME</span><strong>processを終了して再開</strong><p>同じIntent、Stage、待機理由へ戻ります。</p></article>
+      <article class="check"><span>FEEDBACK</span><strong>ST-07から差し戻す</strong><p>要求変更と不具合を混ぜず、固定edgeへ戻します。</p></article>
+      <article class="check"><span>DRIFT</span><strong>外部Target差分を検知</strong><p>古い前提のままReleaseしません。</p></article>
+      <article class="check"><span>ROLLBACK</span><strong>途中失敗から戻す</strong><p>Receiptと最終Target状態を残します。</p></article>
+      <article class="check"><span>TAMPER</span><strong>hash改ざんを拒否</strong><p>Doctorと次操作がfail closedになります。</p></article>
+      <article class="check"><span>LOCK</span><strong>同時更新を拒否</strong><p>二つのCoreが同じStateを上書きしません。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>性能は「測る」ことから始めます。</h2>
+    <div class="cards">
+      <article class="card blue"><b>SMALL</b><h3>小規模1 Repository</h3><p>起動、<code>next</code>、Doctorの時間を記録します。</p></article>
+      <article class="card green"><b>MULTI REPO</b><h3>複数Repository</h3><p>System Map確認、Bolt選択、統合の時間を記録します。</p></article>
+      <article class="card purple"><b>LARGE FIXTURE</b><h3>大きな模擬Repository</h3><p>対象外fileを無制限に走査しないことと、処理がtimeout内に終わることを試します。</p></article>
+    </div>
+    <div class="note">M6では、開発機の差に弱い厳密なSLAをまだ宣言しません。各試験の上限時間、処理件数、計測結果を残し、hangや明らかな退行をRelease Gateにします。</div>
+  </section>
+
+  <section>
+    <h2>Release候補に必要なQuality Gate。</h2>
+    <div class="sequence" role="img" aria-label="Release候補の品質確認順序">
+      <div class="step"><b>1</b><span>version整合</span></div><div class="join">→</div>
+      <div class="step"><b>2</b><span>TypeScript型検査</span></div><div class="join">→</div>
+      <div class="step"><b>3</b><span>Graph・Contract</span></div><div class="join">→</div>
+      <div class="step"><b>4</b><span>全unit test</span></div><div class="join">→</div>
+      <div class="step"><b>5</b><span>新しいE2E</span></div><div class="join">→</div>
+      <div class="step"><b>6</b><span>Bundle・native・Installer</span></div>
+    </div>
+    <div class="note good">一つでも失敗したらRelease候補にしません。GitHubや本番Cloudへ実際に配布する試験は行わず、local HTTP、temporary Git、模擬Targetで安全に確認します。</div>
+  </section>
+
+  <section>
+    <h2>TDDの実装順序。</h2>
+    <div class="flow" role="img" aria-label="M6をRED GREEN REFACTOR 配布確認の順に実装する図">
+      <article class="node"><small>RED 1</small><strong>通し試験を書く</strong><p>Bundleから完走できない現在の不足を先に失敗させます。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>GREEN 2</small><strong>最小の接続を直す</strong><p>欠けた資産、CLI、Directive表示だけを補います。</p></article><div class="arrow">→</div>
+      <article class="node human"><small>RED/GREEN 3</small><strong>Gateと再開を試す</strong><p>承認迂回、改ざん、drift、停止を失敗から実装します。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>GATE 4</small><strong>全配布を検査</strong><p>全testと生成差分を確認します。</p></article>
+    </div>
+    <div class="filebox">
+      <code>tests/aidlc-vnext-e2e.test.ts                  # 4つの代表シナリオ</code>
+      <code>tests/aidlc-codex-bundle.test.ts                # 生成Bundleで開始・再開・完走</code>
+      <code>tests/aidlc-vnext-directive.test.ts              # 初心者向け表示Contract</code>
+      <code>tests/aidlc-github-distribution.test.ts           # 導入後のvNext起動</code>
+      <code>docs/aidlc-vnext-operations.md                    # 開始・再開・障害対応</code>
+      <code>docs/release-packaging.md                         # 現行vNext commandへ更新</code>
+      <code>docs/aidlc-vnext-m6-result.html                   # 人間向け結果</code>
+    </div>
+  </section>
+
+  <section>
+    <h2>実装前に確認いただきたい設計判断。</h2>
+    <div class="questions">
+      <article class="question"><h3>1. M6はST-10を作らない</h3><p>固定10 Stageと遷移は変更せず、製品全体の接続を完成させます。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>2. 4つの代表E2Eを使う</h3><p>小変更、依存機能、実装なし、Release復旧を試します。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>3. 人間Gateをtestでも迂回しない</h3><p>公開CLIへ実際のhuman decisionを渡して進めます。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>4. Policyは追加制約だけにする</h3><p>ProfileやWork Typeは作らず、固定Gateを弱めません。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>5. Policy機械規則を先に小さく設計する</h3><p>AIにMarkdownを自由解釈させず、Core検証できるContractにします。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>6. 空Hookのまま互換性を試す</h3><p>必要性のない自動Hookや旧v2 Sensor経路を復活させません。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>7. 性能値はまず計測値にする</h3><p>Release Gateはtimeoutと退行検知にし、利用実績なしのSLAは宣言しません。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>8. HTMLを一律生成しない</h3><p>人間判断用だけ標準生成し、System Mapなどは指示時に生成します。</p><p class="choice">提案：はい。</p></article>
+    </div>
+  </section>
+
+  <section class="not-now">
+    <h2>M6では、まだ行わないこと。</h2>
+    <p>ST-10の追加、v2資産の最終削除、正式versionのRelease、GitHubへの公開、本番Cloudへの接続、常駐監視サービス、厳密な商用SLAは含めません。v2資産の最終削除と正式Releaseは、M6のQuality Gateが緑になった後のM7で行います。</p>
+  </section>
+  <footer>AI-DLC vNext / M6 Codex Harness &amp; End-to-End implementation plan / 2026-08-25</footer>
+</main></body>
+</html>

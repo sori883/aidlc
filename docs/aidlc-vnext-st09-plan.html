@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI-DLC vNext｜ST-09 Outcome Evaluation 実装前設計</title>
+  <style>
+    :root{--ink:#172033;--muted:#607086;--line:#dce4ef;--blue:#2563eb;--blue-soft:#eaf1ff;--green:#147a55;--green-soft:#e6f7ef;--amber:#9a5b00;--amber-soft:#fff4d8;--purple:#6d3bc1;--purple-soft:#f1ebff;--red:#b33a2b;--red-soft:#fff0ee;--navy:#17315c;--soft:#f5f8fc;--shadow:0 18px 46px rgba(30,48,78,.09)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(180deg,#edf5ff 0,#f8fafc 440px);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.72}main{width:min(1120px,calc(100% - 30px));margin:auto;padding:38px 0 74px}header,section{margin-bottom:23px;padding:clamp(22px,4vw,41px);border:1px solid var(--line);border-radius:23px;background:#fff;box-shadow:var(--shadow)}.eyebrow{margin:0 0 8px;color:var(--blue);font-size:13px;font-weight:900;letter-spacing:.12em}h1{margin:0;font-size:clamp(31px,5vw,53px);line-height:1.18;letter-spacing:-.025em}h2{margin:0 0 8px;font-size:clamp(23px,3vw,33px)}h3{margin:0 0 6px;font-size:18px}p{margin:0}.lead,.intro,.node p,.card p,.check p,.question p,td{color:var(--muted)}.lead{max-width:910px;margin-top:16px;font-size:18px}.metrics,.cards,.checks,.questions{display:grid;gap:12px;margin-top:20px}.metrics{grid-template-columns:repeat(4,1fr)}.cards,.checks{grid-template-columns:repeat(3,1fr)}.questions{grid-template-columns:repeat(2,1fr)}.metric,.card,.check,.question{padding:18px;border-radius:17px}.metric{background:var(--soft)}.metric span,.check span{display:block;color:var(--muted);font-size:12px;font-weight:900}.metric strong,.check strong{display:block;margin-top:4px;font-size:18px}.flow{display:grid;grid-template-columns:1fr 32px 1fr 32px 1fr 32px 1fr;gap:8px;margin-top:19px}.node{padding:17px;border:1px solid var(--line);border-radius:16px;background:var(--soft)}.node small{color:var(--blue);font-weight:900}.node strong{display:block;margin:8px 0 4px}.node.core{background:var(--green-soft);border-color:#b8dfcd}.node.human{background:var(--amber-soft);border-color:#ecd18e}.node.end{color:#fff;background:var(--blue);border-color:var(--blue)}.node.end small,.node.end p{color:#dce8ff}.arrow{display:grid;place-items:center;color:var(--blue);font-size:23px;font-weight:900}.card{border:1px solid var(--line);background:var(--soft)}.card.blue{background:var(--blue-soft);border-color:#bdd1ff}.card.green{background:var(--green-soft);border-color:#b8dfcd}.card.amber{background:var(--amber-soft);border-color:#ecd18e}.card.purple{background:var(--purple-soft);border-color:#d4c5ef}.card.red{background:var(--red-soft);border-color:#efc4bd}.card b{display:inline-block;margin-bottom:7px;padding:3px 9px;border-radius:999px;background:#fff;font-size:12px}.note{margin-top:15px;padding:15px 18px;border-left:5px solid var(--blue);border-radius:12px;background:var(--blue-soft)}.note.warn{border-left-color:var(--amber);background:var(--amber-soft)}.note.good{border-left-color:var(--green);background:var(--green-soft)}.table-wrap{overflow:auto;margin-top:17px}table{width:100%;min-width:760px;border-collapse:collapse}th,td{padding:12px 13px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--soft);color:var(--muted);font-size:12px}.compare{display:grid;grid-template-columns:1fr 60px 1fr;gap:14px;align-items:center;margin-top:20px}.compare-box{padding:23px;border-radius:18px;border:1px solid var(--line);background:var(--soft)}.compare-box.promise{background:var(--blue-soft);border-color:#bdd1ff}.compare-box.fact{background:var(--green-soft);border-color:#b8dfcd}.compare .mark{display:grid;place-items:center;width:54px;height:54px;border-radius:50%;background:var(--navy);color:#fff;font-size:23px;font-weight:900}.states{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:19px}.state{padding:17px;border-radius:16px;border:1px solid var(--line);background:var(--soft)}.state b{display:block;margin-bottom:5px}.state.green{background:var(--green-soft);border-color:#b8dfcd}.state.amber{background:var(--amber-soft);border-color:#ecd18e}.state.red{background:var(--red-soft);border-color:#efc4bd}.state.purple{background:var(--purple-soft);border-color:#d4c5ef}.state span{font-size:13px;color:var(--muted)}.decision{display:grid;grid-template-columns:190px 1fr;gap:12px;align-items:start;margin-top:11px;padding:16px;border:1px solid var(--line);border-radius:15px;background:var(--soft)}.decision code{color:var(--blue);font-weight:900}.filebox{margin-top:17px;padding:19px;border-radius:16px;background:#172033;color:#edf3ff;overflow:auto}.filebox code{display:block;min-width:720px;color:#c1d3ff}.question{border:1px solid #bdd1ff;background:#f4f8ff}.question .choice{margin-top:9px;color:var(--ink);font-weight:900}.check{border:1px solid #b8dfcd;background:var(--green-soft)}.check span{color:var(--green)}.not-now{color:#fff;background:linear-gradient(135deg,#17315c,#285eae)}.not-now p{color:#dce8ff}footer{text-align:center;color:var(--muted);font-size:13px}@media(max-width:900px){.metrics,.cards,.checks,.states{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{min-height:20px;transform:rotate(90deg)}.compare{grid-template-columns:1fr}.compare .mark{justify-self:center}}@media(max-width:620px){main{width:min(100% - 18px,1120px);padding-top:18px}header,section{border-radius:18px}.metrics,.cards,.checks,.questions,.states{grid-template-columns:1fr}.decision{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M5 / ST-09 PLAN</p>
+    <h1>「作った」で終わらず、「狙った結果」を確認する。</h1>
+    <p class="lead">ST-09 Outcome Evaluationは、最初に決めた成功条件と、Release後に観測した事実を比較してIntentを閉じる最後のStageです。AIはEvidenceを整理できます。Coreが不足、矛盾、鮮度を検査し、価値判断だけを人間へ返します。</p>
+    <div class="metrics">
+      <div class="metric"><span>開始点</span><strong>ST-08の確定結果</strong></div>
+      <div class="metric"><span>比較対象</span><strong>約束 vs 事実</strong></div>
+      <div class="metric"><span>最終状態</span><strong>Intent completed</strong></div>
+      <div class="metric"><span>次のStage</span><strong>なし</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>ST-09が答える質問は一つです。</h2>
+    <div class="compare" role="img" aria-label="最初に決めた成功条件とRelease後の観測事実を比較する図">
+      <article class="compare-box promise"><small>最初の約束</small><h3>何を成功とするか</h3><p>Intent Definitionの期待結果、成功signal、Requirements、承認済み受入条件です。</p></article>
+      <div class="mark">⇄</div>
+      <article class="compare-box fact"><small>最後の事実</small><h3>実際に何が起きたか</h3><p>Release Current、Receipt、Deployment Map、観測Evidence、人間の確認結果です。</p></article>
+    </div>
+    <div class="note">ST-09は実装の合格試験をやり直すStageではありません。ST-06とST-07は「正しく作れたか」、ST-09は「目的を達成したか」を扱います。</div>
+  </section>
+
+  <section>
+    <h2>Release結果ごとに、見るものが変わります。</h2>
+    <div class="cards">
+      <article class="card green"><b>RELEASED</b><h3>利用後の結果を見る</h3><p>正式Targetのrevision、健康状態、利用結果、成功signalをEvidenceで確認します。</p></article>
+      <article class="card red"><b>ROLLED BACK</b><h3>成功扱いにしない</h3><p>安全に戻った事実を記録します。目的達成は自動で主張せず、人間へ次の判断を返します。</p></article>
+      <article class="card blue"><b>NOT APPLICABLE</b><h3>Releaseなしでも評価する</h3><p>文書、調査、設計などは上流Evidenceと人間確認で成功条件を評価します。</p></article>
+    </div>
+    <div class="note warn">ST-08がnot_applicableでも、ST-09は省略しません。すべてのIntentに「結果」と「終了理由」を残します。</div>
+  </section>
+
+  <section>
+    <h2>入力と出力。</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>種類</th><th>Artifact</th><th>初心者向けの意味</th></tr></thead>
+      <tbody>
+        <tr><td>入力</td><td>Intent Definition</td><td>目的、期待結果、成功signal、対象外です。</td></tr>
+        <tr><td>入力</td><td>Requirements Definition</td><td>守るべき要求、制約、不変条件です。</td></tr>
+        <tr><td>入力</td><td>Release Current</td><td>released、rolled_back、not_applicableのどれでST-08が終わったかです。</td></tr>
+        <tr><td>入力</td><td>Release Receipt / Deployment Map</td><td>外部操作をした場合の、配布先と確定結果です。</td></tr>
+        <tr><td>入力</td><td>Effective Policy</td><td>Evidenceの鮮度、観測期限、人間判断が必要な条件です。</td></tr>
+        <tr><td>途中</td><td>Outcome Work Request</td><td>今回、何をEvidenceで確認すべきかをCoreが固定した依頼書です。</td></tr>
+        <tr><td>途中</td><td>Outcome Evidence</td><td>機械確認、登録済み観測Capability、人間確認から得た事実です。</td></tr>
+        <tr><td>出力</td><td>Outcome Evaluation + HTML</td><td>成功条件ごとの合否、不明点、全体評価を人間にも読める形にしたものです。</td></tr>
+        <tr><td>出力</td><td>Outcome Current</td><td>Intentをどの結果で閉じたかを固定する正本です。</td></tr>
+        <tr><td>任意出力</td><td>Follow-up Brief</td><td>次のIntentが必要な場合のたたき台です。自動で新Intentは作りません。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>観測は、待つ必要がある場合があります。</h2>
+    <div class="flow" role="img" aria-label="Coreが確認項目を固定し、Evidenceを集め、待機または評価する図">
+      <article class="node core"><small>1 / CORE</small><strong>確認項目を固定</strong><p>すべての成功signalに安定IDを付け、漏れを禁止します。</p></article><div class="arrow">→</div>
+      <article class="node"><small>2 / OBSERVE</small><strong>Evidenceを集める</strong><p>任意shellではなく、登録済み方法か人間確認を使います。</p></article><div class="arrow">→</div>
+      <article class="node human"><small>3 / WAIT OR ASK</small><strong>必要ならparked</strong><p>観測時刻前や価値判断待ちは、ST-09のまま安全に停止します。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>4 / EVALUATE</small><strong>事実を比較</strong><p>全項目を評価し、完了または人間判断へ進みます。</p></article>
+    </div>
+    <div class="note">Core自身が長時間sleepしません。`not_before`と期限をStateへ保存し、Evidenceが揃った後の`next`で同じ位置から再開します。</div>
+  </section>
+
+  <section>
+    <h2>全体評価は4種類です。</h2>
+    <div class="states">
+      <article class="state green"><b>ACHIEVED</b><span>必要な成功条件がすべてEvidence付きで満たされています。</span></article>
+      <article class="state amber"><b>PARTIALLY ACHIEVED</b><span>一部は達成しましたが、未達項目があります。</span></article>
+      <article class="state red"><b>NOT ACHIEVED</b><span>必須条件を満たしていない、またはrollback結果です。</span></article>
+      <article class="state purple"><b>INCONCLUSIVE</b><span>Evidence不足、観測期限未到来、外部状態不明です。</span></article>
+    </div>
+    <div class="note good">全必須条件がCore検証済みEvidenceで合格した場合は、追加承認なしでcompletedにできます。それ以外は、人間が終了、観測継続、Follow-up準備を決めます。</div>
+  </section>
+
+  <section>
+    <h2>人間が決めるのは、価値判断だけです。</h2>
+    <div class="decision"><code>continue-observation</code><p>まだ判断せず、期限と必要Evidenceを固定してST-09に留まります。</p></div>
+    <div class="decision"><code>complete-with-outcome</code><p>部分達成、未達、不明をそのまま受け入れ、理由付きでIntentを閉じます。</p></div>
+    <div class="decision"><code>complete-and-draft-follow-up</code><p>現在のIntentを閉じ、次のDesign Brief案を作ります。新Intentの作成は別の明示操作です。</p></div>
+    <div class="note warn">ST-09からST-03やST-06へ戻るedgeは追加しません。Release後に見つかった改善は、新しいIntentとして始めます。</div>
+  </section>
+
+  <section>
+    <h2>Stageの3方式。</h2>
+    <div class="cards">
+      <article class="card blue"><b>EXECUTE</b><h3>新しく結果を評価</h3><p>通常はこちらです。Work Request、Evidence、Evaluation、Currentを作ります。</p></article>
+      <article class="card purple"><b>REUSE</b><h3>同じ評価を厳格に再利用</h3><p>成功条件、Release Current、Policy、Evidence、鮮度が完全一致する場合だけです。</p></article>
+      <article class="card red"><b>NOT APPLICABLE</b><h3>採用しません</h3><p>Intentには必ず終了結果が必要です。ReleaseなしでもOutcomeは記録します。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Stateと保存場所。</h2>
+    <div class="filebox">
+      <code>artifacts/outcome/outcome-work-request.json</code>
+      <code>artifacts/outcome/evidence/&lt;evidence-id&gt;.json</code>
+      <code>artifacts/outcome/revisions/000001/outcome-evaluation.json</code>
+      <code>artifacts/outcome/revisions/000001/outcome-evaluation.html</code>
+      <code>artifacts/outcome/review/human-decision.json</code>
+      <code>artifacts/outcome/follow-up-brief.json</code>
+      <code>artifacts/outcome/current.json</code>
+    </div>
+    <div class="flow" role="img" aria-label="ST-09 parkedから観測と人間判断を経てcompletedになる図">
+      <article class="node"><small>ST-09</small><strong>observing</strong><p>Evidence待ちです。</p></article><div class="arrow">→</div>
+      <article class="node human"><small>ST-09</small><strong>awaiting decision</strong><p>価値判断待ちです。</p></article><div class="arrow">→</div>
+      <article class="node core"><small>ST-09</small><strong>finalized</strong><p>Outcome Currentを固定します。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>TERMINAL</small><strong>Intent completed</strong><p>次のStageはありません。</p></article>
+    </div>
+    <div class="note">標準成果物として最終Outcome HTMLを生成します。人間が結果を読むためのものです。JSONが正本で、HTMLは固定JSONから再生成します。</div>
+  </section>
+
+  <section>
+    <h2>TDDで確認すること。</h2>
+    <div class="checks">
+      <article class="check"><span>TRACEABILITY</span><strong>成功条件を全件評価</strong><p>一つでも未評価なら完了できません。</p></article>
+      <article class="check"><span>RELEASE BRANCH</span><strong>3結果を区別</strong><p>released、rolled_back、not_applicableを混ぜません。</p></article>
+      <article class="check"><span>FRESHNESS</span><strong>古いEvidenceを拒否</strong><p>Policy期限外やhash不一致で停止します。</p></article>
+      <article class="check"><span>HUMAN</span><strong>AI判断を拒否</strong><p>部分達成などの終了判断は人間だけです。</p></article>
+      <article class="check"><span>TERMINAL</span><strong>自由な戻り先なし</strong><p>完了後はState completed。改善は新Intentです。</p></article>
+      <article class="check"><span>RESUME</span><strong>観測待ちから再開</strong><p>中断後も同じEvidence待ちへ戻ります。</p></article>
+      <article class="check"><span>TAMPER</span><strong>Doctor fail closed</strong><p>Evaluation、Decision、Currentの改ざんを検知します。</p></article>
+      <article class="check"><span>HTML</span><strong>安全な人間表示</strong><p>JSONからescape済みHTMLを再生成します。</p></article>
+      <article class="check"><span>NAME</span><strong>Outcome Evaluation</strong><p>残っている「Operate」表示を正式名称へ直します。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>実装前に確認いただきたい設計判断。</h2>
+    <div class="questions">
+      <article class="question"><h3>1. ST-09は必ず結果を残す</h3><p>Releaseなしでもnot_applicableにはせず、Outcomeを評価します。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>2. 全件合格は自動完了できる</h3><p>人間が事前に決めた条件をCore Evidenceですべて満たす場合です。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>3. 未達・不明は人間へ戻す</h3><p>終了、観測継続、Follow-up準備を人間が決めます。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>4. 改善は新Intentにする</h3><p>ST-09から既存Stageへ戻る新しいedgeは作りません。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>5. 長時間sleepしない</h3><p>観測時刻と期限を保存してparkedし、後から再開します。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>6. 最終HTMLは標準生成する</h3><p>人間が結果を理解するため、JSON正本から短いHTMLを作ります。</p><p class="choice">提案：はい。</p></article>
+    </div>
+  </section>
+
+  <section class="not-now">
+    <h2>今回まだ作らないもの。</h2>
+    <p>監視サービスそのもの、Analytics基盤、Cloud Provider専用Adapter、永続的な常駐monitor、自動での新Intent作成、組織Memoryへの自動学習反映は含めません。ST-09 Coreは、登録済みEvidenceを評価して現在のIntentを安全に閉じるところまでを実装します。</p>
+  </section>
+  <footer>AI-DLC vNext / M5 / ST-09 Outcome Evaluation implementation plan / 2026-08-25</footer>
+</main></body>
+</html>

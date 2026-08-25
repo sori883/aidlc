@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "stage_id": "ST-03",
+  "name": "Requirements & Constraints",
+  "purpose": "Turn the bounded Intent Definition and pinned current facts into traceable, testable requirements and constraints without choosing architecture, build planning, implementation, or routes.",
+  "inputs": [
+    { "artifact": "intent-definition", "required": true },
+    { "artifact": "current-context", "required": true },
+    { "artifact": "effective-policy", "required": true },
+    { "artifact": "requirements-definition", "required": false }
+  ],
+  "outputs": ["requirements-definition"],
+  "completion_criteria": [
+    "The Requirements Definition contains at least one functional requirement, quality requirement, constraint, or invariant with a unique stable ID and pinned source references.",
+    "Every expected outcome and success signal in the Intent Definition is covered by at least one non-question requirement item.",
+    "All source JSON Pointers resolve inside the pinned Intent Definition, Current Context, or Effective Policy, and no blocking open question remains.",
+    "Core writes a new immutable Requirements revision, updates the Intent-local current pointer, records its SHA-256, and advances only through the fixed ST-03 to ST-04 Graph edge."
+  ],
+  "stop_conditions": [
+    "An input, Work Request, base revision, source reference, Plan, Core State, or existing immutable revision is missing, malformed, tampered, stale, or inconsistent.",
+    "A stable ID is duplicated, required Intent coverage is absent, a source pointer is dangling, or a later-Stage field or secret-bearing field is proposed.",
+    "A blocking question, value judgment, requirement conflict, policy exception, priority choice, or risk acceptance remains unresolved.",
+    "Core cannot acquire the Workspace lock or persist canonical revision JSON, current pointer, Audit, and State records."
+  ],
+  "human_decisions": ["value_judgment", "exception"],
+  "verifiers": ["requirements-definition-validator"]
+}

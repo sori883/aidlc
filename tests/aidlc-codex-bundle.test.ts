@@ -63,12 +63,24 @@ test("writes a vNext-only Codex bundle", () => {
     ".codex/tools/aidlc-vnext-define-intent.ts",
     ".codex/tools/aidlc-vnext-orient-contract.ts",
     ".codex/tools/aidlc-vnext-orient.ts",
+    ".codex/tools/aidlc-vnext-requirements-contract.ts",
+    ".codex/tools/aidlc-vnext-requirements.ts",
+    ".codex/tools/aidlc-vnext-architecture-contract.ts",
+    ".codex/tools/aidlc-vnext-architecture.ts",
+    ".codex/tools/aidlc-vnext-build-contract-contract.ts",
+    ".codex/tools/aidlc-vnext-build-contract.ts",
+    ".codex/tools/aidlc-vnext-outcome-contract.ts",
+    ".codex/tools/aidlc-vnext-outcome.ts",
     ".codex/tools/aidlc-vnext-state.ts",
     ".codex/aidlc-common/data/vnext-stage-catalog.json",
     ".codex/aidlc-common/data/vnext-stage-graph.json",
     ".codex/aidlc-common/stages/st-00-bootstrap.json",
     ".codex/aidlc-common/stages/st-01-orient.json",
     ".codex/aidlc-common/stages/st-02-define-intent.json",
+    ".codex/aidlc-common/stages/st-03-requirements-constraints.json",
+    ".codex/aidlc-common/stages/st-04-architecture-decision.json",
+    ".codex/aidlc-common/stages/st-05-build-contract.json",
+    ".codex/aidlc-common/stages/st-09-outcome-evaluation.json",
     ".agents/skills/aidlc/SKILL.md",
   ]) assert.equal(existsSync(join(outDir, path)), true, path);
 
@@ -87,6 +99,14 @@ test("writes a vNext-only Codex bundle", () => {
   assert.match(
     readFileSync(join(outDir, ".agents/skills/aidlc/SKILL.md"), "utf8"),
     /never chooses the next Stage itself/,
+  );
+  assert.match(
+    readFileSync(join(outDir, ".agents/skills/aidlc/SKILL.md"), "utf8"),
+    /aidlc next \.\./,
+  );
+  assert.doesNotMatch(
+    readFileSync(join(outDir, ".agents/skills/aidlc/SKILL.md"), "utf8"),
+    /aidlc next \.`/,
   );
 });
 

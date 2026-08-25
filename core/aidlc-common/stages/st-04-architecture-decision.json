@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "stage_id": "ST-04",
+  "name": "Architecture Decision",
+  "purpose": "Determine whether the accepted system structure must change, reuse an approved existing decision when appropriate, or prove that no architecture decision is applicable, without producing detailed build design, implementation instructions, or routes.",
+  "inputs": [
+    { "artifact": "requirements-definition", "required": true },
+    { "artifact": "requirements-current", "required": true },
+    { "artifact": "current-context", "required": true },
+    { "artifact": "system-map", "required": true },
+    { "artifact": "effective-policy", "required": true },
+    { "artifact": "architecture-decision", "required": false },
+    { "artifact": "human-decision", "required": false }
+  ],
+  "outputs": ["architecture-current", "architecture-decision"],
+  "completion_criteria": [
+    "Every requirement ID is assessed exactly once for architecture impact against the pinned Current Context and System Map.",
+    "Execute writes a new immutable Architecture Decision revision whose decisions cover every impacted requirement and keep planned changes separate from the current System Map.",
+    "Reuse pins an existing canonical Architecture Decision and a human approval bound to the current Intent and Requirements without writing a new decision revision.",
+    "Not applicable is accepted only when Core deterministically verifies complete requirement coverage, zero architecture-impact assessments, valid current entity references, and pinned Requirements and System Map Evidence.",
+    "Core records the selected disposition in Architecture Current and the Stage Execution Plan, then advances only through the fixed ST-04 to ST-05 Graph edge."
+  ],
+  "stop_conditions": [
+    "An input, Work Request, base revision, Artifact Reference, Plan, Core State, or existing immutable revision is missing, malformed, tampered, stale, or inconsistent.",
+    "Requirement coverage is incomplete or duplicated, an entity reference is dangling, impacted requirements lack a decision, or current and planned topology are mixed.",
+    "Reuse lacks a human approval bound to the exact Architecture Decision, current Intent, and current Requirements.",
+    "A provider, cost, data migration, destructive change, security exception, compliance exception, requirement conflict, or hard-to-reverse choice remains unresolved.",
+    "Core cannot acquire the Workspace lock or persist canonical JSON, Plan, Audit, and State records."
+  ],
+  "human_decisions": ["value_judgment", "exception", "approval"],
+  "verifiers": ["architecture-assessment-validator", "architecture-reference-validator"]
+}

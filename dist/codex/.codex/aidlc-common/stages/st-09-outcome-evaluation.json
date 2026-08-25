@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "stage_id": "ST-09",
+  "name": "Outcome Evaluation",
+  "purpose": "Compare every fixed success signal with verified post-ST-08 Evidence, preserve an honest Outcome, and complete the Intent without inventing a backward route.",
+  "inputs": [
+    { "artifact": "intent-definition", "required": true },
+    { "artifact": "requirements-definition", "required": true },
+    { "artifact": "review-manifest", "required": false },
+    { "artifact": "release-current", "required": true },
+    { "artifact": "effective-policy", "required": true }
+  ],
+  "outputs": [
+    "outcome-work-request",
+    "outcome-evidence",
+    "outcome-evaluation",
+    "outcome-html",
+    "outcome-human-decision",
+    "outcome-current",
+    "follow-up-brief"
+  ],
+  "completion_criteria": [
+    "Core fixes every expected outcome, success signal, Requirement, and available approved acceptance criterion into the Outcome Work Request with a stable ID.",
+    "Every required signal has exactly one result and one or more verified Evidence references; unknown fields, arbitrary commands, secrets, and unbound Evidence are rejected.",
+    "A released, rolled_back, or not_applicable Release Current is evaluated without conflating the three outcomes; rolled_back is never automatically called achieved.",
+    "Core may auto-complete only when every required signal is achieved and all Evidence references pass integrity validation.",
+    "A human decides whether partial, failed, or inconclusive results continue observation, complete honestly, or complete with a Follow-up Brief draft.",
+    "The not_applicable disposition is rejected because every Intent must retain an Outcome and closure reason.",
+    "Core writes canonical Outcome Current and derived escaped HTML, records the terminal audit event, and changes State to completed without adding a backward Graph edge."
+  ],
+  "stop_conditions": [
+    "A promised signal, pinned input, Effective Policy, Release Current, Evidence reference, observation timestamp, Evaluation, or human decision is missing, malformed, stale, tampered, or inconsistent.",
+    "The observation window has not opened, its deadline has expired without an explicit human decision, or an Evidence source is outside the Project boundary.",
+    "An AI proposal contains a Stage transition, arbitrary shell command, secret value, human decision, Follow-up Intent creation, or an unregistered observation operation.",
+    "A rolled_back Release is proposed as achieved, or a partial, failed, or inconclusive Outcome is completed without an exact human decision."
+  ],
+  "human_decisions": ["value_judgment"],
+  "verifiers": [
+    "outcome-schema-validator",
+    "signal-coverage-validator",
+    "outcome-evidence-validator",
+    "observation-window-validator",
+    "release-outcome-binding-validator",
+    "outcome-human-authority-validator",
+    "terminal-state-validator",
+    "outcome-html-renderer"
+  ]
+}

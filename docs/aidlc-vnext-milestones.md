@@ -169,8 +169,16 @@ vNextの10 Stage、遷移、Stage disposition、Effective Policyを
 
 - ST-00 Bootstrapは詳細設計、TDD実装、Codex／native配布、Sandbox検証まで完了
 - ST-01 Orientは詳細設計、TDD実装、Codex／native配布、Sandbox検証まで完了
-- ST-02 Define Intentは詳細設計が承認され、TDD実装と配布・回帰検証を実施した
-- 次はST-03 Requirements & Constraintsを詳細設計し、明示的承認後にST-03だけを実装する
+- ST-02 Define Intentは詳細設計、TDD実装、Codex／native配布、Sandbox検証まで完了
+- ST-03 Requirements & Constraintsは詳細設計、TDD実装、Codex／native配布、Sandbox検証まで完了
+- ST-04 Architecture Decisionも詳細設計、TDD実装、Codex／native配布、Sandbox検証まで完了
+- ST-05 Build Contractも詳細設計、TDD実装、Codex／native配布まで完了
+- SandboxではBuild Contract Candidateと人間向けReview HTMLを生成し、実際の人間承認後にPlan revision 3、固定ST-06遷移、Doctor healthyを確認
+- ST-06 Build & Convergeも詳細設計、TDD実装、Codex／native配布まで完了
+- Sandboxでは製造対象なしを決定的に処理し、Plan revision 4、固定ST-07遷移、Doctor healthyを確認
+- ST-07 Human Feedback & Approvalも詳細設計、TDD実装、Codex／native配布まで完了
+- Sandboxでは候補なしを決定的に通過し、Plan revision 5、固定ST-08遷移、Doctor healthyを確認
+- 次はM5のST-09 Outcome Evaluationを詳細設計する
 
 **目的**
 
@@ -198,6 +206,15 @@ vNextの10 Stage、遷移、Stage disposition、Effective Policyを
 - ST-05完了後に、AIが自走可能な合格条件と停止条件が存在する
 
 ### M4: Build & Convergeと3重ループ（ST-06）
+
+**進捗（2026-08-24）**
+
+- 実装前設計HTMLをレビューし、1 Boltずつ、Boltごとの通常Gateなし、executeはGit必須、同一失敗3回停止を承認済み
+- ST-05 Review HTMLへ対象path、Verifier argv／cwd／timeout／終了条件を追加
+- Coreのready Bolt選択、Intent専用Git worktree、対象外diff拒否、command／artifact／localhost runtime Verifierを実装
+- Attempt Checkpoint、Verifier Evidence、失敗signature、retry、3回停止、複数Repository統合、Runnable Candidateを実装
+- `execute`、厳格互換確認付き`reuse`、決定的`not_applicable`を実装
+- State／Doctor／Audit／固定ST-07遷移、CLI、Codex／native配布を接続
 
 **目的**
 
@@ -232,6 +249,29 @@ AIがBolt単位で実装、テスト、実行、仕様比較、修正を反復�
 
 ### M5: Feedback、Approval、Release、Outcome（ST-07〜ST-09）
 
+**進捗（2026-08-25）**
+
+- ST-07 Human Feedback & Approvalの詳細設計とTDD実装が完了
+- Review Manifest／HTML、人間Approval、4種類の固定Feedback経路、Accepted Candidate、
+  承認後のSystem Map昇格を実装
+- `candidate_defect`からST-06の新しい製造cycleへ戻り、修正版を別のST-07 Reviewで
+  再確認できることを検証
+- ST-08 Releaseの詳細設計とTDD実装が完了
+- Capability Snapshot、Work Request、Release Plan／HTML、人間Release Authority、
+  Step Receipt、Release Receipt、Release Current、JSON-only Deployment Mapを実装
+- 初期CapabilityとしてGit Source昇格を実装し、承認後drift停止、複数Repository途中失敗時の
+  逆順rollback、Receipt改ざん時のDoctor fail closedを検証
+- `reuse`はCandidate source revisions、Policy digest、Plan、Authority、Receipt、Deployment Map、
+  live Targetの完全一致時だけ採用するよう実装
+- Sandboxでは候補なしを決定的に通過し、Plan revision 6、固定ST-09遷移、Doctor healthyを確認
+- ST-09 Outcome Evaluationの詳細設計とTDD実装が完了
+- Outcome Work Request、Evidence、4値Evaluation、人間向けHTML、Human Decision、
+  Follow-up Brief、Outcome Current、terminal completed／doneを実装
+- 全件達成だけの自動完了、未達時の三択人間判断、観測時刻までのpark／resume、
+  Evaluation改ざん時のDoctor fail closedを検証
+- SandboxでST-09 Work Request revision 1を生成し、Doctor healthyを確認
+- `bun run release:check`は33ファイル193 test成功。Codex bundleと`dist/project`は同期済み
+
 **目的**
 
 人間が実物を評価し、Feedbackを適切なStageへ戻し、承認された成果物だけを
@@ -264,6 +304,9 @@ Accepted BaselineとしてReleaseとOutcomeへ接続する。
 
 ### M6: Codex HarnessとEnd-to-End
 
+**状態: 2026-08-25 全体計画を承認済み。Policy／Risk／Human Gateの詳細設計
+`docs/aidlc-vnext-m6-policy-gates-plan.html`のレビュー待ち。**
+
 **目的**
 
 CodexからvNextを開始、再開、実行、Feedback、承認できる利用体験を完成させる。
@@ -275,6 +318,10 @@ CodexからvNextを開始、再開、実行、Feedback、承認できる利用�
 - Codex HookとSensor receiptの互換性を検証する
 - Installer、Bundle、native binaryへvNext資産を含める
 - 小さな文字変更、依存関係を持つ機能追加、仮説検証、外部ReleaseのE2Eを追加する
+- Effective PolicyとIntent固有リスクは固定Gateを弱めない追加制約として扱い、
+  AIによるMemory Markdownの自由解釈ではなくCoreが検証できる規則にする
+- 中断、再開、Feedback差戻し、外部drift、rollback、改ざんをE2Eで検証する
+- 初心者向けDirective表示、利用手順、性能計測、配布前Quality Gateを固定する
 
 **成果物**
 
@@ -325,7 +372,9 @@ M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7
 - M1は全Stageの共通ContractとCore権限の土台となるため、後続実装より先に完了する
 - M3とM4はArtifact contractを介して接続するため、ST-05の出力を先に固定する
 - M5のBaseline promotionはM4のCheckpoint contractに依存する
-- M6はCoreの意味を変更せず、M2〜M5のDirectiveをCodexへ写像する
+- M6は固定10 Stageと遷移の意味を変更せず、M2〜M5のDirectiveをCodexへ写像する。
+  ただしM2で未接続だったPolicy／IntentリスクのHuman Gate追加制約は、
+  Coreが検証できる小さなContractとして完成させる
 - M7でv2 Workflow資産を削除し、vNextだけを配布する
 
 ## 6. 横断的な品質条件
@@ -352,9 +401,10 @@ M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7
 
 ## 8. 次に着手する作業
 
-M3のST-03として、次の順に進める。
+M6として、次の順に進める。
 
-1. ST-02のIntent Definitionと固定済み入力参照を確認する
-2. 機能要求、非機能要求、制約、未確定事項の責務境界を詳細設計する
-3. 初心者向けHTMLでST-03の処理と非対象をレビュー可能にする
-4. 明示的承認後にST-03だけをTDD実装する
+1. 固定10 Stage全体の代表E2Eと失敗・再開シナリオを選ぶ
+2. 初心者向けDirective／HTML／操作手順のUXを確認する
+3. 複数Repositoryと大規模Repositoryで計測する性能指標を決める
+4. Release候補へ要求する品質Gateと残課題を初心者向けHTMLでレビュー可能にする
+5. 明示的承認後にM6の試験・改善だけをTDDで実装する

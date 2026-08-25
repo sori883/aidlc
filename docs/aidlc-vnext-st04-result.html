@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-DLC vNext｜ST-04 Architecture Decision 実装結果</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033; --muted: #617087; --line: #dce4ef; --soft: #f5f8fc;
+      --blue: #2563eb; --blue-soft: #eaf1ff; --green: #147a55;
+      --green-soft: #e5f7ee; --amber-soft: #fff4d8; --purple-soft: #f1ebff;
+      --red-soft: #fff0ee; --shadow: 0 18px 46px rgba(30, 48, 78, .09);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; color: var(--ink);
+      background: linear-gradient(180deg, #eef5ff 0, #f8fafc 430px, #f8fafc 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+      line-height: 1.72;
+    }
+    main { width: min(1080px, calc(100% - 32px)); margin: auto; padding: 40px 0 74px; }
+    header, section {
+      margin-bottom: 24px; padding: clamp(22px, 4vw, 42px); border: 1px solid var(--line);
+      border-radius: 24px; background: rgba(255, 255, 255, .98); box-shadow: var(--shadow);
+    }
+    .eyebrow { margin: 0 0 8px; color: var(--blue); font-size: 13px; font-weight: 900; letter-spacing: .12em; }
+    h1 { margin: 0; font-size: clamp(31px, 5vw, 54px); line-height: 1.18; letter-spacing: -.03em; }
+    h2 { margin: 0 0 8px; font-size: clamp(23px, 3vw, 34px); line-height: 1.35; }
+    h3 { margin: 0 0 6px; font-size: 18px; }
+    p { margin: 0; }
+    .lead { max-width: 850px; margin-top: 17px; color: var(--muted); font-size: 18px; }
+    .intro { margin-bottom: 18px; color: var(--muted); }
+    .metrics, .choices, .checks { display: grid; gap: 12px; margin-top: 22px; }
+    .metrics { grid-template-columns: repeat(4, 1fr); }
+    .choices, .checks { grid-template-columns: repeat(3, 1fr); }
+    .metric { padding: 18px; border-radius: 16px; background: var(--soft); }
+    .metric span { display: block; color: var(--muted); font-size: 12px; font-weight: 800; }
+    .metric strong { display: block; margin-top: 4px; font-size: 20px; }
+    .success { color: var(--green); }
+    .flow {
+      display: grid; grid-template-columns: 1fr 36px 1fr 36px 1fr 36px 1fr;
+      align-items: stretch; gap: 8px; margin-top: 20px;
+    }
+    .node { padding: 18px; border: 1px solid var(--line); border-radius: 17px; background: var(--soft); }
+    .node small { color: var(--blue); font-weight: 900; }
+    .node strong { display: block; margin: 9px 0 4px; font-size: 17px; }
+    .node p { color: var(--muted); font-size: 13px; }
+    .node.ai { background: var(--amber-soft); border-color: #edd18d; }
+    .node.core { background: var(--green-soft); border-color: #b7dfcc; }
+    .node.next { color: white; background: var(--blue); border-color: var(--blue); }
+    .node.next small, .node.next p { color: #dce8ff; }
+    .arrow { display: grid; place-items: center; color: var(--blue); font-size: 24px; font-weight: 900; }
+    .choice { padding: 22px; border-radius: 18px; border: 1px solid var(--line); }
+    .choice.execute { background: var(--blue-soft); border-color: #bdd1ff; }
+    .choice.reuse { background: var(--purple-soft); border-color: #d4c5f0; }
+    .choice.na { background: var(--green-soft); border-color: #b7dfcc; }
+    .choice b { display: inline-block; margin-bottom: 10px; padding: 3px 10px; border-radius: 999px; background: white; font-size: 12px; }
+    .choice p { color: var(--muted); font-size: 14px; }
+    .choice strong { display: block; margin-top: 11px; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+    .panel { padding: 21px; border-radius: 18px; }
+    .panel.ai { background: var(--amber-soft); border: 1px solid #edd18d; }
+    .panel.core { background: var(--green-soft); border: 1px solid #b7dfcc; }
+    .panel.stop { background: var(--red-soft); border: 1px solid #efc4bd; }
+    .panel.map { background: var(--blue-soft); border: 1px solid #bdd1ff; }
+    ul { margin: 9px 0 0; padding-left: 20px; color: var(--muted); }
+    .filebox { margin-top: 18px; padding: 20px; border-radius: 16px; background: #172033; color: #edf3ff; }
+    .filebox code { display: block; overflow-wrap: anywhere; color: #bcd1ff; }
+    .note { margin-top: 15px; padding: 16px 18px; border-left: 5px solid var(--blue); border-radius: 12px; background: var(--blue-soft); }
+    .check { padding: 19px; border: 1px solid #b7dfcc; border-radius: 17px; background: var(--green-soft); }
+    .check span { color: var(--green); font-size: 12px; font-weight: 900; }
+    .check strong { display: block; margin-top: 5px; }
+    .check p { margin-top: 4px; color: var(--muted); font-size: 14px; }
+    .next-step { color: white; background: linear-gradient(135deg, #17315c, #285eae); }
+    .next-step p { color: #dce8ff; }
+    .next-step .flow { grid-template-columns: 1fr 40px 1fr; }
+    .next-step .node { color: var(--ink); background: white; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    footer { text-align: center; color: var(--muted); font-size: 13px; }
+    @media (max-width: 900px) {
+      .metrics, .choices, .checks { grid-template-columns: repeat(2, 1fr); }
+      .flow { grid-template-columns: 1fr; }
+      .arrow { min-height: 22px; transform: rotate(90deg); }
+    }
+    @media (max-width: 650px) {
+      main { width: min(100% - 18px, 1080px); padding-top: 18px; }
+      header, section { border-radius: 18px; }
+      .metrics, .choices, .split, .checks { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M3 / ST-04 RESULT</p>
+    <h1>「構成を決める必要があるか」を、安全に判断できます。</h1>
+    <p class="lead">ST-04 Architecture Decisionを実装しました。AIは3つの処理方法を提案できます。決定、保存、次のStageはCoreだけが行います。</p>
+    <div class="metrics">
+      <div class="metric"><span>実装Stage</span><strong>ST-04だけ</strong></div>
+      <div class="metric"><span>全体試験</span><strong class="success">145 / 145</strong></div>
+      <div class="metric"><span>支給プロジェクト</span><strong class="success">Doctor healthy</strong></div>
+      <div class="metric"><span>次の固定Stage</span><strong>ST-05</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>実際の流れは、4手です。</h2>
+    <div class="flow" role="img" aria-label="Coreが入力を固定しAIが構成影響を提案しCoreが検査保存してST-05へ進む流れ">
+      <article class="node core"><small>1 / CORE</small><strong>入力を固定</strong><p>Requirements、現在像、PolicyのpathとSHA-256を固定します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node ai"><small>2 / AI</small><strong>影響を提案</strong><p>全Requirementを確認し、3つの処理方法から1つを提案します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node core"><small>3 / CORE</small><strong>根拠を検査</strong><p>抜け、参照、承認、改ざんを検査し、Planと成果物を保存します。</p></article>
+      <div class="arrow">→</div>
+      <article class="node next"><small>4 / FIXED GRAPH</small><strong>ST-05へ進む</strong><p>どの処理方法でも行き先は同じです。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>3つの処理方法を実装しました。</h2>
+    <p class="intro">どれを選んでもST-04自体は通ります。違うのは、Architecture Decisionの扱いです。</p>
+    <div class="choices">
+      <article class="choice execute"><b>execute</b><h3>新しく決める</h3><p>構成変更が必要な場合です。</p><strong>新しい不変Revisionを作成</strong></article>
+      <article class="choice reuse"><b>reuse</b><h3>既存判断を使う</h3><p>承認済み判断がそのまま使える場合です。</p><strong>人間承認と既存SHA-256を固定</strong></article>
+      <article class="choice na"><b>not_applicable</b><h3>構成判断は不要</h3><p>表示文言変更など、現在構成の内部だけで完了する場合です。</p><strong>全Requirementの無影響を記録</strong></article>
+    </div>
+    <div class="note"><code>not_applicable</code>はAIの自由なスキップではありません。全Requirementが無影響で、現在のSystem Mapに参照切れがなく、RequirementsとSystem MapのEvidenceが一致した場合だけCoreが認めます。</div>
+  </section>
+
+  <section>
+    <h2>現在像と将来案を分けました。</h2>
+    <div class="split">
+      <article class="panel map"><h3>System Map</h3><ul><li>今、承認されている構成</li><li>ST-04では変更しない</li><li>現在entityだけを根拠として参照</li></ul></article>
+      <article class="panel ai"><h3>Architecture Decision</h3><ul><li>これから採用する構成判断</li><li>変更案はplanned_changesへ保存</li><li>API項目やDB schemaまでは決めない</li></ul></article>
+    </div>
+    <div class="note">ST-04の未実装案が「現在のSystem Map」へ混ざることはありません。</div>
+  </section>
+
+  <section>
+    <h2>AIとCoreの権限を分けました。</h2>
+    <div class="split">
+      <article class="panel ai"><h3>AIができること</h3><ul><li>全Requirementの構成影響を提案する</li><li>判断案、代案、影響、戻しやすさを提案する</li><li>人間判断が必要なら止めて聞く</li></ul></article>
+      <article class="panel core"><h3>Coreだけができること</h3><ul><li>入力とWork Requestを固定する</li><li>3方式の条件を検査する</li><li>Plan、JSON、Audit、Stateを保存する</li><li>固定GraphでST-05へ進める</li></ul></article>
+      <article class="panel stop"><h3>Coreが拒否するもの</h3><ul><li>Requirementの確認漏れ</li><li>存在しない現在entity</li><li>承認のないreuse</li><li>秘密情報、Route、後続Stageの詳細</li></ul></article>
+      <article class="panel map"><h3>人間へ確認するもの</h3><ul><li>Provider、費用、価値判断</li><li>移行、削除、破壊的変更</li><li>Security・Compliance例外</li><li>Requirement矛盾、戻しにくい判断</li></ul></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>保存する正本は、JSONだけです。</h2>
+    <div class="filebox">
+      <code>artifacts/architecture/architecture-work-request.json</code>
+      <code>artifacts/architecture/current.json</code>
+      <code>artifacts/architecture/revisions/000001/architecture-decision.json  ← executeだけ</code>
+    </div>
+    <div class="note"><code>reuse</code>は既存Decisionを参照します。<code>not_applicable</code>はDecision本体を作りません。HTMLは標準生成せず、人間から指示されたときだけ作ります。</div>
+  </section>
+
+  <section>
+    <h2>TDDと支給プロジェクトで確認しました。</h2>
+    <div class="checks">
+      <article class="check"><span>RED → GREEN</span><strong>ST-04専用 9件</strong><p>3方式、厳格schema、固定遷移、改ざん検出、中断再開を確認しました。</p></article>
+      <article class="check"><span>REGRESSION</span><strong>全体 145件</strong><p>28 testファイルが成功しました。失敗は0件です。</p></article>
+      <article class="check"><span>SANDBOX</span><strong>ST-05 parked</strong><p>not_applicableをCoreが検証し、Plan revision 2、Doctor healthyを確認しました。</p></article>
+    </div>
+  </section>
+
+  <section class="next-step">
+    <h2>次は、ST-05の設計です。</h2>
+    <p>ST-04は「構成を決める必要があるか」を固定しました。ST-05では、実装に渡す詳細契約とBoltの単位を決めます。実装前に初心者向けHTMLで説明します。</p>
+    <div class="flow" role="img" aria-label="ST-04 Architecture CurrentをST-05 Build Contractへ渡す図">
+      <article class="node"><small>完了</small><strong>ST-04 Architecture Current</strong><p>新規判断、既存再利用、または構成判断不要。</p></article>
+      <div class="arrow">→</div>
+      <article class="node"><small>次の設計</small><strong>ST-05 Build Contract</strong><p>受入条件、詳細設計、Boltの実行単位。</p></article>
+    </div>
+  </section>
+
+  <footer>AI-DLC vNext / M3 / ST-04 Architecture Decision result / 2026-08-24</footer>
+</main>
+</body>
+</html>

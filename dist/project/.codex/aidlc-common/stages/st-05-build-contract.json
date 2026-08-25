@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "stage_id": "ST-05",
+  "name": "Build Contract",
+  "purpose": "Turn pinned Requirements, Architecture, Current Context, System Map, and Effective Policy into a human-approved implementation contract and dependency-safe Bolt DAG without creating or executing implementation or test code.",
+  "inputs": [
+    { "artifact": "requirements-definition", "required": true },
+    { "artifact": "requirements-current", "required": true },
+    { "artifact": "architecture-current", "required": true },
+    { "artifact": "architecture-decision", "required": false },
+    { "artifact": "current-context", "required": true },
+    { "artifact": "system-map", "required": true },
+    { "artifact": "effective-policy", "required": true },
+    { "artifact": "build-contract", "required": false },
+    { "artifact": "human-decision", "required": false }
+  ],
+  "outputs": [
+    "build-contract-candidate",
+    "build-contract-review",
+    "human-decision",
+    "build-contract-current",
+    "build-contract"
+  ],
+  "completion_criteria": [
+    "Every pinned requirement is assessed exactly once for build impact.",
+    "Every impacted requirement is covered by a change contract, every constraint or invariant has an acceptance criterion, every acceptance criterion has a verifier, and every change contract belongs to exactly one Bolt.",
+    "Core validates Bolt references, acyclicity, cross-Bolt dependencies, parallel target conflicts, repository boundaries, exact verifier argv/cwd/timeout/machine assertions, and policy constraints, then derives execution batches from the DAG.",
+    "Core creates an escaped static HTML review that shows exact targets and verifier execution details from the canonical candidate, then waits for one human approval bound to its SHA-256.",
+    "Execute creates a new immutable Build Contract revision, reuse pins an exact compatible approved revision, and not applicable is accepted only when all requirements have build_impact=false.",
+    "After approval Core records Current, Plan, Audit, and State and advances only through the fixed ST-05 to ST-06 Graph edge."
+  ],
+  "stop_conditions": [
+    "A pinned input, Work Request, candidate, approval, current pointer, Plan, Core State, or immutable revision is missing, malformed, tampered, stale, or inconsistent.",
+    "Requirement traceability has a gap, orphan, duplicate, dangling reference, or an unapproved machine-verification exception.",
+    "The Bolt graph has a cycle, dangling dependency, missing contract dependency, or parallel target-path conflict.",
+    "A command verifier is a shell string, has unsafe argv or cwd, crosses its repository boundary, contains credentials, or would be executed during ST-05.",
+    "The human requests revision, the candidate SHA-256 differs from the pending review, or Core cannot persist the approval atomically."
+  ],
+  "human_decisions": ["approval", "exception"],
+  "verifiers": [
+    "build-contract-schema-validator",
+    "requirement-trace-validator",
+    "bolt-dag-validator",
+    "build-contract-approval-validator"
+  ]
+}

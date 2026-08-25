@@ -80,7 +80,48 @@ function rewriteCommands(
     .replaceAll(`${command} intent switch ..`, `${command} intent switch .`)
     .replaceAll(`${command} space list ..`, `${command} space list .`)
     .replaceAll(`${command} space switch ..`, `${command} space switch .`)
-    .replaceAll(`${command} state resume ..`, `${command} state resume .`);
+    .replaceAll(`${command} state resume ..`, `${command} state resume .`)
+    .replaceAll(`${command} next ..`, `${command} next .`)
+    .replaceAll(`${command} orient complete ..`, `${command} orient complete .`)
+    .replaceAll(
+      `${command} define-intent complete ..`,
+      `${command} define-intent complete .`,
+    )
+    .replaceAll(
+      `${command} requirements complete ..`,
+      `${command} requirements complete .`,
+    )
+    .replaceAll(
+      `${command} architecture complete ..`,
+      `${command} architecture complete .`,
+    )
+    .replaceAll(
+      `${command} build-contract review ..`,
+      `${command} build-contract review .`,
+    )
+    .replaceAll(
+      `${command} build-contract approve ..`,
+      `${command} build-contract approve .`,
+    )
+    .replaceAll(`${command} build prepare ..`, `${command} build prepare .`)
+    .replaceAll(`${command} build verify ..`, `${command} build verify .`)
+    .replaceAll(`${command} build reuse ..`, `${command} build reuse .`)
+    .replaceAll(`${command} review prepare ..`, `${command} review prepare .`)
+    .replaceAll(`${command} review approve ..`, `${command} review approve .`)
+    .replaceAll(`${command} review feedback ..`, `${command} review feedback .`)
+    .replaceAll(`${command} release prepare ..`, `${command} release prepare .`)
+    .replaceAll(`${command} release review ..`, `${command} release review .`)
+    .replaceAll(`${command} release authorize ..`, `${command} release authorize .`)
+    .replaceAll(`${command} release execute ..`, `${command} release execute .`)
+    .replaceAll(`${command} release reuse ..`, `${command} release reuse .`)
+    .replaceAll(`${command} outcome prepare ..`, `${command} outcome prepare .`)
+    .replaceAll(`${command} outcome evaluate ..`, `${command} outcome evaluate .`)
+    .replaceAll(`${command} outcome decide ..`, `${command} outcome decide .`)
+    .replaceAll(`${command} outcome reuse ..`, `${command} outcome reuse .`)
+    .replaceAll(`${command} plan revise ..`, `${command} plan revise .`)
+    .replaceAll(" ../<proposal.json>", " <proposal.json>")
+    .replaceAll(" ../<proposals.json>", " <proposals.json>")
+    .replaceAll(" ../<runnable-candidate.json>", " <runnable-candidate.json>");
 }
 
 function installedHook(content: string): string {
