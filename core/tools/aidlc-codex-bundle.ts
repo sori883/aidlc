@@ -13,7 +13,6 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { loadCliContracts } from "./aidlc-cli-contract.ts";
 import { CODEX_HARNESS } from "../../harness/codex/aidlc-harness.ts";
 
 export const CODEX_BUNDLE_GENERATOR = "aidlc-codex-bundle";
@@ -165,56 +164,21 @@ export function codexRuntimeToolScripts(
   return scripts;
 }
 
-export function codexProjectCommands(
-  coreDir: string = DEFAULT_CORE_DIR,
-): ReadonlyMap<string, ReadonlySet<string>> {
-  const commands = new Map<string, ReadonlySet<string>>();
-  for (const [tool, contract] of loadCliContracts(
-    join(coreDir, "tools", "contracts"),
-  )) {
-    const projectAware = new Set(
-      Object.entries(contract.commands)
-        .filter(([, command]) => command.flags.includes("--project-dir"))
-        .map(([name]) => name),
-    );
-    if (projectAware.size > 0) commands.set(tool, projectAware);
-  }
-  return commands;
-}
-
 function escapedRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function integratedRoute(tool: string, script: string): string {
-  const worker = tool.match(/^aidlc-sensor-(.+)\.ts$/)?.[1];
-  return worker === undefined
-    ? script
-    : `__sensor-script ${worker}`;
 }
 
 /** Render Harness-neutral Markdown as executable Codex instructions. */
 export function transformCodexMarkdown(
   content: string,
   toolScripts: ReadonlyMap<string, string>,
-  projectCommands: ReadonlyMap<string, ReadonlySet<string>> = new Map(),
 ): string {
   let rendered = content;
   for (const [tool, script] of toolScripts) {
     const toolPath = `{{HARNESS_DIR}}/tools/${tool}`;
-    const route = integratedRoute(tool, script);
-    for (const command of projectCommands.get(tool) ?? []) {
-      rendered = rendered.replace(
-        new RegExp(
-          `bun\\s+${escapedRegex(toolPath)}\\s+${escapedRegex(command)}\\b`,
-          "g",
-        ),
-        `bun run --cwd ${CODEX_RUNTIME_ROOT} aidlc ${route} ${command} --project-dir ..`,
-      );
-    }
     rendered = rendered.replace(
       new RegExp(`bun\\s+${escapedRegex(toolPath)}`, "g"),
-      `bun run --cwd ${CODEX_RUNTIME_ROOT} aidlc ${route}`,
+      `bun run --cwd ${CODEX_RUNTIME_ROOT} aidlc ${script}`,
     );
   }
   return rendered
@@ -263,16 +227,9 @@ export function codexBundleFiles(
     join(harnessDir, "runtime", "package.json"),
   );
   const toolScripts = codexRuntimeToolScripts(runtimePackageSource);
-  const projectCommands = codexProjectCommands(coreDir);
   const transformCore = (path: string, content: string): string => {
     if (path.endsWith(".md")) {
-      return transformCodexMarkdown(content, toolScripts, projectCommands);
-    }
-    if (path === `${CODEX_RUNTIME_ROOT}/tools/aidlc-hook.ts`) {
-      return requireFile(join(harnessDir, "hooks", "aidlc-sensor-fire.ts")).replace(
-        '"../../../core/hooks/aidlc-sensor-fire.ts"',
-        '"../hooks/aidlc-sensor-core.ts"',
-      );
+      return transformCodexMarkdown(content, toolScripts);
     }
     if (path.endsWith(".ts")) {
       return content.replaceAll(
@@ -293,10 +250,6 @@ export function codexBundleFiles(
   files.set(
     `${CODEX_RUNTIME_ROOT}/package.json`,
     runtimePackageSource,
-  );
-  files.set(
-    `${CODEX_RUNTIME_ROOT}/bun.lock`,
-    requireFile(join(harnessDir, "runtime", "bun.lock")),
   );
   for (const tree of CORE_TREES) {
     collectTree(
@@ -320,7 +273,7 @@ export function codexBundleFiles(
     join(harnessDir, "skills", "aidlc"),
     join(CODEX_HARNESS.layout.skillRoot, "aidlc"),
     (path, content) => path.endsWith(".md")
-      ? transformCodexMarkdown(content, toolScripts, projectCommands)
+      ? transformCodexMarkdown(content, toolScripts)
       : content,
   );
   const manifest = manifestFor(files);

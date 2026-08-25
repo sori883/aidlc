@@ -1,9 +1,0 @@
-{
-  "tool": "aidlc-quality-gate.ts",
-  "commands": {
-    "check": {
-      "flags": ["--project-dir", "--manifest", "--actionlint"],
-      "results": []
-    }
-  }
-}

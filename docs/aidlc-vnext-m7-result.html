@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-DLC vNext M7 実装結果</title>
+  <style>
+    :root { color-scheme: light; --ink:#172033; --muted:#5d6778; --line:#dbe3ef; --paper:#fff; --blue:#2559d6; --blue2:#edf3ff; --green:#087f5b; --green2:#eafbf4; --amber:#9a6700; --amber2:#fff7dd; --red:#b42318; --red2:#fff0ee; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#f4f7fb; color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Yu Gothic UI",sans-serif; line-height:1.7; }
+    main { width:min(1040px, calc(100% - 32px)); margin:28px auto 64px; }
+    header, section { background:var(--paper); border:1px solid var(--line); border-radius:22px; box-shadow:0 12px 34px rgba(31,45,70,.07); }
+    header { padding:42px; background:linear-gradient(135deg,#132950,#2559d6); color:#fff; }
+    .eyebrow { margin:0 0 6px; font-weight:800; letter-spacing:.08em; font-size:.82rem; opacity:.8; }
+    h1 { margin:0; font-size:clamp(2rem,6vw,4rem); line-height:1.12; }
+    header p { max-width:720px; margin:18px 0 0; font-size:1.08rem; }
+    .status { display:inline-flex; align-items:center; gap:8px; margin-top:24px; padding:8px 14px; border-radius:999px; background:#fff; color:var(--green); font-weight:800; }
+    .status::before { content:""; width:10px; height:10px; border-radius:50%; background:#20c997; }
+    section { margin-top:18px; padding:30px; }
+    h2 { margin:0 0 8px; font-size:1.45rem; }
+    h3 { margin:0 0 4px; font-size:1rem; }
+    p { margin:6px 0 0; }
+    .lead { color:var(--muted); }
+    .flow { display:grid; grid-template-columns:1fr 48px 1fr; align-items:stretch; gap:12px; margin-top:22px; }
+    .box { padding:20px; border-radius:18px; border:1px solid var(--line); background:#fbfcff; }
+    .box.before { border-color:#f4c7c3; background:var(--red2); }
+    .box.after { border-color:#b9ead9; background:var(--green2); }
+    .arrow { display:grid; place-items:center; color:var(--blue); font-size:2rem; font-weight:900; }
+    ul { margin:10px 0 0; padding-left:1.25rem; }
+    li + li { margin-top:5px; }
+    .diagram { margin-top:20px; padding:18px; border-radius:18px; border:1px solid var(--line); background:#f8faff; overflow-x:auto; }
+    svg { width:100%; min-width:680px; height:auto; display:block; }
+    .cards { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:18px; }
+    .card { border:1px solid var(--line); border-radius:18px; padding:20px; background:#fff; }
+    .number { font-size:2rem; line-height:1; font-weight:900; color:var(--blue); }
+    .label { margin-top:8px; color:var(--muted); font-size:.92rem; }
+    .safe { border-left:6px solid var(--amber); background:var(--amber2); }
+    .not-published { border-left:6px solid var(--blue); background:var(--blue2); }
+    code { padding:.12em .38em; border-radius:6px; background:#edf1f7; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.9em; overflow-wrap:anywhere; }
+    .checklist { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px; }
+    .check { padding:14px 16px; border-radius:14px; background:var(--green2); border:1px solid #b9ead9; font-weight:700; }
+    .check::before { content:"✓"; margin-right:9px; color:var(--green); }
+    footer { padding:24px 4px 0; color:var(--muted); text-align:center; font-size:.9rem; }
+    @media (max-width:700px) {
+      main { width:min(100% - 20px,1040px); margin-top:10px; }
+      header, section { border-radius:16px; }
+      header { padding:28px 22px; }
+      section { padding:22px 18px; }
+      .flow { grid-template-columns:1fr; }
+      .arrow { transform:rotate(90deg); min-height:32px; }
+      .cards, .checklist { grid-template-columns:1fr; }
+      .diagram { margin-left:-8px; margin-right:-8px; padding:12px 8px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">MILESTONE 7 · RELEASE CANDIDATE</p>
+    <h1>vNextだけになりました</h1>
+    <p>固定10 Stageの仕組みはそのままに、使われない旧Workflow資産を取り除き、AI-DLC vNext 1.0.0の公開候補を作りました。</p>
+    <span class="status">実装・検証完了</span>
+  </header>
+
+  <section>
+    <h2>何が変わったのか</h2>
+    <p class="lead">利用者が選ぶWorkflowは一つです。AIもCoreも、vNextの固定10 Stageだけを使います。</p>
+    <div class="flow">
+      <div class="box before">
+        <h3>整理前</h3>
+        <ul>
+          <li>vNextは動く</li>
+          <li>到達不能な旧ツールや旧資料もsourceに残る</li>
+          <li>不要なYAML依存が残る</li>
+        </ul>
+      </div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="box after">
+        <h3>整理後</h3>
+        <ul>
+          <li>固定10 Stageだけを実行</li>
+          <li>vNextで使うCore／Codex／Installerだけを保持</li>
+          <li>version 1.0.0、YAML依存なし</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>残したものと削除したもの</h2>
+    <div class="diagram" role="img" aria-label="vNext専用化の境界図">
+      <svg viewBox="0 0 920 330" xmlns="http://www.w3.org/2000/svg">
+        <defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#2559d6"/></marker></defs>
+        <rect x="24" y="34" width="252" height="254" rx="18" fill="#eafbf4" stroke="#79d9ba"/>
+        <text x="150" y="68" text-anchor="middle" font-size="22" font-weight="800" fill="#087f5b">残した基盤</text>
+        <text x="50" y="110" font-size="17" fill="#172033">固定10 Stage Core</text><text x="50" y="145" font-size="17" fill="#172033">State / Plan / Audit</text><text x="50" y="180" font-size="17" fill="#172033">Workspace / Intent</text><text x="50" y="215" font-size="17" fill="#172033">Codex / Installer</text><text x="50" y="250" font-size="17" fill="#172033">System Map / Policy / Risk</text>
+        <path d="M292 160 H402" stroke="#2559d6" stroke-width="5" marker-end="url(#a)"/>
+        <rect x="420" y="82" width="198" height="156" rx="18" fill="#edf3ff" stroke="#91afea"/>
+        <text x="519" y="125" text-anchor="middle" font-size="24" font-weight="900" fill="#2559d6">vNext 1.0.0</text><text x="519" y="164" text-anchor="middle" font-size="17" fill="#172033">一つのWorkflow</text><text x="519" y="197" text-anchor="middle" font-size="17" fill="#172033">一つの固定Graph</text>
+        <path d="M636 160 H746" stroke="#2559d6" stroke-width="5" marker-end="url(#a)"/>
+        <rect x="764" y="34" width="132" height="254" rx="18" fill="#fff0ee" stroke="#efaaa4"/>
+        <text x="830" y="70" text-anchor="middle" font-size="20" font-weight="800" fill="#b42318">削除</text><text x="830" y="112" text-anchor="middle" font-size="15" fill="#172033">旧Stage</text><text x="830" y="143" text-anchor="middle" font-size="15" fill="#172033">旧Scope</text><text x="830" y="174" text-anchor="middle" font-size="15" fill="#172033">旧Agent</text><text x="830" y="205" text-anchor="middle" font-size="15" fill="#172033">旧Sensor</text><text x="830" y="236" text-anchor="middle" font-size="15" fill="#172033">旧契約・文書</text>
+      </svg>
+    </div>
+  </section>
+
+  <section class="safe">
+    <h2>古い作業データは勝手に変えません</h2>
+    <p>pre-vNext形式のStateを見つけた場合、Doctorは<code>VNEXT_UNSUPPORTED_WORKFLOW_STATE</code>を返します。</p>
+    <div class="flow">
+      <div class="box"><h3>見つける</h3><p>旧形式のStateを識別します。</p></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="box"><h3>止めて説明する</h3><p>自動変換も削除もせず、新しいvNext Intentの開始を案内します。</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>検証結果</h2>
+    <div class="cards">
+      <div class="card"><div class="number">195</div><div class="label">自動テスト、すべて成功</div></div>
+      <div class="card"><div class="number">9</div><div class="label">全ネイティブBuild target</div></div>
+      <div class="card"><div class="number">7</div><div class="label">GitHub Release用target</div></div>
+    </div>
+    <div class="checklist">
+      <div class="check">TypeScript型チェック</div>
+      <div class="check">固定10 Stage Graph</div>
+      <div class="check">Codex Bundle 64 files</div>
+      <div class="check">Project配布 25 files</div>
+      <div class="check">Installer HTTP E2E</div>
+      <div class="check">PATHなしSandbox実行</div>
+    </div>
+    <p class="lead">Sandboxではversion 1.0.0、Graph、Workspace、Intent Birth、ST-00からST-01への固定遷移、Doctor healthyまで確認しました。</p>
+  </section>
+
+  <section class="not-published">
+    <h2>まだインターネット公開はしていません</h2>
+    <p>ローカルの1.0.0公開候補は完成しています。Git tagの作成とGitHub Releaseの公開は、別の明示承認を受けてから行います。</p>
+  </section>
+
+  <footer>AI-DLC vNext · M7 result · 2026-08-25</footer>
+</main>
+</body>
+</html>

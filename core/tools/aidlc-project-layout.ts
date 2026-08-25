@@ -96,6 +96,14 @@ function rewriteCommands(
       `${command} architecture complete .`,
     )
     .replaceAll(
+      `${command} architecture policy-review ..`,
+      `${command} architecture policy-review .`,
+    )
+    .replaceAll(
+      `${command} architecture policy-approve ..`,
+      `${command} architecture policy-approve .`,
+    )
+    .replaceAll(
       `${command} build-contract review ..`,
       `${command} build-contract review .`,
     )

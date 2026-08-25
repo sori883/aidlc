@@ -124,6 +124,11 @@ export interface InitializedVNextIntentState {
   planPath: string;
 }
 
+export type ActiveIntentWorkflowState =
+  | { kind: "vnext"; recordDir: string; selected: string }
+  | { kind: "unsupported"; recordDir: string; selected: string }
+  | { kind: "incomplete"; recordDir: string; selected: string };
+
 const STATE_KEYS = [
   "schema_version",
   "workflow",
@@ -224,7 +229,9 @@ export function vNextPlanPath(recordDir: string): string {
   return join(resolve(recordDir), "stage-execution-plan.json");
 }
 
-export function activeVNextIntentRecordDir(projectDir: string): string {
+export function inspectActiveIntentWorkflowState(
+  projectDir: string,
+): ActiveIntentWorkflowState {
   const projectRoot = resolve(projectDir);
   const intentsRoot = join(
     workspaceRoot(projectRoot),
@@ -242,10 +249,40 @@ export function activeVNextIntentRecordDir(projectDir: string): string {
     fail("vNext State", "no valid active Intent; run aidlc intent birth first");
   }
   const recordDir = join(intentsRoot, selected);
-  if (!existsSync(vNextStatePath(recordDir))) {
-    fail("vNext State", `active Intent is not initialized for vNext: ${selected}`);
+  if (existsSync(vNextStatePath(recordDir))) {
+    return { kind: "vnext", recordDir, selected };
   }
-  return recordDir;
+  const oldPlan = join(recordDir, ".aidlc-plan.json");
+  const summary = vNextStateSummaryPath(recordDir);
+  let oldSummary = false;
+  try {
+    const content = readFileSync(summary, "utf8");
+    oldSummary = content.includes("## Scope Configuration") ||
+      content.includes("## Stage Progress");
+  } catch {
+    // Missing or unreadable summaries are handled as an incomplete vNext Intent.
+  }
+  return existsSync(oldPlan) || oldSummary
+    ? { kind: "unsupported", recordDir, selected }
+    : { kind: "incomplete", recordDir, selected };
+}
+
+export function unsupportedWorkflowStateMessage(
+  selected: string,
+): string {
+  return `unsupported pre-vNext Workflow State in Intent ${selected}; ` +
+    "automatic conversion is disabled; run aidlc intent birth to start a new vNext Intent";
+}
+
+export function activeVNextIntentRecordDir(projectDir: string): string {
+  const inspected = inspectActiveIntentWorkflowState(projectDir);
+  if (inspected.kind === "unsupported") {
+    fail("vNext State", unsupportedWorkflowStateMessage(inspected.selected));
+  }
+  if (inspected.kind === "incomplete") {
+    fail("vNext State", `active Intent is not initialized for vNext: ${inspected.selected}`);
+  }
+  return inspected.recordDir;
 }
 
 export function activeVNextStatePath(projectDir: string): string {

@@ -31,6 +31,8 @@ test("renders a vNext-only native Codex project layout", () => {
   assert.match(skill, /aidlc next \.`/);
   assert.match(skill, /aidlc requirements complete \. <proposal\.json>/);
   assert.match(skill, /aidlc architecture complete \. <proposal\.json>/);
+  assert.match(skill, /aidlc architecture policy-review \. <proposal\.json>/);
+  assert.match(skill, /aidlc architecture policy-approve \. <proposal-sha256>/);
   assert.match(skill, /aidlc build-contract review \. <proposal\.json>/);
   assert.match(skill, /aidlc build-contract approve \. <candidate-sha256> <reason>/);
   assert.match(skill, /aidlc build verify \. <bolt-id>/);

@@ -1,6 +1,6 @@
 {
   "name": "aidlc",
-  "version": "0.6.2",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.3.14",
@@ -34,9 +34,7 @@
     "version:check": "bun scripts/check-version.ts",
     "workspace:init": "bun core/tools/aidlc-workspace.ts init"
   },
-  "dependencies": {
-    "yaml": "2.9.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "26.1.2",
     "bun-types": "1.3.14",

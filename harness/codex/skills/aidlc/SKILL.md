@@ -40,7 +40,7 @@ resolve, or reactivate one. Only after an actual human decision may Codex run
 `bun run --cwd .codex aidlc intent risk decide .. ../<human-decision.json>`.
 Never edit Risk Current or immutable revisions directly.
 
-At ST-05, ST-07, ST-08, and a human-decided ST-09, read the Policy section in
+At ST-04, ST-05, ST-07, ST-08, and a human-decided ST-09, read the Policy section in
 the generated review HTML. For every listed `requirement_id`, create one
 `{"requirement_id":"...","acknowledged":true,"reason":"..."}` entry in a
 JSON array from the human's actual decision. Pass that file to the approval
@@ -62,8 +62,8 @@ Core can return:
 - `decision`: Core validated a non-achieved ST-09 Outcome Evaluation. Show its
   HTML and exact SHA-256. Only an actual human may continue observation, accept
   the recorded Outcome, or accept it while drafting a Follow-up Brief.
-- `parked`: show the Stage ID and reason, then stop. A missing Stage Contract is
-  expected for Stages that are not implemented yet; never invent their work.
+- `parked`: show the Stage ID and reason, then stop. Never bypass a Core stop or
+  invent work outside the fixed Stage Contract.
 - `done`: show the reason and stop.
 
 ST-00 Bootstrap is Core-owned and automatic. It validates the active Intent,

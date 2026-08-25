@@ -9,7 +9,7 @@ Core Route、ST-00 Bootstrap、ST-01 Orient、ST-02 Define Intent、
 ST-03 Requirements & Constraints、ST-04 Architecture Decision、
 ST-05 Build Contract、ST-06 Build & Converge、ST-07 Human Feedback & Approval、
 ST-08 Release、終端ST-09 Outcome Evaluation、M6のCodex Harness、Policy／Risk／
-Human Gate、代表End-to-End、配布前Quality Gateまで実装済みである。
+Human Gate、代表End-to-End、配布前Quality Gate、M7のvNext専用化まで実装済みである。
 
 各Stageの目的、入力、出力、完了条件、AIの停止条件、人間の判断境界を、
 ユーザーと一つずつ共同設計し、明示的な承認後に実装すること。
@@ -39,8 +39,8 @@ Human Gate、代表End-to-End、配布前Quality Gateまで実装済みである
 | Branch | `codex/aidlc-vnext` |
 | Base | `origin/main` |
 | Base commit | `cb4f0db61fca711c3b49251370568f3013148f41` |
-| 実装状況 | M0〜M6を実装・検証済み。固定10 Stage、Codex、Policy／Risk Gate、代表E2E、配布物が接続済み |
-| 次の作業 | M7のv2 Workflow残存資産削除とvNext単一Releaseを、実装前HTMLから設計する |
+| 実装状況 | M0〜M7を実装・検証済み。vNext 1.0.0の固定10 Stage、Codex、Policy／Risk Gate、配布候補まで接続済み |
+| 次の作業 | M7変更のcommit／push。その後のtagとGitHub Release公開は別途明示承認を得る |
 
 M0〜M2はcommit `c9e259a`、ST-00はcommit `714d5bb`、ST-01はcommit `5a0ee9c`、
 ST-02はcommit `98b8c41`、ST-03〜ST-09はcommit `e9865a0`として
@@ -189,6 +189,15 @@ Bun／Node不要Installer、native binaryの14 Gateも成功した。1500個の�
 指定Sandboxでは生成済みProject配布物とnative binaryからST-00→ST-01、再開、Doctor healthyを確認した。
 M6結果は`docs/aidlc-vnext-m6-result.html`、運用手順は`docs/aidlc-vnext-operations.md`へ記録した。
 
+承認済みM7として、Runtimeから到達不能だった旧Workflow用TypeScript、Agent、Sensor、
+Knowledge、JSON契約、専用test、`aidlc-v2-*`文書を削除した。回収済みのState、Audit、Doctor、
+Workspace、Intent、Installer、Codex配布機構は残した。pre-vNext Stateは
+`VNEXT_UNSUPPORTED_WORKFLOW_STATE`として明示し、自動変換も元ファイル削除も行わない。
+versionは`1.0.0`へ統一し、`yaml`依存を削除、README、配布手順、Release Notes、Codex Skill、
+Bundle、`dist/project`をvNext専用に更新した。`release:check`は34 test files／195 tests、全9 Binary
+targets、GitHub Release候補7 targetsが成功した。指定SandboxではPATHを空にしてST-00→ST-01と
+Doctor healthyを確認した。M7結果は`docs/aidlc-vnext-m7-result.html`。tagとGitHub Releaseは未公開である。
+
 ## 4. 参照資料
 
 ### リポジトリ内
@@ -264,12 +273,14 @@ M6結果は`docs/aidlc-vnext-m6-result.html`、運用手順は`docs/aidlc-vnext-
   - vNext Intentの開始、再開、Risk、承認、Doctor、Quality Gateの運用手順
 - `docs/aidlc-vnext-m6-result.html`
   - M6実装、4代表E2E、Policy Gate、配布、性能、209 testの初心者向け図解
+- `docs/aidlc-vnext-m7-plan.html`
+  - 承認済みM7計画。残す機構、削除対象、旧State拒否、1.0.0配布境界
+- `docs/aidlc-vnext-m7-result.html`
+  - M7のvNext専用化、旧State保護、全検証結果の初心者向け図解
+- `docs/aidlc-vnext-1.0.0-release-notes.md`
+  - vNext 1.0.0の利用者向け変更点と導入手順
 - `docs/aidlc-vnext-visual-guide.html`
   - 未追跡ファイル。所有者とcommit可否を確認するまで変更しない
-- `docs/aidlc-v2-harness-architecture.md`
-  - v2のDomain Core／Harness Contract／Codex Adapterの責務境界
-- `docs/aidlc-v2-upstream-baseline.md`
-  - v2準拠動作とGolden Trace
 - `core/aidlc-common/data/vnext-stage-catalog.json`
 - `core/aidlc-common/data/vnext-stage-graph.json`
 - `core/tools/aidlc-core-route.ts`
@@ -395,7 +406,8 @@ AIが情報を持っていないことではなく、価値判断、権限、不
 ST-05のBuild ContractとApproval境界、ST-06のBolt実行とRunnable Candidate境界、ST-07の
 Human FeedbackとAccepted Candidate境界、ST-08のRelease Authorityと外部作用境界、ST-09の
 Outcome観測とIntent終端境界は確定済みである。M6でE2E、UX、運用性、性能、Policy／Risk、
-配布前Quality Gateも確定・実装済みである。次はM7としてv2残存資産の削除境界と正式Releaseを共同設計する。
+配布前Quality Gate、M7の旧Workflow削除境界、pre-vNext State拒否、vNext 1.0.0配布候補まで
+確定・実装済みである。残る外部判断は、main統合後にtagとGitHub Releaseを公開するかである。
 
 ## 7. 各Stageで共同設計する項目
 
@@ -419,23 +431,17 @@ Stageごとに、最低限次をユーザーと確認する。名前と一行説
 
 1. ルート`AGENTS.md`を読み、実装前承認とBun／TypeScript要件に従う
 2. `work/`はユーザーの明示指示がない限り読まない
-3. マイルストーンを完成仕様として扱わず、次にM7の残存v2資産調査とRelease計画を提示する
+3. M0〜M7は実装済みとして扱い、公開前にはRelease Gateの結果と差分を再確認する
 4. v2という名前だけで削除せず、vNextが回収した実行機構とv2専用Workflowの意味を分ける
 5. M1共通Contract、M2 Core Route、ST-00〜ST-09、M6 E2E／Policy Gate／配布検証を前提にする
 6. 各設計を`docs/`へ保存し、ユーザーの明示的承認後にTypeScript実装へ進む
 7. 実装中もStageごとに結果とtestを説明する
 
-## 9. 次に提案する設計セッション
+## 9. 次に提案する作業
 
-次のエージェントは、いきなり最適化や配布変更を始めず、まず次をユーザーへ提示する。
+次のエージェントは、M7差分、`release:check`、9 target Build、7 target package、Sandbox結果を
+確認してcommit／pushする。ユーザー所有の`.vscode/`と未追跡
+`docs/aidlc-vnext-visual-guide.html`は含めない。
 
-**テーマ: M7 v2 Workflow削除とvNext単一Releaseの詳細設計**
-
-- Runtime、Harness、test、docs、配布物に残るv2専用資産の一覧
-- vNextで回収済みのState、Audit、Doctor、Installerなど、残す実行機構の境界
-- 旧v2 Stateを推測変換せずunsupportedと説明するDoctor契約
-- README、運用手順、Release Notes、version、全target packageの更新
-- 削除前後に要求する回帰testと復旧方法
-
-設計を初心者向けHTMLで説明し、ユーザーの明示的承認後にM7だけを実装する。
-固定10 StageとCore Directiveの意味は変更しない。
+Git tag `v1.0.0`とGitHub Release公開はcommit／pushとは別の外部公開操作である。ユーザーの
+明示的承認なしに実施しない。公開する場合はmainへの統合とmain Workflow成功を先に確認する。

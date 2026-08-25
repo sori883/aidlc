@@ -1,8 +1,6 @@
 // Harness-neutral execution and layout contract. Domain tools depend only on
 // this module; concrete Harness descriptors live under harness/<id>/.
 
-import type { Directive } from "./aidlc-directive.ts";
-
 export interface HarnessCapabilities {
   structuredQuestions: boolean;
   agentDelegation: boolean;
@@ -28,20 +26,6 @@ export interface HarnessDescriptor {
   displayName: string;
   capabilities: HarnessCapabilities;
   layout: HarnessLayout;
-}
-
-export type HarnessExecutionStrategy =
-  | "direct"
-  | "structured-question"
-  | "text-question"
-  | "delegated-agent"
-  | "parallel-agents"
-  | "sequential-agents"
-  | "inline-sequential";
-
-export interface ResolvedDirectiveExecution<T extends Directive = Directive> {
-  directive: T;
-  strategy: HarnessExecutionStrategy;
 }
 
 const CAPABILITY_KEYS = [
@@ -134,42 +118,4 @@ export function resolveHarnessDescriptor(
   const descriptor = available.find((candidate) => candidate.id === id);
   if (descriptor === undefined) throw new Error(`Unsupported Harness: ${id}`);
   return validateHarnessDescriptor(descriptor);
-}
-
-/**
- * Choose a Harness execution mechanism while preserving the original
- * Directive as the logical trace item.
- */
-export function resolveDirectiveExecution<T extends Directive>(
-  directive: T,
-  capabilities: HarnessCapabilities,
-): ResolvedDirectiveExecution<T> {
-  if (directive.kind === "ask") {
-    return {
-      directive,
-      strategy: capabilities.structuredQuestions
-        ? "structured-question"
-        : "text-question",
-    };
-  }
-  if (directive.kind === "invoke-swarm") {
-    const strategy = capabilities.parallelAgentDelegation
-      ? "parallel-agents"
-      : capabilities.agentDelegation ? "sequential-agents" : "inline-sequential";
-    return { directive, strategy };
-  }
-  if (directive.kind === "dispatch-subagent") {
-    return {
-      directive,
-      strategy: capabilities.agentDelegation ? "delegated-agent" : "inline-sequential",
-    };
-  }
-  if (directive.kind === "run-stage" && directive.mode !== "inline") {
-    const parallel = directive.mode === "mob" || directive.mode === "agent-team";
-    const strategy = parallel && capabilities.parallelAgentDelegation
-      ? "parallel-agents"
-      : capabilities.agentDelegation ? "delegated-agent" : "inline-sequential";
-    return { directive, strategy };
-  }
-  return { directive, strategy: "direct" };
 }

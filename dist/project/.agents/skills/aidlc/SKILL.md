@@ -40,7 +40,7 @@ resolve, or reactivate one. Only after an actual human decision may Codex run
 `./.codex/tools/aidlc intent risk decide .. ../<human-decision.json>`.
 Never edit Risk Current or immutable revisions directly.
 
-At ST-05, ST-07, ST-08, and a human-decided ST-09, read the Policy section in
+At ST-04, ST-05, ST-07, ST-08, and a human-decided ST-09, read the Policy section in
 the generated review HTML. For every listed `requirement_id`, create one
 `{"requirement_id":"...","acknowledged":true,"reason":"..."}` entry in a
 JSON array from the human's actual decision. Pass that file to the approval
@@ -62,8 +62,8 @@ Core can return:
 - `decision`: Core validated a non-achieved ST-09 Outcome Evaluation. Show its
   HTML and exact SHA-256. Only an actual human may continue observation, accept
   the recorded Outcome, or accept it while drafting a Follow-up Brief.
-- `parked`: show the Stage ID and reason, then stop. A missing Stage Contract is
-  expected for Stages that are not implemented yet; never invent their work.
+- `parked`: show the Stage ID and reason, then stop. Never bypass a Core stop or
+  invent work outside the fixed Stage Contract.
 - `done`: show the reason and stop.
 
 ST-00 Bootstrap is Core-owned and automatic. It validates the active Intent,
@@ -145,13 +145,13 @@ decisions. Submit the proposal with:
 If Core reports that ST-04 Policy approval is required, do not alter the
 proposal to bypass it. Generate the exact human review with:
 
-`./.codex/tools/aidlc architecture policy-review .. <proposal.json>`
+`./.codex/tools/aidlc architecture policy-review . <proposal.json>`
 
 Show the generated review HTML and Proposal SHA-256 to the human. After the
 human supplies a reason and one acknowledgement for every listed requirement,
 submit:
 
-`./.codex/tools/aidlc architecture policy-approve .. <proposal-sha256> "<human reason>" ../<policy-acknowledgements.json>`
+`./.codex/tools/aidlc architecture policy-approve . <proposal-sha256> "<human reason>" ../<policy-acknowledgements.json>`
 
 Core binds this approval to the reviewed Proposal, Effective Policy, and
 current Risk Register. A changed Risk Register makes the old review stale.

@@ -11,7 +11,7 @@ export const CODEX_HARNESS: HarnessDescriptor = validateHarnessDescriptor({
     structuredQuestions: true,
     agentDelegation: true,
     parallelAgentDelegation: true,
-    postWriteHook: true,
+    postWriteHook: false,
     reviewerScopeEnforcement: false,
     stopWaitNotification: true,
   },

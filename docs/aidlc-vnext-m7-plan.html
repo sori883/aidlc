@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI-DLC vNext｜M7 実装計画</title>
+  <style>
+    :root{--ink:#172033;--muted:#607086;--line:#dce4ef;--blue:#2563eb;--blue-soft:#eaf1ff;--green:#147a55;--green-soft:#e6f7ef;--amber:#9a5b00;--amber-soft:#fff4d8;--red:#b33a2b;--red-soft:#fff0ee;--purple:#6d3bc1;--purple-soft:#f1ebff;--navy:#17315c;--soft:#f5f8fc;--shadow:0 18px 46px rgba(30,48,78,.09)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(180deg,#edf5ff 0,#f8fafc 430px);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.72}main{width:min(1100px,calc(100% - 30px));margin:auto;padding:38px 0 74px}header,section{margin-bottom:23px;padding:clamp(22px,4vw,40px);border:1px solid var(--line);border-radius:23px;background:#fff;box-shadow:var(--shadow)}.eyebrow{margin:0 0 8px;color:var(--blue);font-size:13px;font-weight:900;letter-spacing:.12em}h1{margin:0;font-size:clamp(31px,5vw,51px);line-height:1.18;letter-spacing:-.025em}h2{margin:0 0 8px;font-size:clamp(23px,3vw,32px)}h3{margin:0 0 6px;font-size:18px}p{margin:0}.lead,.node p,.card p,.check p,.question p,td,.small{color:var(--muted)}.lead{max-width:920px;margin-top:16px;font-size:18px}.metrics,.cards,.checks,.questions{display:grid;gap:12px;margin-top:20px}.metrics{grid-template-columns:repeat(4,1fr)}.cards,.checks{grid-template-columns:repeat(3,1fr)}.questions{grid-template-columns:repeat(2,1fr)}.metric,.card,.check,.question{padding:18px;border-radius:17px}.metric{background:var(--soft)}.metric span,.check span{display:block;color:var(--muted);font-size:12px;font-weight:900}.metric strong,.check strong{display:block;margin-top:4px;font-size:18px}.flow{display:grid;grid-template-columns:1fr 32px 1fr 32px 1fr 32px 1fr;gap:8px;margin-top:19px}.node{padding:17px;border:1px solid var(--line);border-radius:16px;background:var(--soft)}.node small{color:var(--blue);font-weight:900}.node strong{display:block;margin:8px 0 4px}.node.core{background:var(--green-soft);border-color:#b8dfcd}.node.human{background:var(--amber-soft);border-color:#ecd18e}.node.remove{background:var(--red-soft);border-color:#efc4bd}.node.end{color:#fff;background:var(--blue);border-color:var(--blue)}.node.end small,.node.end p{color:#dce8ff}.arrow{display:grid;place-items:center;color:var(--blue);font-size:23px;font-weight:900}.card{border:1px solid var(--line);background:var(--soft)}.card.blue{background:var(--blue-soft);border-color:#bdd1ff}.card.green{background:var(--green-soft);border-color:#b8dfcd}.card.amber{background:var(--amber-soft);border-color:#ecd18e}.card.purple{background:var(--purple-soft);border-color:#d4c5ef}.card.red{background:var(--red-soft);border-color:#efc4bd}.card b{display:inline-block;margin-bottom:7px;padding:3px 9px;border-radius:999px;background:#fff;font-size:12px}.note{margin-top:15px;padding:15px 18px;border-left:5px solid var(--blue);border-radius:12px;background:var(--blue-soft)}.note.warn{border-left-color:var(--amber);background:var(--amber-soft)}.note.good{border-left-color:var(--green);background:var(--green-soft)}.note.red{border-left-color:var(--red);background:var(--red-soft)}.table-wrap{overflow:auto;margin-top:17px}table{width:100%;min-width:780px;border-collapse:collapse}th,td{padding:12px 13px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--soft);color:var(--muted);font-size:12px}.filebox{margin-top:17px;padding:19px;border-radius:16px;background:#172033;color:#edf3ff;overflow:auto}.filebox code{display:block;min-width:690px;color:#c1d3ff}.step{display:grid;grid-template-columns:110px 1fr;gap:14px;margin-top:12px;padding:17px;border:1px solid var(--line);border-radius:15px;background:var(--soft)}.step b{color:var(--blue)}.question{border:1px solid #bdd1ff;background:#f4f8ff}.question .choice{margin-top:9px;color:var(--ink);font-weight:900}.check{border:1px solid #b8dfcd;background:var(--green-soft)}.check span{color:var(--green)}.not-now{color:#fff;background:linear-gradient(135deg,#17315c,#285eae)}.not-now p{color:#dce8ff}footer{text-align:center;color:var(--muted);font-size:13px}@media(max-width:900px){.metrics,.cards,.checks{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.arrow{min-height:20px;transform:rotate(90deg)}}@media(max-width:620px){main{width:min(100% - 18px,1100px);padding-top:18px}header,section{border-radius:18px}.metrics,.cards,.checks,.questions{grid-template-columns:1fr}.step{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / M7 / IMPLEMENTATION PLAN</p>
+    <h1>使われないv2を消し、vNextだけを正式な製品にする。</h1>
+    <p class="lead">固定10 Stageは完成しています。M7では新しいStageを作りません。Repositoryの古い実装を掃除し、旧Stateを誤変換せず、READMEとRelease配布物をvNextだけに揃えます。</p>
+    <div class="metrics">
+      <div class="metric"><span>Stage変更</span><strong>なし</strong></div>
+      <div class="metric"><span>Graph変更</span><strong>なし</strong></div>
+      <div class="metric"><span>旧State変換</span><strong>しない</strong></div>
+      <div class="metric"><span>公開操作</span><strong>別承認</strong></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>今の状態。</h2>
+    <div class="flow" role="img" aria-label="配布物はvNextだけだがRepositoryに旧Workflow実装が残っている図">
+      <article class="node core"><small>PUBLIC RUNTIME</small><strong>すでにvNextだけ</strong><p>配布物には固定10 Stageだけが入っています。</p></article><div class="arrow">＋</div>
+      <article class="node remove"><small>SOURCE TREE</small><strong>古い実装が残る</strong><p>旧Graph、Scope、Doctor、Agent、Sensorがあります。</p></article><div class="arrow">＋</div>
+      <article class="node human"><small>DOCUMENTS</small><strong>READMEが古い</strong><p>32 StageやScopeの説明が残っています。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>M7</small><strong>vNext単一製品</strong><p>Source、説明、配布を一致させます。</p></article>
+    </div>
+    <div class="note good">重要：旧32 StageのCatalog、Graph、Scope Gridは、すでに有効Runtimeと配布物にはありません。M7は動く仕組みを作り直す工程ではなく、残存物を安全に消して正式Releaseへ整える工程です。</div>
+  </section>
+
+  <section>
+    <h2>残すもの。</h2>
+    <div class="cards">
+      <article class="card green"><b>CORE</b><h3>固定10 Stage</h3><p>Catalog、Graph、Stage Contract、State、Directiveを残します。</p></article>
+      <article class="card green"><b>WORKSPACE</b><h3>実行の土台</h3><p>Space、Intent、Audit、Lock、Memoryを残します。</p></article>
+      <article class="card green"><b>BUILD</b><h3>製造と検証</h3><p>Bolt、複数Repository、Candidate、rollback能力を残します。</p></article>
+      <article class="card green"><b>HARNESS</b><h3>Codex Skill</h3><p>Core Directiveだけを実行するCodex Adapterを残します。</p></article>
+      <article class="card green"><b>DELIVERY</b><h3>配布とInstaller</h3><p>native binary、SHA-256、競合保護を残します。</p></article>
+      <article class="card green"><b>SAFE UPDATE</b><h3>旧Releaseの撤去処理</h3><p>管理済みファイルだけを安全に更新する処理は残します。</p></article>
+    </div>
+    <div class="note">旧Releaseから更新する処理は、旧Workflowを動かす互換機能ではありません。ユーザーが変更していない古い配布ファイルを安全に片付けるためだけに使います。</div>
+  </section>
+
+  <section>
+    <h2>削除するもの。</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>分類</th><th>主な対象</th><th>削除できる理由</th><th>代わりに守るvNext試験</th></tr></thead>
+      <tbody>
+        <tr><td>旧Workflowツール</td><td>旧Graph、Scope、State、Doctor、Orchestrator、Executor、Bolt runnerなど約35 TypeScript</td><td>統合CLIから到達せず、配布物にも含まれません。</td><td>Core Route、State、Stage E2E</td></tr>
+        <tr><td>旧定義</td><td>Agent、Sensor、Knowledge、CLI contract、ARS data</td><td>vNextのJSON ContractとCodex Skillへ置換済みです。</td><td>Bundle、Directive、Policy、Stage Contract</td></tr>
+        <tr><td>空Hook経路</td><td>Sensor fire adapterとpost-write capability</td><td>hooks設定は空で、M6でも進行権限へ使いません。</td><td>空Hookの配布、Codex E2E</td></tr>
+        <tr><td>専用test</td><td>旧Memory、Unit Graph、旧Worktree、旧Workspace Detect test</td><td>対応する旧moduleを削除します。</td><td>vNext Build、Workspace、resume、rollback test</td></tr>
+        <tr><td>v2専用仕様書</td><td><code>docs/aidlc-v2-*</code></td><td>現在の利用者と実装者を誤誘導します。</td><td>vNext設計・運用・結果文書</td></tr>
+        <tr><td>不要Dependency</td><td><code>yaml</code></td><td>vNextの正本は厳格JSONで、YAML parserは旧loaderだけが使っています。</td><td>typecheck、lockfile、全test</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note red">ファイル名にv2と書かれているだけでは削除しません。M0の回収判断やM1〜M6の設計経緯など、vNextを説明する履歴資料は別扱いにします。</div>
+  </section>
+
+  <section>
+    <h2>旧Stateは、変換せず明確に止めます。</h2>
+    <div class="flow" role="img" aria-label="旧Stateを検出し、自動変換せず、新しいIntentを案内する図">
+      <article class="node"><small>DETECT</small><strong>vNext JSONがない</strong><p>旧Planや旧State Markdownだけが存在します。</p></article><div class="arrow">→</div>
+      <article class="node remove"><small>STOP</small><strong>unsupported</strong><p>壊れたvNextとして読まず、専用codeで止めます。</p></article><div class="arrow">→</div>
+      <article class="node human"><small>EXPLAIN</small><strong>人間へ説明</strong><p>自動変換しない理由と対象Intentを表示します。</p></article><div class="arrow">→</div>
+      <article class="node end"><small>NEW</small><strong>新Intentを案内</strong><p>元データは消さず、新しく開始してもらいます。</p></article>
+    </div>
+    <div class="cards">
+      <article class="card red"><b>NO CONVERT</b><h3>推測変換しない</h3><p>32 Stageの途中位置を10 Stageへ勝手に対応させません。</p></article>
+      <article class="card green"><b>NO DELETE</b><h3>旧記録を消さない</h3><p>Doctorは診断だけを行い、旧Intentを変更しません。</p></article>
+      <article class="card blue"><b>ACTIONABLE</b><h3>次の操作を示す</h3><p>新しいvNext Intentの開始方法を短く表示します。</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>実装は5手です。</h2>
+    <div class="step"><b>1 / RED</b><div><h3>残存検査を先に失敗させる</h3><p>旧Route、Scope、Agent、Sensor、YAML依存、README旧説明が残っていると失敗するtestを追加します。</p></div></div>
+    <div class="step"><b>2 / CORE</b><div><h3>旧State専用診断を作る</h3><p>Doctorとresumeが同じunsupported理由を返すContractをTDDで実装します。</p></div></div>
+    <div class="step"><b>3 / DELETE</b><div><h3>旧Workflow islandを削除する</h3><p>参照関係を小さな単位で切り、各単位でtypecheckと対象testを通します。</p></div></div>
+    <div class="step"><b>4 / DOCS</b><div><h3>READMEとRelease文書をvNextへ書き直す</h3><p>導入、Intent開始、10 Stage、再開、Risk、承認、更新だけを初心者向けに説明します。</p></div></div>
+    <div class="step"><b>5 / RELEASE</b><div><h3>全配布物を作り直す</h3><p>Codex Bundle、Project配布、全target binary、Installer、checksums、Release Notesを検証します。</p></div></div>
+  </section>
+
+  <section>
+    <h2>主な入力と出力。</h2>
+    <div class="filebox">
+      <code>INPUT  : M6完了commit 0b1ab40</code>
+      <code>INPUT  : 固定10 Stage Catalog / Graph / Contract</code>
+      <code>INPUT  : 現在のRelease 0.6.2とInstaller更新契約</code>
+      <code>OUTPUT : vNextだけのSource treeとREADME</code>
+      <code>OUTPUT : 旧State unsupported Doctor診断</code>
+      <code>OUTPUT : Codex Bundle / Project Distribution / native binaries</code>
+      <code>OUTPUT : Release Notes / SHA256SUMS / M7結果HTML</code>
+    </div>
+  </section>
+
+  <section>
+    <h2>TDDと最終確認。</h2>
+    <div class="checks">
+      <article class="check"><span>NO ROUTE</span><strong>旧CLIを開始不能</strong><p>Scopeや旧Workflow commandを拒否します。</p></article>
+      <article class="check"><span>NO ASSET</span><strong>旧資産が配布されない</strong><p>Sourceと配布manifestを検査します。</p></article>
+      <article class="check"><span>UNSUPPORTED</span><strong>旧Stateを明示停止</strong><p>自動変換と自動削除がないことを試します。</p></article>
+      <article class="check"><span>UPGRADE</span><strong>現在Releaseから更新</strong><p>管理外fileを守りながら更新します。</p></article>
+      <article class="check"><span>E2E</span><strong>4代表シナリオ維持</strong><p>M6の小変更、複数Repo、実装なし、rollbackを再実行します。</p></article>
+      <article class="check"><span>PACKAGE</span><strong>全target検証</strong><p>OS別binary、Installer、SHA-256を作ります。</p></article>
+      <article class="check"><span>PATHLESS</span><strong>利用者にBun不要</strong><p>PATHなしでも配布binaryを動かします。</p></article>
+      <article class="check"><span>SANDBOX</span><strong>指定Projectで確認</strong><p>専用subdirectoryで導入、開始、再開を試します。</p></article>
+      <article class="check"><span>DOCS</span><strong>READMEと動作一致</strong><p>記載commandを機械的に実行します。</p></article>
+    </div>
+    <div class="note warn">旧module専用testを削除するため、test総数は209件より減る可能性があります。件数を守るのではなく、vNextで必要な性質をE2EとContract testで守ってから削除します。</div>
+  </section>
+
+  <section>
+    <h2>実装前に確認いただきたい3点。</h2>
+    <div class="questions">
+      <article class="question"><h3>1. 正式versionを1.0.0にする</h3><p>固定10 StageとvNext単一Workflowの最初の正式Releaseとして扱います。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>2. vNextの設計履歴は残す</h3><p><code>aidlc-v2-*</code>は削除します。M0などのvNext移行判断資料は履歴として残します。</p><p class="choice">提案：はい。</p></article>
+      <article class="question"><h3>3. 公開は別承認にする</h3><p>M7ではRelease packageまで作ります。Git tag作成とGitHub公開は自動実行しません。</p><p class="choice">提案：はい。</p></article>
+    </div>
+  </section>
+
+  <section class="not-now">
+    <h2>M7で行わないこと。</h2>
+    <p>Stage追加、Graph変更、旧Intentの自動移行、旧Workflow互換モード、Cloudへの本番接続、GitHub Releaseの公開、既存Projectのユーザー所有ファイル削除は行いません。設計承認後も、TDDの小さな削除単位で進めます。</p>
+  </section>
+  <footer>AI-DLC vNext / M7 v2 removal &amp; vNext-only release plan / 2026-08-25</footer>
+</main></body>
+</html>

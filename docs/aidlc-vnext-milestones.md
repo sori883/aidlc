@@ -347,6 +347,8 @@ CodexからvNextを開始、再開、実行、Feedback、承認できる利用�
 
 ### M7: v2 Workflow削除とvNext Release
 
+**状態: 2026-08-25 実装・検証完了。結果は`docs/aidlc-vnext-m7-result.html`。**
+
 **目的**
 
 不要になったv2 Workflow資産と互換経路を残さず、vNextだけを安全にReleaseする。
@@ -358,6 +360,19 @@ CodexからvNextを開始、再開、実行、Feedback、承認できる利用�
 - 旧v2 StateをvNextとして読み込まず、Doctorでunsupportedと明示する
 - 配布物にvNext Workflowだけが含まれることを検証する
 - README、運用手順、Release Notes、versionを更新する
+
+**実施結果**
+
+- 到達不能だった旧Workflow用TypeScript、Agent、Sensor、Knowledge、JSON契約、専用test、`aidlc-v2-*`文書を削除
+- vNextで使用するState、Audit、Doctor、Workspace、Intent、Installer、Codex配布機構は保持
+- pre-vNext Stateは`VNEXT_UNSUPPORTED_WORKFLOW_STATE`で停止し、自動変換も削除も行わない
+- versionを`1.0.0`へ統一し、README、配布手順、Release NotesをvNext専用に更新
+- `yaml`依存と空になった配布Runtime lockfileを削除
+- Codex Bundle 64 files、Project Distribution 25 filesを再生成
+- `release:check`は34 test files／195 testsが成功
+- 全9 Binary targetsとGitHub Release候補7 targetsを生成
+- 指定SandboxでPATHを空にし、version、Graph、Workspace、Intent、ST-00→ST-01、Doctor healthyを確認
+- Git tag作成とGitHub Release公開は未実施。別途明示承認が必要
 
 **成果物**
 
@@ -410,10 +425,9 @@ M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7
 
 ## 8. 次に着手する作業
 
-M7として、まず実装せずに次の順で調査・設計する。
+M0〜M7の実装は完了した。次に行える作業は次の二つで、どちらも別途明示承認を必要とする。
 
-1. Runtime、Harness、test、docs、配布物に残るv2 Workflow資産を一覧化する
-2. vNextが回収した実行機構と、削除するv2専用の意味を分ける
-3. 旧v2 Stateをunsupportedとして説明するDoctor境界を決める
-4. README、Release Notes、version、全target packageの更新計画を作る
-5. 初心者向けHTMLの明示承認後に、M7だけをTDDで実装する
+1. M7変更をcommitし、`origin/codex/aidlc-vnext`へpushする
+2. main側のRelease Gateを確認した後、`v1.0.0` tagとGitHub Releaseを公開する
+
+2は1とは別の外部公開操作であり、自動的には実施しない。

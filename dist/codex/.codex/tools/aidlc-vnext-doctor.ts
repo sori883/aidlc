@@ -6,11 +6,13 @@ import { loadVNextDefinitions } from "./aidlc-core-route.ts";
 import { verifyBootstrapReceiptAt } from "./aidlc-vnext-bootstrap.ts";
 import {
   activeVNextIntentRecordDir,
+  inspectActiveIntentWorkflowState,
   readVNextPlanAt,
   readVNextStateAt,
   validateVNextIntentAt,
   vNextStateSummaryPath,
   writeVNextStateAt,
+  unsupportedWorkflowStateMessage,
 } from "./aidlc-vnext-state.ts";
 
 export type VNextDoctorSeverity = "error" | "warning" | "info";
@@ -57,7 +59,19 @@ export function checkVNextDoctor(projectDir: string): VNextDoctorReport {
     ));
   }
   try {
-    recordDir = activeVNextIntentRecordDir(projectRoot);
+    const inspected = inspectActiveIntentWorkflowState(projectRoot);
+    if (inspected.kind === "unsupported") {
+      findings.push(finding(
+        "error",
+        "VNEXT_UNSUPPORTED_WORKFLOW_STATE",
+        unsupportedWorkflowStateMessage(inspected.selected),
+      ));
+      return { healthy: false, workflow: "vnext", findings };
+    }
+    if (inspected.kind === "incomplete") {
+      throw new Error(`active Intent is not initialized for vNext: ${inspected.selected}`);
+    }
+    recordDir = inspected.recordDir;
   } catch (error) {
     findings.push(finding(
       "error",

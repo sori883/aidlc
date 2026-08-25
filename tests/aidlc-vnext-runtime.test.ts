@@ -1,6 +1,6 @@
 import { afterEach, test } from "bun:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkVNextDoctor, repairVNextDoctor } from "../core/tools/aidlc-vnext-doctor.ts";
@@ -152,4 +152,34 @@ test("resume fails closed when State and Plan disagree", () => {
   );
   assert.throws(() => validateVNextIntentAt(projectDir, born.recordDir), /Graph does not match Plan/);
   assert.throws(() => resumeVNextIntent(projectDir), /Graph does not match Plan/);
+});
+
+test("Doctor and resume identify an old Workflow State without converting or deleting it", () => {
+  const { projectDir, born } = fixture();
+  unlinkSync(vNextStatePath(born.recordDir));
+  unlinkSync(vNextPlanPath(born.recordDir));
+  writeFileSync(
+    join(born.recordDir, ".aidlc-plan.json"),
+    `${JSON.stringify({ scope: "feature", stages: ["1.1", "2.1"] }, null, 2)}\n`,
+  );
+  writeFileSync(
+    vNextStateSummaryPath(born.recordDir),
+    "# AI-DLC State Tracking\n\n## Scope Configuration\n\n## Stage Progress\n",
+  );
+
+  const report = checkVNextDoctor(projectDir);
+  assert.equal(report.healthy, false);
+  assert.equal(
+    report.findings.some((entry) =>
+      entry.code === "VNEXT_UNSUPPORTED_WORKFLOW_STATE" && entry.repairable === false
+    ),
+    true,
+  );
+  assert.throws(
+    () => resumeVNextIntent(projectDir),
+    /unsupported.*new vNext Intent/i,
+  );
+  assert.equal(existsSync(join(born.recordDir, ".aidlc-plan.json")), true);
+  assert.equal(existsSync(vNextStateSummaryPath(born.recordDir)), true);
+  assert.equal(existsSync(vNextStatePath(born.recordDir)), false);
 });

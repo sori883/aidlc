@@ -8,7 +8,7 @@
     },
     {
       "path": ".agents/skills/aidlc/SKILL.md",
-      "sha256": "ab7fd856e2ba715462d925a05036014648e2f84b53c92e6057ee390458e10eb3"
+      "sha256": "5b06ba1b65a3c0ebdc2c932356a3a8e7b8fe6aec827e0f09ff1449a891cc8804"
     },
     {
       "path": ".codex/aidlc-common/data/runtime-shared-resources.json",
@@ -63,10 +63,6 @@
       "sha256": "48a791edc10133cccb963e0b89d62988fc866ec4ce7a05d3c5e41c609df6d723"
     },
     {
-      "path": ".codex/bun.lock",
-      "sha256": "5bd609803804323b310b7e483f00a84cc41a35ed4551060e84ff79a384c3e673"
-    },
-    {
       "path": ".codex/hooks.json",
       "sha256": "78922a784ee78e9e50587e93628cd3b9d4dfbe49087adc4514e6781cea38cbb9"
     },
@@ -100,7 +96,7 @@
     },
     {
       "path": ".codex/package.json",
-      "sha256": "82847725fd1e5abfa87aba4ff8b4c8a097e6d8c505127f093304098dd395759e"
+      "sha256": "7ce1545296f6b25bf8bbf73ba8e4b18f9e67b87e960e6a29714934e7ac417db6"
     },
     {
       "path": ".codex/tools/aidlc-audit.ts",
@@ -132,7 +128,7 @@
     },
     {
       "path": ".codex/tools/aidlc-version.ts",
-      "sha256": "2983d4399266c767a0f6569faa9c099e1ff58a8409348e6c258efe8bd3c58bfb"
+      "sha256": "7a55af32d98af432a95a959c4e9524959cef2f5c99a34d3da61fa3517d16f648"
     },
     {
       "path": ".codex/tools/aidlc-vnext-architecture-contract.ts",
@@ -176,7 +172,7 @@
     },
     {
       "path": ".codex/tools/aidlc-vnext-doctor.ts",
-      "sha256": "a13fea0f068b299ea14ed73842964f120d24dafcde43b583f23919d1aad583ec"
+      "sha256": "37ee403459c67a6c6bdd676c112605e9ec6f26238629e05f9fcf686117b5583b"
     },
     {
       "path": ".codex/tools/aidlc-vnext-orchestrate.ts",
@@ -240,7 +236,7 @@
     },
     {
       "path": ".codex/tools/aidlc-vnext-state.ts",
-      "sha256": "de629bdeb16d9115740153754246661cc1778aefc76cce76ce73bb751ae44f46"
+      "sha256": "f76a291894a37e071fa9156f310d09c868b26386de6bfc14dc96ce300bdcc012"
     },
     {
       "path": ".codex/tools/aidlc-workspace-lock.ts",
