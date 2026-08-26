@@ -1,5 +1,9 @@
 # Bun／ネイティブCLI構成
 
+> **Superseded:** 本書はTypeScript／Bun版の履歴資料である。現在のProduction Runtime、
+> Installer、Distribution、Quality GateはGo版を正本とし、現行手順は
+> `docs/aidlc-go-migration-plan.md`と`docs/release-packaging.md`を参照する。
+
 ## 現在の構成
 
 AI-DLC vNextの開発、型チェック、テスト、配布生成、ネイティブコンパイルはBunへ統一済みです。TypeScriptの入口は`core/tools/aidlc.ts`です。利用者は公開Installerの実行時だけNode.js 22以上を使い、導入後は`.codex/tools/aidlc`だけを実行します。

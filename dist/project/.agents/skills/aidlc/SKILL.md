@@ -16,7 +16,7 @@ Run from the project root:
 2. `./.codex/tools/aidlc intent list . --json`
 3. Before Birth, ask the human about known Intent-specific risks. If there are
    any, write the confirmed JSON array and run
-   `./.codex/tools/aidlc intent birth . "<label>" --risk-file ../<risks.json>`.
+   `./.codex/tools/aidlc intent birth . "<label>" --risk-file <risks.json>`.
    Otherwise run `./.codex/tools/aidlc intent birth . "<label>"`.
 4. Run `./.codex/tools/aidlc next .`
 
@@ -32,12 +32,12 @@ executable rule from Markdown and never use Policy to remove a fixed Gate or
 change the Stage Graph.
 
 Show the current Register with
-`./.codex/tools/aidlc intent risk show ..`. When new Evidence reveals a
+`./.codex/tools/aidlc intent risk show .`. When new Evidence reveals a
 risk, submit a strict add-or-increase proposal with
-`./.codex/tools/aidlc intent risk propose .. <proposal.json>`.
+`./.codex/tools/aidlc intent risk propose . <proposal.json>`.
 AI may add a risk or increase its severity, but may not reduce, dismiss,
 resolve, or reactivate one. Only after an actual human decision may Codex run
-`./.codex/tools/aidlc intent risk decide .. ../<human-decision.json>`.
+`./.codex/tools/aidlc intent risk decide . <human-decision.json>`.
 Never edit Risk Current or immutable revisions directly.
 
 At ST-04, ST-05, ST-07, ST-08, and a human-decided ST-09, read the Policy section in
@@ -203,7 +203,7 @@ Show the generated review HTML and Proposal SHA-256 to the human. After the
 human supplies a reason and one acknowledgement for every listed requirement,
 submit:
 
-`./.codex/tools/aidlc architecture policy-approve . <proposal-sha256> "<human reason>" ../<policy-acknowledgements.json>`
+`./.codex/tools/aidlc architecture policy-approve . <proposal-sha256> "<human reason>" <policy-acknowledgements.json>`
 
 Core binds this approval to the reviewed Proposal, Effective Policy, and
 current Risk Register. A changed Risk Register makes the old review stale.
@@ -300,7 +300,7 @@ After an actual human approves every human check, run:
 If the human requests changes, record one or more feedback items with a known
 requirement ID and at least one confirmed impact, then run:
 
-`./.codex/tools/aidlc review feedback . <review-manifest-sha256> ../<feedback.json> <reason>`
+`./.codex/tools/aidlc review feedback . <review-manifest-sha256> <feedback.json> <reason>`
 
 The four allowed impacts are `requirements_changed`, `architecture_impact`,
 `build_contract_impact`, and `candidate_defect`. AI may explain a classification
@@ -339,7 +339,7 @@ If a prior immutable Release Current may already satisfy the exact Candidate,
 ask Core to validate Candidate revisions, Policy digest, Plan, Authority,
 Receipt, Deployment Map, and the live external Target before reuse:
 
-`./.codex/tools/aidlc release reuse . ../<release-current.json> <reason>`
+`./.codex/tools/aidlc release reuse . <release-current.json> <reason>`
 
 Never infer reuse from a filename, version label, or old Receipt alone.
 

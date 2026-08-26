@@ -1,6 +1,7 @@
 # GitHub Release / native CLI distribution
 
-AI-DLC vNext is developed, tested, and compiled with Bun. End users need Node.js 22 or newer only for `install.mjs`; the installed workflow runs through one project-local native CLI.
+AI-DLC vNextはGo 1.26.4で開発、検証、cross-buildする。利用者のProjectでは
+Node.js、Bun、GoをRuntime依存として要求しない。
 
 ## Installed layout
 
@@ -10,29 +11,50 @@ AI-DLC vNext is developed, tested, and compiled with Bun. End users need Node.js
 ├── .codex/
 │   ├── aidlc-common/
 │   ├── memory/
-│   ├── tools/aidlc[.exe]
+│   ├── tools/
+│   │   ├── aidlc                         POSIX target selector
+│   │   ├── aidlc.exe                     windows-amd64
+│   │   └── bin/
+│   │       ├── aidlc-darwin-amd64
+│   │       ├── aidlc-darwin-arm64
+│   │       ├── aidlc-linux-amd64
+│   │       └── aidlc-linux-arm64
 │   ├── hooks.json
 │   └── aidlc-installation.json
 ├── AGENTS.md
-└── aidlc/                  user-owned Workspace and artifacts
+└── aidlc/                                user-owned Workspace and artifacts
 ```
 
-The executable embeds the Bun runtime and reachable TypeScript code. Fixed Stage data, Memory defaults, and Codex instructions remain normal hashed files. No executable TypeScript is shipped in `dist/project/`.
+同じProjectを対応OS間でcloneできるよう全5 Targetを配置する。各Go CLIは16MiB未満で、
+POSIX launcherがOS／CPUを選択し、Windowsは`aidlc.exe`を直接実行する。Project配布物に
+実行可能なTypeScriptやJavaScript Runtimeは含めない。
 
 ## Installer safety
 
-```text
-node install.mjs <install|update> --harness codex --project <dir>
-  [--dry-run] [--json]
+POSIX:
+
+```bash
+sh install.sh --harness codex --project . [--dry-run] [--json]
 ```
 
-The Installer downloads the distribution Manifest, selects one native binary by OS, CPU, and Linux libc, verifies every byte length and SHA-256, and smoke-runs `--version` before mutation. Unsafe paths, symlink ancestors, unsupported platforms, network failures, hash drift, and user-file conflicts fail closed.
+Windows PowerShell:
 
-`aidlc/` Workspace data is never managed by the Installer. An update replaces only files that still match the previous Installation Manifest. Cleanup of a previously managed installation layout is allowed only for unchanged recorded files; Workflow State is neither converted nor deleted.
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 --harness codex --project .
+```
+
+bootstrap scriptは`SHA256SUMS`でhost用Go CLIを検証してから`aidlc install`を実行する。
+Go InstallerはDistribution Manifest、全Project file、全5 binaryのbyte長とSHA-256を検証し、
+host binaryをPATHなしでsmokeしてから書き込む。unsafe path、symlink ancestor、対応外platform、
+network failure、hash drift、利用者fileとのconflictはfail closedで拒否する。
+
+`aidlc/` Workspace dataは管理しない。updateは前回のInstallation Manifestと現在のSHA-256が
+一致するfileだけを置き換え、変更済みfileや未知のfileを削除しない。
 
 ## Runtime boundary
 
-The fixed ten-Stage Catalog and Graph are Core-owned. AI proposes Stage-local work and never selects the next Stage. System Map JSON and Intent artifacts are validated by strict contracts before Core writes canonical revisions.
+固定10 StageのCatalogとGraphはCore-ownedである。AIはStage-local proposalだけを作り、
+Coreがstrict contractを通してcanonical revision、State、Audit、routeを管理する。
 
 ```bash
 ./.codex/tools/aidlc graph validate
@@ -43,4 +65,5 @@ The fixed ten-Stage Catalog and Graph are Core-owned. AI proposes Stage-local wo
 
 ## Release creation
 
-`bun run package:github` creates local release candidates. Creating a `v1.0.0` tag or publishing a GitHub Release is a separate authorized operation after the Release Gate passes.
+`go run ./cmd/aidlc-dev package-release --out build/github-release`はlocal release candidateだけを
+生成する。`v1.0.0` tag作成とGitHub Release公開はRelease Gate完了後の別承認操作である。

@@ -23,8 +23,8 @@ Graph、State、Audit、Doctor、Orchestratorへの接続はM2で行う。
 
 | 種類 | path | 役割 |
 |---|---|---|
-| TypeScript | `core/tools/aidlc-stage-contract.ts` | 型、固定値、parser／validator |
-| Bun test | `tests/aidlc-stage-contract.test.ts` | 正常系とfail-closed境界 |
+| Go | `internal/contract/stage_contract.go` | 型、固定値、parser／validator |
+| Go test | `internal/contract/stage_contract_test.go` | 正常系とfail-closed境界 |
 | 技術資料 | `docs/aidlc-vnext-stage-contract.md` | field、所有権、M2接続境界 |
 
 ## 4. 共通Stage Contract
@@ -177,7 +177,7 @@ M1 validatorは次を拒否する。
 
 ## 10. M1 test
 
-`tests/aidlc-stage-contract.test.ts`で次を検証する。
+`internal/contract/stage_contract_test.go`で次を検証する。
 
 - 正常なStage Contract
 - 遷移fieldの拒否

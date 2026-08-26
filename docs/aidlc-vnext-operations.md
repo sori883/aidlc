@@ -100,14 +100,13 @@ ST-04は通常どおり`architecture complete`を先に実行する。CoreがPol
 ## 配布前Quality Gate
 
 ```bash
-bun run version:check
-bun run typecheck
-bun run graph:check
-bun run delegation:check
-bun test
-bun run bundle:check
-bun run distribution:check
-bun run binary:build
+git ls-files -z -- '*.go' ':(exclude)work/**' | xargs -0 gofmt -w
+go vet ./...
+go test -count=1 ./...
+go test -race -count=1 ./...
+go run ./cmd/aidlc-dev bundle check --out dist/project
+go test -count=1 -run TestPackageBuildsFiveTargetReleaseCandidate ./internal/distribution
+CGO_ENABLED=0 go build -trimpath -o build/go/aidlc ./cmd/aidlc
 ```
 
 一つでも失敗した場合はRelease候補にしない。

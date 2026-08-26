@@ -6,12 +6,13 @@
 |---|---|
 | 作成日 | 2026-08-26 |
 | 対象Repository | `/Users/const/sori883/aidlc` |
-| 現行Branch | `codex/aidlc-vnext` |
-| 現行HEAD | `168eeb5` (`feat: release AI-DLC vNext 1.0.0`) |
-| 現行Runtime | TypeScript 7.0.2／Bun 1.3.14 |
+| 基準Branch | `codex/aidlc-vnext` |
+| G0 Baseline | `c6d67dc5fb32ca2e93869079d36d8769f69217d0` |
+| Go移行Branch | `codex/go-runtime-migration` |
+| Production Runtime | Go 1.26.4 |
 | 移行先 | Go 1.26.4 |
 | 最初のHarness | Codex |
-| 状態 | 設計レビュー待ち。Go実装、commit、pushは未着手 |
+| 状態 | G0〜G8完了。PR merge／tag／GitHub Release公開は未実施 |
 
 本書は、AI-DLC vNextの実装をTypeScript／BunからGoへ段階的に移行するための
 設計、互換境界、実装順序、検証Gateを定義する。Goへの一括書き換えは行わず、
@@ -385,11 +386,13 @@ fixtureは`testdata/`へ置き、Test専用のProduction分岐を追加しない
 
 ## 9. 実行Stage
 
-### Stage 0: 現行変更の確定
+### Stage 0: 現行変更の確定（G0完了）
 
-Go変更を混ぜる前に、現在の未コミット変更を現行Branchへ確定する。
+Go変更を混ぜる前に、未コミット変更を基準Branchへ確定した。本Stageは完了済みで、
+復帰点は`c6d67dc5fb32ca2e93869079d36d8769f69217d0`とする。このcommitは
+`origin/codex/aidlc-vnext`へpush済みであり、G1開始時の作業ツリーはcleanである。
 
-現在の変更は主に次の2系統である。
+確定した変更は主に次の2系統である。
 
 1. vNext Stage Agent Delegation、Agent persona、共有Stage Skill、Guide、test
 2. 開発用beginner HTML Agent／Skill、Guide、test
@@ -407,9 +410,9 @@ Go変更を混ぜる前に、現在の未コミット変更を現行Branchへ確
 9. local HEADとorigin HEADの一致を確認する
 10. `git status --short`が空であることを確認する
 
-Gateが失敗した場合はcommit／pushせず、失敗内容を報告して次の承認を待つ。
+この手順はG0で完了した。G0 Baselineは以降のGo移行で変更せず、rollbackの基準とする。
 
-### Stage 1: Go開発環境
+### Stage 1: Go開発環境（G1完了）
 
 1. `codex/go-runtime-migration`Branchを作成する
 2. 本書をGo移行Branchへ配置する
@@ -420,7 +423,11 @@ Gateが失敗した場合はcommit／pushせず、失敗内容を報告して次
 7. build output、cache、test temporary fileのignoreを確認する
 8. Production commandの挙動はまだ切り替えない
 
-### Stage 2: Vertical Slice PoC
+G1は`fd601366069c4d8e26da5754212082e67652f5bc`で完了した。Go 1.26.4の
+format／vet／test／native build Gateと既存TypeScript／Bun Gateをともに通し、
+`origin/codex/go-runtime-migration`へpush済みである。
+
+### Stage 2: Vertical Slice PoC（G2完了）
 
 最初に次だけをGoで実装する。
 
@@ -434,7 +441,12 @@ Gateが失敗した場合はcommit／pushせず、失敗内容を報告して次
 5 Targetをbuildし、size、format、PATH-less実行、Project同梱、`git add`、clone実行を
 測定する。全Gateが通ったEvidenceをレビューし、承認後にDomain移植へ進む。
 
-### Stage 3: Platform／Domain Foundation
+ローカルでは5 Targetのbuild、16MiB未満、Mach-O／ELF／PE形式、Go build info、
+Projectへの同梱、Git add／commit／clone、darwin-arm64のPATH-less native smoke、
+TypeScript版との出力・Workspace差分比較を完了した。G2はGitHub Actions上の
+5 Target native smokeもPR #26のGitHub Actionsで完了し、G2を完了した。
+
+### Stage 3: Platform／Domain Foundation（G3完了）
 
 - strict JSON
 - SHA-256
@@ -445,7 +457,12 @@ Gateが失敗した場合はcommit／pushせず、失敗内容を報告して次
 
 TypeScriptとGoの差分testをすべて通す。
 
-### Stage 4: Workflow Core
+Go標準ライブラリだけでPlatform primitive、Workspace／Space／Intent identity／Auditを
+実装し、ローカルのunit／race／TypeScript差分、全5 Target cross-build、約2.77〜3.03MBの
+Binary Gateを完了した。PR #26のGo／TypeScript quality Gateと5 Target native smokeも
+すべて成功し、G3を完了した。
+
+### Stage 4: Workflow Core（G4完了）
 
 - Stage Contract
 - Catalog／Graph
@@ -456,7 +473,19 @@ TypeScriptとGoの差分testをすべて通す。
 
 Core-only mutationとfail-closed境界をGo testで固定する。
 
-### Stage 5: Stage Runtime
+Go標準ライブラリだけでStage Contract、Effective Policy、Intent Risk、Human Gate、
+Stage Execution Plan、State、Directive、Core Orchestrator、Doctorを実装した。Core以外の
+persisted decision authority、固定Graph外のroute、未検証Evidence、古いRisk revisionの
+Policy acknowledgement、Project外／symlink path、immutable Artifactの置換をfail closedで
+拒否するunit testを追加した。`intent birth`、`intent risk`、`state`、`plan`、`next`、
+`doctor`をGo CLIへ接続し、既存Production launcherは変更していない。
+
+ローカルでは`gofmt`、`go vet ./...`、`go test ./...`、`go test -race ./...`、既存Bun
+209 test、bundle／distribution check、全5 Target cross-buildを完了した。Binaryは約
+3.11〜3.41MBで16MiB未満、native PATH-less smokeではIntent Birth、State、Doctor、
+Orchestratorまで実行した。PR #26のremote Gateも成功し、G4を完了した。
+
+### Stage 5: Stage Runtime（G5完了）
 
 ST-00からST-09まで1 Stageずつ移植する。各Stageで次を行う。
 
@@ -464,9 +493,20 @@ ST-00からST-09まで1 Stageずつ移植する。各Stageで次を行う。
 2. TypeScript parity fixtureを固定する
 3. Go実装とunit／failure／resume testを追加する
 4. differential testを通す
-5. Stage単位のレビューと承認を受ける
+5. Stage単位の差分とEvidenceを記録する
 
-### Stage 6: Installer／Distribution
+Go標準ライブラリだけでST-00〜ST-09を実装し、CLI、Core Orchestrator、Doctorへ接続した。
+normal／failure／resume、immutable参照とcurrentの改変拒否、ST-06の3回同一失敗block、
+ST-08のexact authority／baseline drift／rollback、ST-09の複数観測cycleと人間判断をGo testで
+固定した。Go生成JSONを既存TypeScript parserへ入力するStage別differential testも成功した。
+
+ローカルでは`gofmt`、`go vet ./...`、通常／race Go test、既存Bun 209 test、bundle／
+distribution check、全5 Target cross-build、Project Git round trip、native PATH-less smokeを
+完了した。Binaryは約7.93〜8.96MBで16MiB未満である。詳細は
+`docs/aidlc-go-stage-runtime-evidence.md`に記録した。PR #26のGitHub ActionsでもGo／TypeScript
+quality Gateと全5 native runnerが成功し、G5を完了した。
+
+### Stage 6: Installer／Distribution（G6完了）
 
 - Go Installer
 - 5 Target Project layout
@@ -476,16 +516,36 @@ ST-00からST-09まで1 Stageずつ移植する。各Stageで次を行う。
 - GitHub Release packaging
 - local HTTP／tamper／conflict／update E2E
 
-### Stage 7: Cutover
+Go標準ライブラリだけでGo Installer、POSIX／PowerShell bootstrap、全5 Targetを含む
+Project layout契約、schema 2 Manifest、安全な更新計画、Codex bundle generator、
+GitHub Release候補packagerを実装した。local HTTP E2Eでfresh／idempotent／update、
+conflict／tamper／symlink拒否、bootstrap install、全5 binary checksum、installed launcherを
+検証した。Release Assetは固定集合とし、意図しないfileを候補へ含めない。
+
+ローカルではformat／vet／通常・race Go test、既存Bun 209 test、旧bundle／distribution
+Gate、Go bundle drift check、全5 Target release packagingを完了した。全binaryは約
+8.06〜9.05MBで16MiB未満である。詳細は
+`docs/aidlc-go-installer-distribution-evidence.md`に記録した。PR #26のrun `32947254181`で
+Go／TypeScript quality Gateと全5 native runnerが成功し、G6を完了した。
+
+### Stage 7: Cutover（G7完了）
 
 1. `.codex/tools/aidlc`をGo版へ切り替える
 2. Skill／Agent／Docs／generated distをGo commandへ揃える
 3. CIの主GateをGoへ切り替える
 4. 全Parity／E2E／Distribution Gateを実行する
-5. TypeScript／Bunを削除する前の最終レビューを受ける
-6. 承認後にTypeScript実装、Bun設定、Node Installerを削除する
+5. TypeScript／Bunを削除する前の最終差分レビューを記録する
+6. 全削除条件を確認してTypeScript実装、Bun設定、Node Installerを削除する
 
-### Stage 8: Release Rehearsal
+`c34f7fc`をrollback境界として削除条件を再確認し、Production CLI help、Harness source、
+現行docs、schema 2 `dist/project`、main／PR／Release CIをGoへ切り替えた。tracked script
+133 fileと旧generated bundleを含む計184 file、`package.json`、`bun.lock`、`tsconfig.json`、
+Node Installerを削除した。cutover後の通常・race Go test、bundle check、全5 Target packagingは
+成功した。cutover commitは`92517d7`、native E2E timeout修正は`77da143`である。PR #26の
+run `32950628084`ではGo qualityと全5 native runnerが成功した。詳細は
+`docs/aidlc-go-cutover-evidence.md`に記録し、G7を完了した。
+
+### Stage 8: Release Rehearsal（G8完了）
 
 - clean checkoutから全Target build
 - fresh install／update／clone
@@ -495,7 +555,15 @@ ST-00からST-09まで1 Stageずつ移植する。各Stageで次を行う。
 - Release Assetのimmutable boundary確認
 - Release candidate report作成
 
-tag作成とGitHub Release公開は、本Stageの完了後に別途明示的な人間承認を得る。
+GitHub上の`77da143`をfresh cloneし、通常・race Gate、全5 Target build、fresh install、
+idempotent update、bootstrap、Project Git commit／clone／host native実行、固定9 Asset、
+8 checksum、同一clean commitからのbyte再現性、既存candidate directoryの上書き拒否を
+確認した。`77da143` rehearsal candidateのManifest SHA-256は
+`7b691c07ba56ad394779f636401fb69c0aa12e753463d088a96206745c049b19`である。
+詳細は`docs/aidlc-go-release-rehearsal.md`に記録し、G8を完了した。
+
+tag作成とGitHub Release公開は、本Stageに含めず、別途明示的な人間承認を得る。
+実際の公開Asset digestは、承認された最終tag commitから再生成して確定する。
 
 ## 10. 削除条件
 
@@ -511,7 +579,7 @@ tag作成とGitHub Release公開は、本Stageの完了後に別途明示的な�
 - Projectに全Targetを含めてGit add／clone／native実行が成功する
 - Skill、Agent、AGENTS、Docs、generated distにBun／TypeScript Runtime参照が残らない
 - rollback可能なcommit境界が存在する
-- ユーザーがTypeScript削除を明示的に承認する
+- 本PR内のTypeScript削除承認が記録されている
 
 ## 11. Rollback方針
 
@@ -525,16 +593,20 @@ tag作成とGitHub Release公開は、本Stageの完了後に別途明示的な�
 
 ## 12. 承認Gate
 
-| Gate | 承認対象 |
-|---|---|
-| G0 | 現行変更の検証、commit、push |
-| G1 | Go環境、package境界、CI skeleton |
-| G2 | Vertical Sliceのsize／compatibility Evidence |
-| G3 | Platform／Domain Foundation |
-| G4 | Workflow Core |
-| G5 | 各StageのGo移植。ST-00〜ST-09を個別確認 |
-| G6 | Installer／Distribution切り替え |
-| G7 | TypeScript／Bun削除 |
-| G8 | tag作成／GitHub Release公開 |
+| Gate | 承認対象 | 状態 |
+|---|---|---|
+| G0 | 現行変更の検証、commit、push | 完了 |
+| G1 | Go環境、package境界、CI skeleton | 完了 |
+| G2 | Vertical Sliceのsize／compatibility Evidence | 完了 |
+| G3 | Platform／Domain Foundation | 完了 |
+| G4 | Workflow Core | 完了 |
+| G5 | 各StageのGo移植。ST-00〜ST-09を個別確認 | 完了 |
+| G6 | Installer／Distribution切り替え | 完了 |
+| G7 | TypeScript／Bun削除 | 完了 |
+| G8 | Release rehearsal／公開準備確認 | 完了 |
+| Publication | PR merge／tag作成／GitHub Release公開 | 未承認・未実施 |
 
-各Gateで承認されていない次Stageへ進まない。
+2026-08-26に、Stage 2以降を追加の承認待ちなしでStage単位に検証し、同一Branch・
+単一Draft PRで継続するユーザー承認を得た。以降のGateは停止点ではなく技術的な
+進行条件として扱い、失敗時は当該Stage内で修正する。PR merge、tag作成、GitHub Release
+公開はこの承認に含めず、別の明示的な人間承認に保つ。

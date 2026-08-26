@@ -1,0 +1,104 @@
+name: Go migration gate
+
+on:
+  pull_request:
+    branches:
+      - codex/aidlc-vnext
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: go-migration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Go quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.4"
+          cache: false
+
+      - name: Verify Go formatting
+        shell: bash
+        run: |
+          go_files="$(git ls-files -- '*.go' ':(exclude)work/**')"
+          if [[ -z "${go_files}" ]]; then
+            echo "No tracked Go files were found." >&2
+            exit 1
+          fi
+
+          unformatted="$(git ls-files -z -- '*.go' ':(exclude)work/**' | xargs -0 gofmt -l)"
+          if [[ -n "${unformatted}" ]]; then
+            echo "The following Go files are not formatted:" >&2
+            printf '%s\n' "${unformatted}" >&2
+            exit 1
+          fi
+
+      - name: Vet Go packages
+        run: go vet ./...
+
+      - name: Test Go packages
+        run: go test -count=1 ./...
+
+      - name: Race-test Go packages
+        run: go test -race -count=1 ./...
+
+      - name: Build native Go CLI
+        env:
+          CGO_ENABLED: "0"
+        run: go build -trimpath -o build/go/aidlc ./cmd/aidlc
+
+      - name: Verify tracked Go Project bundle
+        run: go run ./cmd/aidlc-dev bundle check --out dist/project
+
+  native:
+    name: Native ${{ matrix.target }}
+    needs: quality
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-amd64
+            runner: ubuntu-latest
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: darwin-amd64
+            runner: macos-15-intel
+          - target: darwin-arm64
+            runner: macos-15
+          - target: windows-amd64
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.4"
+          cache: false
+
+      - name: Run native CLI compatibility proof
+        shell: bash
+        run: >-
+          go run ./cmd/aidlc-dev stage2-poc
+          --target "${{ matrix.target }}"
+          --output "build/native-proof-${{ matrix.target }}"
+
+      - name: Run native Go release and Installer proof
+        shell: bash
+        run: go test -count=1 -run TestPackageBuildsFiveTargetReleaseCandidate ./internal/distribution

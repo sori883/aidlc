@@ -1,5 +1,9 @@
 # AI-DLC vNext 引き継ぎ
 
+> **Current runtime:** 2026-08-26のGo cutover後はGo 1.26.4実装が正本である。
+> 本書内のBun test数、旧Installer、旧binary matrixは各Milestone時点の履歴Evidenceとして
+> 残している。現行の開発・配布手順は`README.md`と`docs/release-packaging.md`を参照する。
+
 ## 1. この文書の目的
 
 AI-DLC vNextの検討を別のエージェントへ引き継ぐ。
@@ -429,19 +433,19 @@ Stageごとに、最低限次をユーザーと確認する。名前と一行説
 
 ## 8. 次のエージェントの進め方
 
-1. ルート`AGENTS.md`を読み、実装前承認とBun／TypeScript要件に従う
+1. ルート`AGENTS.md`を読み、Go 1.26.4と標準ライブラリ優先の要件に従う
 2. `work/`はユーザーの明示指示がない限り読まない
 3. M0〜M7は実装済みとして扱い、公開前にはRelease Gateの結果と差分を再確認する
 4. v2という名前だけで削除せず、vNextが回収した実行機構とv2専用Workflowの意味を分ける
 5. M1共通Contract、M2 Core Route、ST-00〜ST-09、M6 E2E／Policy Gate／配布検証を前提にする
-6. 各設計を`docs/`へ保存し、ユーザーの明示的承認後にTypeScript実装へ進む
+6. 各設計を`docs/`へ保存し、必要な承認境界を確認してGo実装へ進む
 7. 実装中もStageごとに結果とtestを説明する
 
 ## 9. 次に提案する作業
 
-次のエージェントは、M7差分、`release:check`、9 target Build、7 target package、Sandbox結果を
-確認してcommit／pushする。ユーザー所有の`.vscode/`と未追跡
-`docs/aidlc-vnext-visual-guide.html`は含めない。
+Go移行PRではStage 8のclean checkout、固定5 Target package、fresh install／update、
+Project Git round trip、version／checksum／Manifest整合をrelease rehearsalとして確認済みである。
+結果は`docs/aidlc-go-release-rehearsal.md`を参照する。
 
 Git tag `v1.0.0`とGitHub Release公開はcommit／pushとは別の外部公開操作である。ユーザーの
 明示的承認なしに実施しない。公開する場合はmainへの統合とmain Workflow成功を先に確認する。
