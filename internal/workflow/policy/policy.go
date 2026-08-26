@@ -4,6 +4,7 @@ package policy
 import (
 	"fmt"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -308,7 +309,7 @@ func Write(projectDir, recordDir, intentID string, options BuildOptions) (Writte
 	} else if !os.IsNotExist(readErr) {
 		return Written{}, readErr
 	} else {
-		parent := filepath.Dir(source)
+		parent := pathpkg.Dir(source)
 		if _, err := fsx.EnsureDirUnder(projectDir, parent, 0o755); err != nil {
 			return Written{}, err
 		}
