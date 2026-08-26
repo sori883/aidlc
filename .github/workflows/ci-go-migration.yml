@@ -114,3 +114,7 @@ jobs:
           go run ./cmd/aidlc-dev stage2-poc
           --target "${{ matrix.target }}"
           --output "build/stage2-poc-${{ matrix.target }}"
+
+      - name: Run native Go release and Installer proof
+        shell: bash
+        run: go test -count=1 -run TestPackageBuildsFiveTargetReleaseCandidate ./internal/distribution

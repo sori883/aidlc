@@ -14,6 +14,7 @@ import (
 	"github.com/sori883/aidlc/internal/audit"
 	"github.com/sori883/aidlc/internal/contract"
 	"github.com/sori883/aidlc/internal/doctor"
+	"github.com/sori883/aidlc/internal/installer"
 	"github.com/sori883/aidlc/internal/intent"
 	"github.com/sori883/aidlc/internal/platform/jsonx"
 	"github.com/sori883/aidlc/internal/platform/lock"
@@ -115,6 +116,9 @@ func runWithContext(ctx context.Context, args []string, stdout, stderr io.Writer
 	}
 	if args[0] == "next" {
 		args = append([]string{"orchestrate", "next"}, args[1:]...)
+	}
+	if args[0] == "install" || args[0] == "update" {
+		return runInstaller(ctx, args, stdout, stderr)
 	}
 
 	selected, ok := findRoute(args[0])
@@ -1147,6 +1151,60 @@ func readOptionalAcknowledgementsAndTime(args []string, index int) ([]gate.Ackno
 		return acknowledgements, args[index+1], nil
 	}
 	return acknowledgements, args[index], nil
+}
+
+func runInstaller(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	projectDir := "."
+	harness := "codex"
+	dryRun := false
+	jsonOutput := false
+	for index := 1; index < len(args); index++ {
+		switch args[index] {
+		case "--project", "--harness":
+			if index+1 >= len(args) || strings.HasPrefix(args[index+1], "--") {
+				return writeError(stderr, args[index]+" requires a value")
+			}
+			if args[index] == "--project" {
+				projectDir = args[index+1]
+			} else {
+				harness = args[index+1]
+			}
+			index++
+		case "--dry-run":
+			dryRun = true
+		case "--json":
+			jsonOutput = true
+		default:
+			return writeError(stderr, "Unknown option: "+args[index]+"\nUsage: aidlc <install|update> [--project <directory>] [--harness codex] [--dry-run] [--json]")
+		}
+	}
+	result, err := installer.Run(ctx, installer.Options{Command: args[0], ProjectDir: projectDir, Harness: harness, DryRun: dryRun, ReleaseRoot: os.Getenv("AIDLC_RELEASE_ROOT"), ProjectRoot: os.Getenv("AIDLC_RAW_PROJECT_ROOT")})
+	if err != nil {
+		return writeError(stderr, err.Error())
+	}
+	if jsonOutput {
+		code := writeJSON(stdout, stderr, result, true)
+		if code != 0 {
+			return code
+		}
+		if len(result.Conflicts) != 0 {
+			return 1
+		}
+		return 0
+	}
+	if len(result.Conflicts) != 0 {
+		_, _ = fmt.Fprintf(stderr, "AI-DLC %s stopped; existing files would be overwritten:\n", result.Command)
+		for _, path := range result.Conflicts {
+			_, _ = fmt.Fprintf(stderr, "  - %s\n", path)
+		}
+		return 1
+	}
+	action := "Installed"
+	if result.DryRun {
+		action = "Would install"
+	}
+	_, _ = fmt.Fprintf(stdout, "%s AI-DLC %s in %s\nNative CLI: ./%s\n%d file(s) written; %d unchanged; %d obsolete file(s) removed.\n", action, result.Version, result.Project, result.Executable, len(result.Written), len(result.Unchanged), len(result.Removed))
+	return 0
 }
 
 func renderHelp(all bool) string {

@@ -12,7 +12,7 @@
 | Production Runtime | TypeScript 7.0.2／Bun 1.3.14。Go版へ未切り替え |
 | 移行先 | Go 1.26.4 |
 | 最初のHarness | Codex |
-| 状態 | G0・G1・G2・G3・G4完了、G5 remote Gate確認中 |
+| 状態 | G0〜G5完了、G6 remote Gate確認中 |
 
 本書は、AI-DLC vNextの実装をTypeScript／BunからGoへ段階的に移行するための
 設計、互換境界、実装順序、検証Gateを定義する。Goへの一括書き換えは行わず、
@@ -485,7 +485,7 @@ Policy acknowledgement、Project外／symlink path、immutable Artifactの置換
 3.11〜3.41MBで16MiB未満、native PATH-less smokeではIntent Birth、State、Doctor、
 Orchestratorまで実行した。PR #26のremote Gateも成功し、G4を完了した。
 
-### Stage 5: Stage Runtime（G5 remote Gate確認中）
+### Stage 5: Stage Runtime（G5完了）
 
 ST-00からST-09まで1 Stageずつ移植する。各Stageで次を行う。
 
@@ -503,9 +503,10 @@ ST-08のexact authority／baseline drift／rollback、ST-09の複数観測cycle�
 ローカルでは`gofmt`、`go vet ./...`、通常／race Go test、既存Bun 209 test、bundle／
 distribution check、全5 Target cross-build、Project Git round trip、native PATH-less smokeを
 完了した。Binaryは約7.93〜8.96MBで16MiB未満である。詳細は
-`docs/aidlc-go-stage-runtime-evidence.md`に記録した。G5はPR #26のremote Gate確認中とする。
+`docs/aidlc-go-stage-runtime-evidence.md`に記録した。PR #26のGitHub ActionsでもGo／TypeScript
+quality Gateと全5 native runnerが成功し、G5を完了した。
 
-### Stage 6: Installer／Distribution
+### Stage 6: Installer／Distribution（G6 remote Gate確認中）
 
 - Go Installer
 - 5 Target Project layout
@@ -514,6 +515,17 @@ distribution check、全5 Target cross-build、Project Git round trip、native P
 - Codex bundle generator
 - GitHub Release packaging
 - local HTTP／tamper／conflict／update E2E
+
+Go標準ライブラリだけでGo Installer、POSIX／PowerShell bootstrap、全5 Targetを含む
+Project layout契約、schema 2 Manifest、安全な更新計画、Codex bundle generator、
+GitHub Release候補packagerを実装した。local HTTP E2Eでfresh／idempotent／update、
+conflict／tamper／symlink拒否、bootstrap install、全5 binary checksum、installed launcherを
+検証した。Release Assetは固定集合とし、意図しないfileを候補へ含めない。
+
+ローカルではformat／vet／通常・race Go test、既存Bun 209 test、旧bundle／distribution
+Gate、Go bundle drift check、全5 Target release packagingを完了した。全binaryは約
+8.06〜9.05MBで16MiB未満である。詳細は
+`docs/aidlc-go-installer-distribution-evidence.md`に記録した。G6はPR #26のremote Gate確認中とする。
 
 ### Stage 7: Cutover
 
@@ -571,8 +583,8 @@ tag作成とGitHub Release公開は、本Stageの完了後に別途明示的な�
 | G2 | Vertical Sliceのsize／compatibility Evidence | 完了 |
 | G3 | Platform／Domain Foundation | 完了 |
 | G4 | Workflow Core | 完了 |
-| G5 | 各StageのGo移植。ST-00〜ST-09を個別確認 | remote Gate確認中 |
-| G6 | Installer／Distribution切り替え | 未着手 |
+| G5 | 各StageのGo移植。ST-00〜ST-09を個別確認 | 完了 |
+| G6 | Installer／Distribution切り替え | remote Gate確認中 |
 | G7 | TypeScript／Bun削除 | 未着手 |
 | G8 | tag作成／GitHub Release公開 | 未着手 |
 
