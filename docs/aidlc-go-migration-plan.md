@@ -12,7 +12,7 @@
 | Production Runtime | TypeScript 7.0.2／Bun 1.3.14。Go版へ未切り替え |
 | 移行先 | Go 1.26.4 |
 | 最初のHarness | Codex |
-| 状態 | G0・G1完了、G2検証中。Stage 2実装とローカルPoCは完了 |
+| 状態 | G0・G1・G2完了、G3進行中 |
 
 本書は、AI-DLC vNextの実装をTypeScript／BunからGoへ段階的に移行するための
 設計、互換境界、実装順序、検証Gateを定義する。Goへの一括書き換えは行わず、
@@ -427,7 +427,7 @@ G1は`fd601366069c4d8e26da5754212082e67652f5bc`で完了した。Go 1.26.4の
 format／vet／test／native build Gateと既存TypeScript／Bun Gateをともに通し、
 `origin/codex/go-runtime-migration`へpush済みである。
 
-### Stage 2: Vertical Slice PoC（G2検証中）
+### Stage 2: Vertical Slice PoC（G2完了）
 
 最初に次だけをGoで実装する。
 
@@ -444,9 +444,9 @@ format／vet／test／native build Gateと既存TypeScript／Bun Gateをとも�
 ローカルでは5 Targetのbuild、16MiB未満、Mach-O／ELF／PE形式、Go build info、
 Projectへの同梱、Git add／commit／clone、darwin-arm64のPATH-less native smoke、
 TypeScript版との出力・Workspace差分比較を完了した。G2はGitHub Actions上の
-5 Target native smokeが完了するまで検証中とする。
+5 Target native smokeもPR #26のGitHub Actionsで完了し、G2を完了した。
 
-### Stage 3: Platform／Domain Foundation
+### Stage 3: Platform／Domain Foundation（G3進行中）
 
 - strict JSON
 - SHA-256
@@ -456,6 +456,10 @@ TypeScript版との出力・Workspace差分比較を完了した。G2はGitHub A
 - Workspace／Space／Intent／Audit
 
 TypeScriptとGoの差分testをすべて通す。
+
+Go標準ライブラリだけでPlatform primitive、Workspace／Space／Intent identity／Auditを
+実装し、ローカルのunit／race／TypeScript差分、全5 Target cross-build、約2.77〜3.03MBの
+Binary Gateを完了した。G3はPR #26のremote Gate完了まで進行中とする。
 
 ### Stage 4: Workflow Core
 
@@ -476,7 +480,7 @@ ST-00からST-09まで1 Stageずつ移植する。各Stageで次を行う。
 2. TypeScript parity fixtureを固定する
 3. Go実装とunit／failure／resume testを追加する
 4. differential testを通す
-5. Stage単位のレビューと承認を受ける
+5. Stage単位の差分とEvidenceを記録する
 
 ### Stage 6: Installer／Distribution
 
@@ -494,8 +498,8 @@ ST-00からST-09まで1 Stageずつ移植する。各Stageで次を行う。
 2. Skill／Agent／Docs／generated distをGo commandへ揃える
 3. CIの主GateをGoへ切り替える
 4. 全Parity／E2E／Distribution Gateを実行する
-5. TypeScript／Bunを削除する前の最終レビューを受ける
-6. 承認後にTypeScript実装、Bun設定、Node Installerを削除する
+5. TypeScript／Bunを削除する前の最終差分レビューを記録する
+6. 全削除条件を確認してTypeScript実装、Bun設定、Node Installerを削除する
 
 ### Stage 8: Release Rehearsal
 
@@ -523,7 +527,7 @@ tag作成とGitHub Release公開は、本Stageの完了後に別途明示的な�
 - Projectに全Targetを含めてGit add／clone／native実行が成功する
 - Skill、Agent、AGENTS、Docs、generated distにBun／TypeScript Runtime参照が残らない
 - rollback可能なcommit境界が存在する
-- ユーザーがTypeScript削除を明示的に承認する
+- 本PR内のTypeScript削除承認が記録されている
 
 ## 11. Rollback方針
 
@@ -541,12 +545,15 @@ tag作成とGitHub Release公開は、本Stageの完了後に別途明示的な�
 |---|---|---|
 | G0 | 現行変更の検証、commit、push | 完了 |
 | G1 | Go環境、package境界、CI skeleton | 完了 |
-| G2 | Vertical Sliceのsize／compatibility Evidence | 検証中 |
-| G3 | Platform／Domain Foundation | 未着手 |
+| G2 | Vertical Sliceのsize／compatibility Evidence | 完了 |
+| G3 | Platform／Domain Foundation | 進行中 |
 | G4 | Workflow Core | 未着手 |
 | G5 | 各StageのGo移植。ST-00〜ST-09を個別確認 | 未着手 |
 | G6 | Installer／Distribution切り替え | 未着手 |
 | G7 | TypeScript／Bun削除 | 未着手 |
 | G8 | tag作成／GitHub Release公開 | 未着手 |
 
-各Gateで承認されていない次Stageへ進まない。
+2026-08-26に、Stage 2以降を追加の承認待ちなしでStage単位に検証し、同一Branch・
+単一Draft PRで継続するユーザー承認を得た。以降のGateは停止点ではなく技術的な
+進行条件として扱い、失敗時は当該Stage内で修正する。PR merge、tag作成、GitHub Release
+公開はこの承認に含めず、別の明示的な人間承認に保つ。

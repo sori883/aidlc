@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,7 +9,9 @@ import (
 	"strings"
 
 	"github.com/sori883/aidlc/internal/contract"
+	"github.com/sori883/aidlc/internal/intent"
 	"github.com/sori883/aidlc/internal/platform/runtimepath"
+	"github.com/sori883/aidlc/internal/space"
 	"github.com/sori883/aidlc/internal/version"
 	"github.com/sori883/aidlc/internal/workflow/catalog"
 	"github.com/sori883/aidlc/internal/workflow/delegation"
@@ -195,6 +198,143 @@ func RunWithOptions(args []string, stdout, stderr io.Writer, options Options) in
 			len(result.CreatedFiles),
 			len(result.PreservedFiles),
 		)
+		return 0
+
+	case args[0] == "space" && args[1] == "list":
+		if len(args) < 3 || len(args) > 4 || (len(args) == 4 && args[3] != "--json") {
+			return writeError(stderr, "Usage: aidlc-space list <project-dir> [--json]\n       aidlc-space create <project-dir> <name>\n       aidlc-space switch <project-dir> <name>")
+		}
+		spaces := space.List(args[2])
+		selected := workspace.DefaultSpace
+		for _, candidate := range spaces {
+			if candidate.Active {
+				selected = candidate.Name
+				break
+			}
+		}
+		if len(args) == 4 {
+			result := struct {
+				Active string       `json:"active"`
+				Spaces []space.Info `json:"spaces"`
+			}{Active: selected, Spaces: spaces}
+			return writeJSON(stdout, stderr, result, false)
+		}
+		var builder strings.Builder
+		builder.WriteString("Spaces:\n")
+		for _, candidate := range spaces {
+			marker := " "
+			if candidate.Active {
+				marker = "*"
+			}
+			_, _ = fmt.Fprintf(&builder, "%s %s\n", marker, candidate.Name)
+		}
+		_, _ = io.WriteString(stdout, builder.String())
+		return 0
+
+	case args[0] == "space" && args[1] == "create":
+		if len(args) != 4 {
+			return writeError(stderr, "Usage: aidlc-space list <project-dir> [--json]\n       aidlc-space create <project-dir> <name>\n       aidlc-space switch <project-dir> <name>")
+		}
+		resolvedCore, err := resolveCore()
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		created, err := space.Create(context.Background(), args[2], args[3], filepath.Join(resolvedCore, "memory"))
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		_, _ = fmt.Fprintf(stdout, "Space created: %s\n", created.Name)
+		return 0
+
+	case args[0] == "space" && args[1] == "switch":
+		if len(args) != 4 {
+			return writeError(stderr, "Usage: aidlc-space list <project-dir> [--json]\n       aidlc-space create <project-dir> <name>\n       aidlc-space switch <project-dir> <name>")
+		}
+		selected, err := space.Switch(context.Background(), args[2], args[3])
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		_, _ = fmt.Fprintf(stdout, "Active space → %s\n", selected.Name)
+		return 0
+
+	case args[0] == "intent" && args[1] == "list":
+		if len(args) < 3 || len(args) > 4 || (len(args) == 4 && args[3] != "--json") {
+			return writeError(stderr, "Usage: aidlc-intent list <project-dir> [--json]\n       aidlc-intent birth <project-dir> <label> [--risk-file risks.json]\n       aidlc-intent switch <project-dir> <intent>")
+		}
+		selectedSpace := workspace.ActiveSpace(args[2])
+		intents := intent.List(args[2], selectedSpace)
+		selected := ""
+		for _, candidate := range intents {
+			if candidate.Active {
+				selected = candidate.DirName
+				break
+			}
+		}
+		if len(args) == 4 {
+			type intentJSON struct {
+				UUID    string   `json:"uuid"`
+				Slug    string   `json:"slug"`
+				Status  string   `json:"status"`
+				Repos   []string `json:"repos"`
+				DirName *string  `json:"dirName"`
+				Active  bool     `json:"active"`
+			}
+			items := make([]intentJSON, 0, len(intents))
+			for _, candidate := range intents {
+				var dirName *string
+				if candidate.DirName != "" {
+					value := candidate.DirName
+					dirName = &value
+				}
+				repos := candidate.Repos
+				if repos == nil {
+					repos = []string{}
+				}
+				items = append(items, intentJSON{
+					UUID: candidate.UUID, Slug: candidate.Slug, Status: candidate.Status,
+					Repos: repos, DirName: dirName, Active: candidate.Active,
+				})
+			}
+			result := struct {
+				Active  *string      `json:"active"`
+				Space   string       `json:"space"`
+				Intents []intentJSON `json:"intents"`
+			}{Space: selectedSpace, Intents: items}
+			if selected != "" {
+				result.Active = &selected
+			}
+			return writeJSON(stdout, stderr, result, false)
+		}
+		if len(intents) == 0 {
+			_, _ = fmt.Fprintf(stdout, "No intents in space %q yet.\n", selectedSpace)
+			return 0
+		}
+		var builder strings.Builder
+		_, _ = fmt.Fprintf(&builder, "Intents in space %q:\n", selectedSpace)
+		for _, candidate := range intents {
+			marker := " "
+			if candidate.Active {
+				marker = "*"
+			}
+			name := candidate.DirName
+			if name == "" {
+				name = candidate.Slug
+			}
+			_, _ = fmt.Fprintf(&builder, "%s %s  [%s]\n", marker, name, candidate.Status)
+		}
+		_, _ = io.WriteString(stdout, builder.String())
+		return 0
+
+	case args[0] == "intent" && args[1] == "switch":
+		if len(args) != 4 {
+			return writeError(stderr, "Usage: aidlc-intent list <project-dir> [--json]\n       aidlc-intent birth <project-dir> <label> [--risk-file risks.json]\n       aidlc-intent switch <project-dir> <intent>")
+		}
+		selectedSpace := workspace.ActiveSpace(args[2])
+		selected, err := intent.Switch(context.Background(), args[2], args[3], selectedSpace)
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		_, _ = fmt.Fprintf(stdout, "Active intent → %s (space: %s)\n", selected.DirName, selectedSpace)
 		return 0
 	default:
 		return writeError(

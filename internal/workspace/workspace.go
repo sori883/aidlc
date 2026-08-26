@@ -6,11 +6,26 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/sori883/aidlc/internal/platform/fsx"
 )
 
-const defaultSpace = "default"
+// DefaultSpace is the always-valid initial Space.
+const DefaultSpace = "default"
+
+var (
+	slugSeparators = regexp.MustCompile(`[^a-z0-9]+`)
+	trimDashes     = regexp.MustCompile(`^-+|-+$`)
+	trailingDashes = regexp.MustCompile(`-+$`)
+	spaceName      = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
+	reservedNames  = map[string]struct{}{
+		"help": {}, "list": {}, "switch": {}, "birth": {}, "create": {},
+		"archive": {}, "rename": {}, "show": {},
+	}
+)
 
 // Result describes an idempotent Workspace initialization.
 type Result struct {
@@ -42,13 +57,13 @@ func Initialize(projectDir, memorySourceDir string) (Result, error) {
 
 	result := Result{
 		ProjectDir:   resolvedProjectDir,
-		WorkspaceDir: filepath.Join(resolvedProjectDir, "aidlc"),
+		WorkspaceDir: Root(resolvedProjectDir),
 	}
-	if err := os.MkdirAll(result.WorkspaceDir, 0o755); err != nil {
+	if _, err := fsx.EnsureDirUnder(resolvedProjectDir, "aidlc", 0o755); err != nil {
 		return Result{}, fmt.Errorf("create Workspace directory: %w", err)
 	}
 	activeSpacePath := filepath.Join(result.WorkspaceDir, "active-space")
-	if err := writeFileIfMissing(activeSpacePath, []byte(defaultSpace+"\n"), &result); err != nil {
+	if err := writeFileIfMissing(activeSpacePath, []byte(DefaultSpace+"\n"), &result); err != nil {
 		return Result{}, err
 	}
 	activeSpaceBytes, err := os.ReadFile(activeSpacePath)
@@ -60,16 +75,71 @@ func Initialize(projectDir, memorySourceDir string) (Result, error) {
 		return Result{}, fmt.Errorf("Active space pointer is empty: %s", activeSpacePath)
 	}
 
-	memoryTarget := filepath.Join(result.WorkspaceDir, "spaces", defaultSpace, "memory")
+	memoryTarget := filepath.Join(result.WorkspaceDir, "spaces", DefaultSpace, "memory")
+	if _, err := fsx.EnsureDirUnder(resolvedProjectDir, "aidlc/spaces/default/memory", 0o755); err != nil {
+		return Result{}, fmt.Errorf("create default Memory directory: %w", err)
+	}
 	if err := copyMissingTree(resolvedMemorySource, memoryTarget, &result); err != nil {
 		return Result{}, err
 	}
 	return result, nil
 }
 
+// Root returns the absolute Workspace directory beneath a Project.
+func Root(projectDir string) string {
+	absolute, err := filepath.Abs(projectDir)
+	if err != nil {
+		return filepath.Join(projectDir, "aidlc")
+	}
+	return filepath.Join(filepath.Clean(absolute), "aidlc")
+}
+
+// ActiveSpace returns the selected Space and defaults to DefaultSpace for a
+// fresh shell, matching the existing runtime contract.
+func ActiveSpace(projectDir string) string {
+	pointer := filepath.Join(Root(projectDir), "active-space")
+	info, statErr := os.Lstat(pointer)
+	content, err := os.ReadFile(pointer)
+	if statErr == nil && info.Mode().IsRegular() && info.Mode()&os.ModeSymlink == 0 && err == nil {
+		if selected := strings.TrimSpace(string(content)); selected != "" {
+			if spaceName.MatchString(selected) {
+				return selected
+			}
+		}
+	}
+	return DefaultSpace
+}
+
+// Slugify creates the stable ASCII record name used by Spaces and Intents.
+func Slugify(value string, maxLength int) string {
+	if maxLength <= 0 {
+		maxLength = 48
+	}
+	slug := strings.ToLower(value)
+	slug = slugSeparators.ReplaceAllString(slug, "-")
+	slug = trimDashes.ReplaceAllString(slug, "")
+	if len(slug) > maxLength {
+		slug = slug[:maxLength]
+	}
+	slug = trailingDashes.ReplaceAllString(slug, "")
+	if slug == "" {
+		return "intent"
+	}
+	if slug[0] < 'a' || slug[0] > 'z' {
+		slug = trailingDashes.ReplaceAllString("intent-"+slug, "")
+	}
+	return slug
+}
+
+// IsReservedName reports whether a record name is reserved by the CLI.
+func IsReservedName(value string) bool {
+	_, ok := reservedNames[value]
+	return ok
+}
+
 func requireDirectory(path, label string) error {
-	info, err := os.Stat(path)
-	if err != nil || !info.IsDir() {
+	info, err := os.Lstat(path)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("%s is not a directory: %s", label, path)
 	}
 	return nil
@@ -100,7 +170,7 @@ func writeFileIfMissing(path string, content []byte, result *Result) error {
 }
 
 func copyMissingTree(sourceDir, targetDir string, result *Result) error {
-	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+	if err := ensureRealDirectory(targetDir); err != nil {
 		return fmt.Errorf("create Workspace directory %s: %w", targetDir, err)
 	}
 	entries, err := os.ReadDir(sourceDir)
@@ -115,10 +185,8 @@ func copyMissingTree(sourceDir, targetDir string, result *Result) error {
 		sourcePath := filepath.Join(sourceDir, entry.Name())
 		targetPath := filepath.Join(targetDir, entry.Name())
 		if entry.IsDir() {
-			if info, statErr := os.Lstat(targetPath); statErr == nil && !info.IsDir() {
-				return fmt.Errorf("Workspace path must be a directory: %s", targetPath)
-			} else if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
-				return fmt.Errorf("inspect Workspace path %s: %w", targetPath, statErr)
+			if err := ensureRealDirectory(targetPath); err != nil {
+				return err
 			}
 			if err := copyMissingTree(sourcePath, targetPath, result); err != nil {
 				return err
@@ -132,6 +200,17 @@ func copyMissingTree(sourceDir, targetDir string, result *Result) error {
 		if err := copyFileIfMissing(sourcePath, targetPath, info.Mode().Perm(), result); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func ensureRealDirectory(path string) error {
+	if err := os.Mkdir(path, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("create Workspace directory %s: %w", path, err)
+	}
+	info, err := os.Lstat(path)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("Workspace path must be a directory: %s", path)
 	}
 	return nil
 }

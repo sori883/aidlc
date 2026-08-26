@@ -268,6 +268,30 @@ func smokePathless(ctx context.Context, binaryPath, projectDir string) error {
 	if err != nil || result.Code != 0 || result.Stderr != "" {
 		return fmt.Errorf("PATH-less workspace smoke failed: %w; stderr=%s", err, result.Stderr)
 	}
+	for _, args := range [][]string{
+		{"space", "list", workspaceProject, "--json"},
+		{"space", "create", workspaceProject, "Team A"},
+		{"space", "switch", workspaceProject, "Team A"},
+		{"space", "list", workspaceProject},
+	} {
+		result, err := capture(ctx, projectDir, []string{}, binaryPath, args...)
+		if err != nil || result.Code != 0 || result.Stderr != "" {
+			return fmt.Errorf("PATH-less Space smoke %q failed: %w; stderr=%s", args, err, result.Stderr)
+		}
+	}
+	if err := seedIntentFixture(workspaceProject); err != nil {
+		return err
+	}
+	for _, args := range [][]string{
+		{"intent", "list", workspaceProject, "--json"},
+		{"intent", "switch", workspaceProject, "payment-api"},
+		{"intent", "list", workspaceProject},
+	} {
+		result, err := capture(ctx, projectDir, []string{}, binaryPath, args...)
+		if err != nil || result.Code != 0 || result.Stderr != "" {
+			return fmt.Errorf("PATH-less Intent smoke %q failed: %w; stderr=%s", args, err, result.Stderr)
+		}
+	}
 	return nil
 }
 
@@ -322,6 +346,39 @@ func compareWorkspace(ctx context.Context, repoRoot, binaryPath, bunPath string,
 	if (goErr != nil) != (tsErr != nil) || goResult != tsResult {
 		return fmt.Errorf("workspace init parity mismatch: Go=%+v (%v), TypeScript=%+v (%v)", goResult, goErr, tsResult, tsErr)
 	}
+	for _, args := range [][]string{
+		{"space", "list", "--json"},
+		{"space", "create", "Team A"},
+		{"space", "switch", "Team A"},
+		{"space", "list"},
+	} {
+		goArgs := append([]string{args[0], args[1], goProject}, args[2:]...)
+		tsArgs := append([]string{filepath.Join(repoRoot, "core", "tools", "aidlc.ts"), args[0], args[1], tsProject}, args[2:]...)
+		goResult, goErr = capture(ctx, repoRoot, goEnv, binaryPath, goArgs...)
+		tsResult, tsErr = capture(ctx, repoRoot, tsEnv, bunPath, tsArgs...)
+		if (goErr != nil) != (tsErr != nil) || goResult != tsResult {
+			return fmt.Errorf("Space parity mismatch for %q: Go=%+v (%v), TypeScript=%+v (%v)", args, goResult, goErr, tsResult, tsErr)
+		}
+	}
+	if err := seedIntentFixture(goProject); err != nil {
+		return err
+	}
+	if err := seedIntentFixture(tsProject); err != nil {
+		return err
+	}
+	for _, args := range [][]string{
+		{"intent", "list", "--json"},
+		{"intent", "switch", "payment-api"},
+		{"intent", "list"},
+	} {
+		goArgs := append([]string{args[0], args[1], goProject}, args[2:]...)
+		tsArgs := append([]string{filepath.Join(repoRoot, "core", "tools", "aidlc.ts"), args[0], args[1], tsProject}, args[2:]...)
+		goResult, goErr = capture(ctx, repoRoot, goEnv, binaryPath, goArgs...)
+		tsResult, tsErr = capture(ctx, repoRoot, tsEnv, bunPath, tsArgs...)
+		if (goErr != nil) != (tsErr != nil) || goResult != tsResult {
+			return fmt.Errorf("Intent parity mismatch for %q: Go=%+v (%v), TypeScript=%+v (%v)", args, goResult, goErr, tsResult, tsErr)
+		}
+	}
 	goFiles, err := treeFiles(filepath.Join(goProject, "aidlc"))
 	if err != nil {
 		return err
@@ -341,6 +398,40 @@ func compareWorkspace(ctx context.Context, repoRoot, binaryPath, bunPath string,
 		tsBytes, _ := os.ReadFile(filepath.Join(tsProject, "aidlc", filepath.FromSlash(tsFiles[index])))
 		if !bytes.Equal(goBytes, tsBytes) {
 			return fmt.Errorf("workspace content mismatch: %s", goFiles[index])
+		}
+	}
+	return nil
+}
+
+func seedIntentFixture(projectDir string) error {
+	root := filepath.Join(projectDir, "aidlc", "spaces", "team-a", "intents")
+	dirName := "260826-payment-api"
+	recordDir := filepath.Join(root, dirName)
+	if err := os.MkdirAll(recordDir, 0o755); err != nil {
+		return fmt.Errorf("create Intent parity fixture: %w", err)
+	}
+	registry := []struct {
+		UUID    string   `json:"uuid"`
+		Slug    string   `json:"slug"`
+		DirName string   `json:"dirName"`
+		Repos   []string `json:"repos"`
+		Status  string   `json:"status"`
+	}{{
+		UUID: "0198e26a-0000-7000-8000-000000000001", Slug: "payment-api",
+		DirName: dirName, Repos: []string{"app"}, Status: "in-flight",
+	}}
+	content, err := json.MarshalIndent(registry, "", "  ")
+	if err != nil {
+		return err
+	}
+	content = append(content, '\n')
+	for path, value := range map[string][]byte{
+		filepath.Join(root, "intents.json"):        content,
+		filepath.Join(root, "active-intent"):       []byte(dirName + "\n"),
+		filepath.Join(recordDir, "aidlc-state.md"): []byte("# AI-DLC State Tracking\n"),
+	} {
+		if err := os.WriteFile(path, value, 0o644); err != nil {
+			return fmt.Errorf("write Intent parity fixture: %w", err)
 		}
 	}
 	return nil

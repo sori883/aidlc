@@ -42,6 +42,54 @@ func TestInitializeMatchesWorkspaceContract(t *testing.T) {
 	}
 }
 
+func TestInitializeRejectsSymlinkWorkspace(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation may require Windows developer mode")
+	}
+	projectDir := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(projectDir, "aidlc")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Initialize(projectDir, repositoryMemoryDir(t)); err == nil {
+		t.Fatal("Initialize() followed a symlink Workspace")
+	}
+}
+
+func TestActiveSpaceDoesNotFollowSymlinkPointer(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation may require Windows developer mode")
+	}
+	projectDir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(projectDir, "aidlc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside")
+	if err := os.WriteFile(outside, []byte("team-a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(projectDir, "aidlc", "active-space")); err != nil {
+		t.Fatal(err)
+	}
+	if got := ActiveSpace(projectDir); got != DefaultSpace {
+		t.Fatalf("ActiveSpace() = %q, want %q", got, DefaultSpace)
+	}
+}
+
+func TestSlugifyMatchesStableContract(t *testing.T) {
+	t.Parallel()
+	tests := map[string]string{
+		"  123 Payment API  ": "intent-123-payment-api",
+		"---":                 "intent",
+		"Team A":              "team-a",
+	}
+	for input, want := range tests {
+		if got := Slugify(input, 48); got != want {
+			t.Fatalf("Slugify(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
 func TestInitializeRejectsMissingProjectAndHostMetadata(t *testing.T) {
 	t.Parallel()
 

@@ -2,11 +2,15 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/sori883/aidlc/internal/intent"
 )
 
 func TestVersionHelpAndValidationOutputsMatchBaseline(t *testing.T) {
@@ -125,6 +129,67 @@ func TestWorkspaceInitIsIdempotentAndPreservesFiles(t *testing.T) {
 	}
 	if got, err := os.ReadFile(orgPath); err != nil || string(got) != "# User rules\n" {
 		t.Fatalf("org.md = %q, %v", got, err)
+	}
+}
+
+func TestSpaceRoutesMatchBaseline(t *testing.T) {
+	t.Parallel()
+	projectDir := t.TempDir()
+	options := Options{CoreDir: repositoryCoreDir(t)}
+	runOK := func(args []string) string {
+		t.Helper()
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		if code := RunWithOptions(args, &stdout, &stderr, options); code != 0 {
+			t.Fatalf("RunWithOptions(%q) code=%d stderr=%q", args, code, stderr.String())
+		}
+		return stdout.String()
+	}
+	runOK([]string{"workspace", "init", projectDir})
+	if got, want := runOK([]string{"space", "list", projectDir, "--json"}), `{"active":"default","spaces":[{"name":"default","active":true}]}`+"\n"; got != want {
+		t.Fatalf("initial list = %q, want %q", got, want)
+	}
+	if got, want := runOK([]string{"space", "create", projectDir, "Team A"}), "Space created: team-a\n"; got != want {
+		t.Fatalf("create = %q, want %q", got, want)
+	}
+	if got, want := runOK([]string{"space", "switch", projectDir, "Team A"}), "Active space → team-a\n"; got != want {
+		t.Fatalf("switch = %q, want %q", got, want)
+	}
+	if got, want := runOK([]string{"space", "list", projectDir}), "Spaces:\n  default\n* team-a\n"; got != want {
+		t.Fatalf("list = %q, want %q", got, want)
+	}
+}
+
+func TestIntentListAndSwitchRoutesMatchBaseline(t *testing.T) {
+	t.Parallel()
+	projectDir := t.TempDir()
+	options := Options{CoreDir: repositoryCoreDir(t)}
+	runOK := func(args []string) string {
+		t.Helper()
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		if code := RunWithOptions(args, &stdout, &stderr, options); code != 0 {
+			t.Fatalf("RunWithOptions(%q) code=%d stderr=%q", args, code, stderr.String())
+		}
+		return stdout.String()
+	}
+	runOK([]string{"workspace", "init", projectDir})
+	if got, want := runOK([]string{"intent", "list", projectDir, "--json"}), `{"active":null,"space":"default","intents":[]}`+"\n"; got != want {
+		t.Fatalf("empty list = %q, want %q", got, want)
+	}
+	born, err := intent.BirthRecord(context.Background(), projectDir, "Payment API", "default", []string{"app"}, intent.Options{
+		Clock: func() time.Time { return time.Date(2026, 8, 26, 0, 0, 0, 0, time.UTC) },
+		UUID:  func() (string, error) { return "0198e26a-0000-7000-8000-000000000001", nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantJSON := `{"active":"260826-payment-api","space":"default","intents":[{"uuid":"0198e26a-0000-7000-8000-000000000001","slug":"payment-api","status":"in-flight","repos":["app"],"dirName":"260826-payment-api","active":true}]}` + "\n"
+	if got := runOK([]string{"intent", "list", projectDir, "--json"}); got != wantJSON {
+		t.Fatalf("list = %q, want %q", got, wantJSON)
+	}
+	if got, want := runOK([]string{"intent", "switch", projectDir, born.DirName}), "Active intent → 260826-payment-api (space: default)\n"; got != want {
+		t.Fatalf("switch = %q, want %q", got, want)
 	}
 }
 
