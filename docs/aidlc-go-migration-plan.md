@@ -6,12 +6,13 @@
 |---|---|
 | 作成日 | 2026-08-26 |
 | 対象Repository | `/Users/const/sori883/aidlc` |
-| 現行Branch | `codex/aidlc-vnext` |
-| 現行HEAD | `168eeb5` (`feat: release AI-DLC vNext 1.0.0`) |
-| 現行Runtime | TypeScript 7.0.2／Bun 1.3.14 |
+| 基準Branch | `codex/aidlc-vnext` |
+| G0 Baseline | `c6d67dc5fb32ca2e93869079d36d8769f69217d0` |
+| Go移行Branch | `codex/go-runtime-migration` |
+| Production Runtime | TypeScript 7.0.2／Bun 1.3.14。Go版へ未切り替え |
 | 移行先 | Go 1.26.4 |
 | 最初のHarness | Codex |
-| 状態 | 設計レビュー待ち。Go実装、commit、pushは未着手 |
+| 状態 | G0完了、G1進行中。G2以降は未着手 |
 
 本書は、AI-DLC vNextの実装をTypeScript／BunからGoへ段階的に移行するための
 設計、互換境界、実装順序、検証Gateを定義する。Goへの一括書き換えは行わず、
@@ -385,11 +386,13 @@ fixtureは`testdata/`へ置き、Test専用のProduction分岐を追加しない
 
 ## 9. 実行Stage
 
-### Stage 0: 現行変更の確定
+### Stage 0: 現行変更の確定（G0完了）
 
-Go変更を混ぜる前に、現在の未コミット変更を現行Branchへ確定する。
+Go変更を混ぜる前に、未コミット変更を基準Branchへ確定した。本Stageは完了済みで、
+復帰点は`c6d67dc5fb32ca2e93869079d36d8769f69217d0`とする。このcommitは
+`origin/codex/aidlc-vnext`へpush済みであり、G1開始時の作業ツリーはcleanである。
 
-現在の変更は主に次の2系統である。
+確定した変更は主に次の2系統である。
 
 1. vNext Stage Agent Delegation、Agent persona、共有Stage Skill、Guide、test
 2. 開発用beginner HTML Agent／Skill、Guide、test
@@ -407,9 +410,9 @@ Go変更を混ぜる前に、現在の未コミット変更を現行Branchへ確
 9. local HEADとorigin HEADの一致を確認する
 10. `git status --short`が空であることを確認する
 
-Gateが失敗した場合はcommit／pushせず、失敗内容を報告して次の承認を待つ。
+この手順はG0で完了した。G0 Baselineは以降のGo移行で変更せず、rollbackの基準とする。
 
-### Stage 1: Go開発環境
+### Stage 1: Go開発環境（G1進行中）
 
 1. `codex/go-runtime-migration`Branchを作成する
 2. 本書をGo移行Branchへ配置する
@@ -419,6 +422,9 @@ Gateが失敗した場合はcommit／pushせず、失敗内容を報告して次
 6. `gofmt`、`go vet`、`go test`、native buildの空でないGateを用意する
 7. build output、cache、test temporary fileのignoreを確認する
 8. Production commandの挙動はまだ切り替えない
+
+G1は、上記変更の実装、Goと既存TypeScript／Bun Gateの検証、差分レビュー、明示的な
+承認が完了するまで進行中として扱う。G1承認前にStage 2へ進まない。
 
 ### Stage 2: Vertical Slice PoC
 
@@ -525,16 +531,16 @@ tag作成とGitHub Release公開は、本Stageの完了後に別途明示的な�
 
 ## 12. 承認Gate
 
-| Gate | 承認対象 |
-|---|---|
-| G0 | 現行変更の検証、commit、push |
-| G1 | Go環境、package境界、CI skeleton |
-| G2 | Vertical Sliceのsize／compatibility Evidence |
-| G3 | Platform／Domain Foundation |
-| G4 | Workflow Core |
-| G5 | 各StageのGo移植。ST-00〜ST-09を個別確認 |
-| G6 | Installer／Distribution切り替え |
-| G7 | TypeScript／Bun削除 |
-| G8 | tag作成／GitHub Release公開 |
+| Gate | 承認対象 | 状態 |
+|---|---|---|
+| G0 | 現行変更の検証、commit、push | 完了 |
+| G1 | Go環境、package境界、CI skeleton | 進行中 |
+| G2 | Vertical Sliceのsize／compatibility Evidence | 未着手 |
+| G3 | Platform／Domain Foundation | 未着手 |
+| G4 | Workflow Core | 未着手 |
+| G5 | 各StageのGo移植。ST-00〜ST-09を個別確認 | 未着手 |
+| G6 | Installer／Distribution切り替え | 未着手 |
+| G7 | TypeScript／Bun削除 | 未着手 |
+| G8 | tag作成／GitHub Release公開 | 未着手 |
 
 各Gateで承認されていない次Stageへ進まない。

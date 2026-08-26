@@ -40,3 +40,48 @@ jobs:
 
       - name: Run release gate
         run: bun run release:check
+
+  go:
+    name: Verify Go migration scaffold
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.4"
+          cache: false
+
+      - name: Verify Go formatting
+        shell: bash
+        run: |
+          go_files="$(git ls-files -- '*.go' ':(exclude)work/**')"
+          if [[ -z "${go_files}" ]]; then
+            echo "No tracked Go files were found." >&2
+            exit 1
+          fi
+
+          unformatted="$(git ls-files -z -- '*.go' ':(exclude)work/**' | xargs -0 gofmt -l)"
+          if [[ -n "${unformatted}" ]]; then
+            echo "The following Go files are not formatted:" >&2
+            printf '%s\n' "${unformatted}" >&2
+            exit 1
+          fi
+
+      - name: Vet Go packages
+        run: go vet ./...
+
+      - name: Test Go packages
+        run: go test -count=1 ./...
+
+      - name: Build non-empty native Go CLI scaffold
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p build/go
+          go build -trimpath -o build/go/aidlc ./cmd/aidlc
+          test -s build/go/aidlc
