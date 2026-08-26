@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/sori883/aidlc/internal/contract"
 )
 
 func TestLoadValidatesCanonicalDefinitions(t *testing.T) {
@@ -52,6 +54,24 @@ func TestLoadRejectsUnknownFieldsAndRouteDrift(t *testing.T) {
 	}
 	if _, err := Load(coreDir); err == nil {
 		t.Fatal("Load() accepted route drift")
+	}
+}
+
+func TestFixedRoutes(t *testing.T) {
+	t.Parallel()
+	definitions, err := Load(repositoryCoreDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	next, ok := NextForward(definitions.Graph, contract.Stage00)
+	if !ok || next != contract.Stage01 {
+		t.Fatalf("NextForward() = %s, %t", next, ok)
+	}
+	if err := ValidateRoute(definitions.Graph, RouteRequest{From: contract.Stage07, To: contract.Stage03, FeedbackReason: "requirements_changed"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateRoute(definitions.Graph, RouteRequest{From: contract.Stage07, To: contract.Stage02, FeedbackReason: "requirements_changed"}); err == nil {
+		t.Fatal("ValidateRoute() accepted invented feedback edge")
 	}
 }
 

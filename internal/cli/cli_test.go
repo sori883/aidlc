@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -190,6 +191,61 @@ func TestIntentListAndSwitchRoutesMatchBaseline(t *testing.T) {
 	}
 	if got, want := runOK([]string{"intent", "switch", projectDir, born.DirName}), "Active intent → 260826-payment-api (space: default)\n"; got != want {
 		t.Fatalf("switch = %q, want %q", got, want)
+	}
+}
+
+func TestStage4WorkflowCoreRoutes(t *testing.T) {
+	t.Parallel()
+	projectDir := t.TempDir()
+	options := Options{CoreDir: repositoryCoreDir(t)}
+	runOK := func(args []string) string {
+		t.Helper()
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		if code := RunWithOptions(args, &stdout, &stderr, options); code != 0 {
+			t.Fatalf("RunWithOptions(%q) code=%d stderr=%q stdout=%q", args, code, stderr.String(), stdout.String())
+		}
+		return stdout.String()
+	}
+	runOK([]string{"workspace", "init", projectDir})
+	birthOutput := runOK([]string{"intent", "birth", projectDir, "Payment API"})
+	var born struct {
+		State struct {
+			CurrentStage string `json:"current_stage"`
+			Status       string `json:"status"`
+		} `json:"state"`
+		Plan struct {
+			StageDecisions []json.RawMessage `json:"stage_decisions"`
+		} `json:"plan"`
+	}
+	if err := json.Unmarshal([]byte(birthOutput), &born); err != nil {
+		t.Fatal(err)
+	}
+	if born.State.CurrentStage != "ST-00" || born.State.Status != "parked" || len(born.Plan.StageDecisions) != 10 {
+		t.Fatalf("born = %+v", born)
+	}
+	if got, want := runOK([]string{"state", "check", projectDir}), "{\"valid\":true,\"workflow\":\"vnext\"}\n"; got != want {
+		t.Fatalf("state check = %q, want %q", got, want)
+	}
+	var next struct {
+		Kind              string `json:"kind"`
+		Stage             string `json:"stage"`
+		DecisionAuthority string `json:"decision_authority"`
+	}
+	if err := json.Unmarshal([]byte(runOK([]string{"next", projectDir})), &next); err != nil {
+		t.Fatal(err)
+	}
+	if next.Kind != "parked" || next.Stage != "ST-00" || next.DecisionAuthority != "core" {
+		t.Fatalf("next = %+v", next)
+	}
+	var report struct {
+		Healthy bool `json:"healthy"`
+	}
+	if err := json.Unmarshal([]byte(runOK([]string{"doctor", "check", projectDir})), &report); err != nil {
+		t.Fatal(err)
+	}
+	if !report.Healthy {
+		t.Fatal("doctor reported unhealthy Stage 4 Intent")
 	}
 }
 

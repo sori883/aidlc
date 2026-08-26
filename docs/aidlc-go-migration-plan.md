@@ -12,7 +12,7 @@
 | Production Runtime | TypeScript 7.0.2／Bun 1.3.14。Go版へ未切り替え |
 | 移行先 | Go 1.26.4 |
 | 最初のHarness | Codex |
-| 状態 | G0・G1・G2完了、G3進行中 |
+| 状態 | G0・G1・G2・G3完了、G4 remote Gate確認中 |
 
 本書は、AI-DLC vNextの実装をTypeScript／BunからGoへ段階的に移行するための
 設計、互換境界、実装順序、検証Gateを定義する。Goへの一括書き換えは行わず、
@@ -446,7 +446,7 @@ Projectへの同梱、Git add／commit／clone、darwin-arm64のPATH-less native
 TypeScript版との出力・Workspace差分比較を完了した。G2はGitHub Actions上の
 5 Target native smokeもPR #26のGitHub Actionsで完了し、G2を完了した。
 
-### Stage 3: Platform／Domain Foundation（G3進行中）
+### Stage 3: Platform／Domain Foundation（G3完了）
 
 - strict JSON
 - SHA-256
@@ -459,7 +459,8 @@ TypeScriptとGoの差分testをすべて通す。
 
 Go標準ライブラリだけでPlatform primitive、Workspace／Space／Intent identity／Auditを
 実装し、ローカルのunit／race／TypeScript差分、全5 Target cross-build、約2.77〜3.03MBの
-Binary Gateを完了した。G3はPR #26のremote Gate完了まで進行中とする。
+Binary Gateを完了した。PR #26のGo／TypeScript quality Gateと5 Target native smokeも
+すべて成功し、G3を完了した。
 
 ### Stage 4: Workflow Core
 
@@ -471,6 +472,18 @@ Binary Gateを完了した。G3はPR #26のremote Gate完了まで進行中と�
 - Core Orchestrator／Doctor
 
 Core-only mutationとfail-closed境界をGo testで固定する。
+
+Go標準ライブラリだけでStage Contract、Effective Policy、Intent Risk、Human Gate、
+Stage Execution Plan、State、Directive、Core Orchestrator、Doctorを実装した。Core以外の
+persisted decision authority、固定Graph外のroute、未検証Evidence、古いRisk revisionの
+Policy acknowledgement、Project外／symlink path、immutable Artifactの置換をfail closedで
+拒否するunit testを追加した。`intent birth`、`intent risk`、`state`、`plan`、`next`、
+`doctor`をGo CLIへ接続し、既存Production launcherは変更していない。
+
+ローカルでは`gofmt`、`go vet ./...`、`go test ./...`、`go test -race ./...`、既存Bun
+209 test、bundle／distribution check、全5 Target cross-buildを完了した。Binaryは約
+3.11〜3.41MBで16MiB未満、native PATH-less smokeではIntent Birth、State、Doctor、
+Orchestratorまで実行した。G4はPR #26のremote Gate確認中とする。
 
 ### Stage 5: Stage Runtime
 
@@ -546,8 +559,8 @@ tag作成とGitHub Release公開は、本Stageの完了後に別途明示的な�
 | G0 | 現行変更の検証、commit、push | 完了 |
 | G1 | Go環境、package境界、CI skeleton | 完了 |
 | G2 | Vertical Sliceのsize／compatibility Evidence | 完了 |
-| G3 | Platform／Domain Foundation | 進行中 |
-| G4 | Workflow Core | 未着手 |
+| G3 | Platform／Domain Foundation | 完了 |
+| G4 | Workflow Core | remote Gate確認中 |
 | G5 | 各StageのGo移植。ST-00〜ST-09を個別確認 | 未着手 |
 | G6 | Installer／Distribution切り替え | 未着手 |
 | G7 | TypeScript／Bun削除 | 未着手 |

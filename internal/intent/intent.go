@@ -16,9 +16,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sori883/aidlc/internal/audit"
+	"github.com/sori883/aidlc/internal/contract"
 	"github.com/sori883/aidlc/internal/platform/fsx"
 	"github.com/sori883/aidlc/internal/platform/jsonx"
 	"github.com/sori883/aidlc/internal/platform/lock"
+	"github.com/sori883/aidlc/internal/workflow/catalog"
+	workflowplan "github.com/sori883/aidlc/internal/workflow/plan"
+	"github.com/sori883/aidlc/internal/workflow/policy"
+	"github.com/sori883/aidlc/internal/workflow/risk"
+	"github.com/sori883/aidlc/internal/workflow/state"
 	"github.com/sori883/aidlc/internal/workspace"
 )
 
@@ -56,6 +63,28 @@ type Born struct {
 	DirName   string
 	RecordDir string
 	Space     string
+}
+
+// BornWithState is a fully initialized vNext Intent.
+type BornWithState struct {
+	UUID            string                      `json:"uuid"`
+	Slug            string                      `json:"slug"`
+	DirName         string                      `json:"dirName"`
+	RecordDir       string                      `json:"recordDir"`
+	Space           string                      `json:"space"`
+	State           state.IntentState           `json:"state"`
+	Plan            contract.StageExecutionPlan `json:"plan"`
+	PolicyPath      string                      `json:"policyPath"`
+	AuditPath       string                      `json:"auditPath"`
+	DesignBriefPath string                      `json:"designBriefPath"`
+	RiskCurrentPath string                      `json:"riskCurrentPath"`
+}
+
+// BirthWorkflowOptions injects identity, clock, repositories, and initial Risks.
+type BirthWorkflowOptions struct {
+	Identity Options
+	Repos    []string
+	Risks    []risk.Seed
 }
 
 // Options injects nondeterministic sources for tests.
@@ -287,6 +316,90 @@ func BirthRecord(ctx context.Context, projectDir, label, selectedSpace string, r
 		return nil
 	})
 	return born, err
+}
+
+// BirthWithState creates a complete vNext Intent and lets Core persist the safe
+// initial route. It never converts or overwrites an existing Intent.
+func BirthWithState(ctx context.Context, projectDir, coreDir, label, selectedSpace string, options BirthWorkflowOptions) (BornWithState, error) {
+	if err := validateLabel(label); err != nil {
+		return BornWithState{}, err
+	}
+	definitions, err := catalog.Load(coreDir)
+	if err != nil {
+		return BornWithState{}, err
+	}
+	projectRoot, err := filepath.Abs(projectDir)
+	if err != nil {
+		return BornWithState{}, err
+	}
+	if selectedSpace == "" {
+		selectedSpace = workspace.ActiveSpace(projectRoot)
+	}
+	var result BornWithState
+	err = lock.With(ctx, projectRoot, lock.Options{}, func(lockContext context.Context) error {
+		born, err := BirthRecord(lockContext, projectRoot, label, selectedSpace, options.Repos, options.Identity)
+		if err != nil {
+			return err
+		}
+		now := time.Now()
+		if options.Identity.Clock != nil {
+			now = options.Identity.Clock()
+		}
+		startedAt := now.UTC().Truncate(time.Millisecond).Format("2006-01-02T15:04:05.000Z")
+		clock := func() time.Time { return now }
+		auditPath, err := audit.Initialize(lockContext, projectRoot, born.RecordDir)
+		if err != nil {
+			return err
+		}
+		if _, err := audit.Append(lockContext, projectRoot, born.RecordDir, audit.WorkflowStarted, []audit.Field{{Name: "Workflow", Value: "vNext"}, {Name: "Request", Value: "/aidlc " + label}}, clock); err != nil {
+			return err
+		}
+		if err := EnsureBirthDirectories(projectRoot, born.RecordDir, selectedSpace, []string{"artifacts"}); err != nil {
+			return err
+		}
+		if _, err := audit.Append(lockContext, projectRoot, born.RecordDir, audit.WorkspaceScaffolded, []audit.Field{{Name: "Request", Value: "/aidlc " + label}, {Name: "Details", Value: "vNext Intent record and artifact directories ensured"}}, clock); err != nil {
+			return err
+		}
+		designBriefPath, err := WriteDesignBrief(born.RecordDir, born.UUID, label, startedAt)
+		if err != nil {
+			return err
+		}
+		writtenPolicy, err := policy.Write(projectRoot, born.RecordDir, born.UUID, policy.BuildOptions{CreatedAt: startedAt})
+		if err != nil {
+			return err
+		}
+		if _, err := audit.Append(lockContext, projectRoot, born.RecordDir, audit.PolicySnapshotCreated, []audit.Field{{Name: "Snapshot ID", Value: writtenPolicy.Snapshot.SnapshotID}, {Name: "Revision", Value: fmt.Sprint(writtenPolicy.Snapshot.Revision)}, {Name: "Source Priority", Value: "org > team > project"}}, clock); err != nil {
+			return err
+		}
+		writtenRisk, err := risk.Initialize(lockContext, projectRoot, born.RecordDir, born.UUID, risk.Options{Risks: options.Risks, CreatedAt: startedAt})
+		if err != nil {
+			return err
+		}
+		if _, err := audit.Append(lockContext, projectRoot, born.RecordDir, audit.DecisionRecorded, []audit.Field{{Name: "Decision", Value: "Intent Risk Register Created"}, {Name: "Revision", Value: fmt.Sprint(writtenRisk.Register.Revision)}, {Name: "Risk Count", Value: fmt.Sprint(len(writtenRisk.Register.Risks))}, {Name: "Decision Authority", Value: "core"}}, clock); err != nil {
+			return err
+		}
+		executionPlan, err := workflowplan.Initial(born.UUID, definitions.Graph.GraphVersion, writtenPolicy.Reference)
+		if err != nil {
+			return err
+		}
+		initialized, err := state.Initialize(lockContext, projectRoot, born.RecordDir, state.InitializeOptions{IntentID: born.UUID, CatalogVersion: definitions.Catalog.CatalogVersion, GraphVersion: definitions.Graph.GraphVersion, PolicySnapshot: writtenPolicy.Reference, Plan: executionPlan, CreatedAt: startedAt})
+		if err != nil {
+			return err
+		}
+		if _, err := audit.Append(lockContext, projectRoot, born.RecordDir, audit.PlanCreated, []audit.Field{{Name: "Revision", Value: fmt.Sprint(executionPlan.Revision)}, {Name: "Decision Authority", Value: "core"}, {Name: "Stage Count", Value: fmt.Sprint(len(executionPlan.StageDecisions))}, {Name: "Safe Default", Value: "execute"}}, clock); err != nil {
+			return err
+		}
+		if _, err := audit.Append(lockContext, projectRoot, born.RecordDir, audit.RouteDecided, []audit.Field{{Name: "Current Stage", Value: string(initialized.State.CurrentStage)}, {Name: "Graph", Value: initialized.State.GraphVersion}, {Name: "Decision Authority", Value: "core"}}, clock); err != nil {
+			return err
+		}
+		result = BornWithState{
+			UUID: born.UUID, Slug: born.Slug, DirName: born.DirName, RecordDir: born.RecordDir, Space: born.Space,
+			State: initialized.State, Plan: executionPlan, PolicyPath: writtenPolicy.Path,
+			AuditPath: auditPath, DesignBriefPath: designBriefPath, RiskCurrentPath: risk.CurrentPath(born.RecordDir),
+		}
+		return nil
+	})
+	return result, err
 }
 
 // EnsureBirthDirectories materializes the lazy per-Intent directories.

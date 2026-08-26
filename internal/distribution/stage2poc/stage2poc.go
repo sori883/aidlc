@@ -273,6 +273,10 @@ func smokePathless(ctx context.Context, binaryPath, projectDir string) error {
 		{"space", "create", workspaceProject, "Team A"},
 		{"space", "switch", workspaceProject, "Team A"},
 		{"space", "list", workspaceProject},
+		{"intent", "birth", workspaceProject, "Native Workflow Gate"},
+		{"state", "check", workspaceProject},
+		{"doctor", "check", workspaceProject},
+		{"next", workspaceProject},
 	} {
 		result, err := capture(ctx, projectDir, []string{}, binaryPath, args...)
 		if err != nil || result.Code != 0 || result.Stderr != "" {

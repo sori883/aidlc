@@ -57,6 +57,13 @@ type Definitions struct {
 	Graph   StageGraph
 }
 
+// RouteRequest is a Core-owned forward or fixed feedback transition.
+type RouteRequest struct {
+	From           contract.StageID
+	To             contract.StageID
+	FeedbackReason string
+}
+
 var expectedFeedbackEdges = [...]FeedbackEdge{
 	{From: contract.Stage07, To: contract.Stage03, Reason: "requirements_changed"},
 	{From: contract.Stage07, To: contract.Stage04, Reason: "architecture_impact"},
@@ -91,6 +98,34 @@ func Load(coreDir string) (Definitions, error) {
 		)
 	}
 	return Definitions{Catalog: stageCatalog, Graph: stageGraph}, nil
+}
+
+// NextForward returns the fixed next Stage or false at the terminal Stage.
+func NextForward(graph StageGraph, current contract.StageID) (contract.StageID, bool) {
+	for _, edge := range graph.ForwardEdges {
+		if edge.From == current {
+			return edge.To, true
+		}
+	}
+	return "", false
+}
+
+// ValidateRoute rejects every transition outside the fixed Graph.
+func ValidateRoute(graph StageGraph, request RouteRequest) error {
+	for _, edge := range graph.ForwardEdges {
+		if edge.From == request.From && edge.To == request.To {
+			if request.FeedbackReason != "" {
+				return fmt.Errorf("Core Route: forward transition must not include feedback_reason")
+			}
+			return nil
+		}
+	}
+	for _, edge := range graph.FeedbackEdges {
+		if edge.From == request.From && edge.To == request.To && edge.Reason == request.FeedbackReason {
+			return nil
+		}
+	}
+	return fmt.Errorf("Core Route: transition %s->%s is not allowed by %s", request.From, request.To, graph.GraphVersion)
 }
 
 func validateCatalog(stageCatalog StageCatalog) error {

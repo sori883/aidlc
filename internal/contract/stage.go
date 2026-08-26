@@ -41,3 +41,9 @@ func ParseStageID(value string) (StageID, error) {
 	}
 	return "", fmt.Errorf("must be one of: ST-00, ST-01, ST-02, ST-03, ST-04, ST-05, ST-06, ST-07, ST-08, ST-09")
 }
+
+// Valid reports whether stageID belongs to the fixed ten-Stage workflow.
+func (stageID StageID) Valid() bool {
+	_, err := ParseStageID(string(stageID))
+	return err == nil
+}
