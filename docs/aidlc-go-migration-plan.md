@@ -12,7 +12,7 @@
 | Production Runtime | TypeScript 7.0.2／Bun 1.3.14。Go版へ未切り替え |
 | 移行先 | Go 1.26.4 |
 | 最初のHarness | Codex |
-| 状態 | G0完了、G1進行中。G2以降は未着手 |
+| 状態 | G0・G1完了、G2検証中。Stage 2実装とローカルPoCは完了 |
 
 本書は、AI-DLC vNextの実装をTypeScript／BunからGoへ段階的に移行するための
 設計、互換境界、実装順序、検証Gateを定義する。Goへの一括書き換えは行わず、
@@ -412,7 +412,7 @@ Go変更を混ぜる前に、未コミット変更を基準Branchへ確定した
 
 この手順はG0で完了した。G0 Baselineは以降のGo移行で変更せず、rollbackの基準とする。
 
-### Stage 1: Go開発環境（G1進行中）
+### Stage 1: Go開発環境（G1完了）
 
 1. `codex/go-runtime-migration`Branchを作成する
 2. 本書をGo移行Branchへ配置する
@@ -423,10 +423,11 @@ Go変更を混ぜる前に、未コミット変更を基準Branchへ確定した
 7. build output、cache、test temporary fileのignoreを確認する
 8. Production commandの挙動はまだ切り替えない
 
-G1は、上記変更の実装、Goと既存TypeScript／Bun Gateの検証、差分レビュー、明示的な
-承認が完了するまで進行中として扱う。G1承認前にStage 2へ進まない。
+G1は`fd601366069c4d8e26da5754212082e67652f5bc`で完了した。Go 1.26.4の
+format／vet／test／native build Gateと既存TypeScript／Bun Gateをともに通し、
+`origin/codex/go-runtime-migration`へpush済みである。
 
-### Stage 2: Vertical Slice PoC
+### Stage 2: Vertical Slice PoC（G2検証中）
 
 最初に次だけをGoで実装する。
 
@@ -439,6 +440,11 @@ G1は、上記変更の実装、Goと既存TypeScript／Bun Gateの検証、差�
 
 5 Targetをbuildし、size、format、PATH-less実行、Project同梱、`git add`、clone実行を
 測定する。全Gateが通ったEvidenceをレビューし、承認後にDomain移植へ進む。
+
+ローカルでは5 Targetのbuild、16MiB未満、Mach-O／ELF／PE形式、Go build info、
+Projectへの同梱、Git add／commit／clone、darwin-arm64のPATH-less native smoke、
+TypeScript版との出力・Workspace差分比較を完了した。G2はGitHub Actions上の
+5 Target native smokeが完了するまで検証中とする。
 
 ### Stage 3: Platform／Domain Foundation
 
@@ -534,8 +540,8 @@ tag作成とGitHub Release公開は、本Stageの完了後に別途明示的な�
 | Gate | 承認対象 | 状態 |
 |---|---|---|
 | G0 | 現行変更の検証、commit、push | 完了 |
-| G1 | Go環境、package境界、CI skeleton | 進行中 |
-| G2 | Vertical Sliceのsize／compatibility Evidence | 未着手 |
+| G1 | Go環境、package境界、CI skeleton | 完了 |
+| G2 | Vertical Sliceのsize／compatibility Evidence | 検証中 |
 | G3 | Platform／Domain Foundation | 未着手 |
 | G4 | Workflow Core | 未着手 |
 | G5 | 各StageのGo移植。ST-00〜ST-09を個別確認 | 未着手 |

@@ -1,18 +1,16 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"os"
+
+	"github.com/sori883/aidlc/internal/cli"
 )
 
-const stage1UnavailableMessage = "aidlc Go CLI is unavailable during migration Stage 1"
-
-func run(stderr io.Writer) int {
-	fmt.Fprintln(stderr, stage1UnavailableMessage)
-	return 1
+func run(args []string, stdout, stderr io.Writer) int {
+	return cli.Run(args, stdout, stderr)
 }
 
 func main() {
-	os.Exit(run(os.Stderr))
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }

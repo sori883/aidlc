@@ -42,7 +42,7 @@ jobs:
         run: bun run release:check
 
   go:
-    name: Verify Go migration scaffold
+    name: Verify Go migration runtime
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -78,7 +78,7 @@ jobs:
       - name: Test Go packages
         run: go test -count=1 ./...
 
-      - name: Build non-empty native Go CLI scaffold
+      - name: Build non-empty native Go CLI
         env:
           CGO_ENABLED: "0"
         run: |

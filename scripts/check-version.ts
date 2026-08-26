@@ -29,6 +29,15 @@ function packageVersion(path: string): string {
   return value.version;
 }
 
+function goVersion(path: string): string {
+  const content = readFileSync(path, "utf8");
+  const value = content.match(/^const Version = "([^"]+)"$/m)?.[1];
+  if (value === undefined || value.length === 0) {
+    throw new Error(`Go version constant is missing: ${path}`);
+  }
+  return value;
+}
+
 export function assertVersionedArtifacts(
   expected: string,
   artifacts: readonly VersionedArtifact[],
@@ -45,6 +54,7 @@ export function assertVersionedArtifacts(
 export function checkVersionConsistency(root = REPO_ROOT): string {
   const canonical = packageVersion(join(root, "package.json"));
   const runtime = packageVersion(join(root, "harness/codex/runtime/package.json"));
+  const goRuntime = goVersion(join(root, "internal/version/version.go"));
   const readme = readFileSync(join(root, "README.md"), "utf8");
   const readmeCurrent = readme.match(/現在のリリースバージョンは`([^`]+)`/)?.[1];
   if (readmeCurrent === undefined) {
@@ -52,6 +62,7 @@ export function checkVersionConsistency(root = REPO_ROOT): string {
   }
   assertVersionedArtifacts(canonical, [
     { label: "core/tools/aidlc-version.ts", version: AIDLC_VERSION },
+    { label: "internal/version/version.go", version: goRuntime },
     { label: "harness/codex/runtime/package.json", version: runtime },
     { label: "README.md current release", version: readmeCurrent },
   ]);
