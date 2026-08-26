@@ -235,7 +235,7 @@ func TestStage4WorkflowCoreRoutes(t *testing.T) {
 	if err := json.Unmarshal([]byte(runOK([]string{"next", projectDir})), &next); err != nil {
 		t.Fatal(err)
 	}
-	if next.Kind != "parked" || next.Stage != "ST-00" || next.DecisionAuthority != "core" {
+	if next.Kind != "advanced" || next.Stage != "ST-01" || next.DecisionAuthority != "core" {
 		t.Fatalf("next = %+v", next)
 	}
 	var report struct {

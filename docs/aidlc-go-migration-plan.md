@@ -12,7 +12,7 @@
 | Production Runtime | TypeScript 7.0.2／Bun 1.3.14。Go版へ未切り替え |
 | 移行先 | Go 1.26.4 |
 | 最初のHarness | Codex |
-| 状態 | G0・G1・G2・G3完了、G4 remote Gate確認中 |
+| 状態 | G0・G1・G2・G3・G4完了、G5 remote Gate確認中 |
 
 本書は、AI-DLC vNextの実装をTypeScript／BunからGoへ段階的に移行するための
 設計、互換境界、実装順序、検証Gateを定義する。Goへの一括書き換えは行わず、
@@ -462,7 +462,7 @@ Go標準ライブラリだけでPlatform primitive、Workspace／Space／Intent 
 Binary Gateを完了した。PR #26のGo／TypeScript quality Gateと5 Target native smokeも
 すべて成功し、G3を完了した。
 
-### Stage 4: Workflow Core
+### Stage 4: Workflow Core（G4完了）
 
 - Stage Contract
 - Catalog／Graph
@@ -483,9 +483,9 @@ Policy acknowledgement、Project外／symlink path、immutable Artifactの置換
 ローカルでは`gofmt`、`go vet ./...`、`go test ./...`、`go test -race ./...`、既存Bun
 209 test、bundle／distribution check、全5 Target cross-buildを完了した。Binaryは約
 3.11〜3.41MBで16MiB未満、native PATH-less smokeではIntent Birth、State、Doctor、
-Orchestratorまで実行した。G4はPR #26のremote Gate確認中とする。
+Orchestratorまで実行した。PR #26のremote Gateも成功し、G4を完了した。
 
-### Stage 5: Stage Runtime
+### Stage 5: Stage Runtime（G5 remote Gate確認中）
 
 ST-00からST-09まで1 Stageずつ移植する。各Stageで次を行う。
 
@@ -494,6 +494,16 @@ ST-00からST-09まで1 Stageずつ移植する。各Stageで次を行う。
 3. Go実装とunit／failure／resume testを追加する
 4. differential testを通す
 5. Stage単位の差分とEvidenceを記録する
+
+Go標準ライブラリだけでST-00〜ST-09を実装し、CLI、Core Orchestrator、Doctorへ接続した。
+normal／failure／resume、immutable参照とcurrentの改変拒否、ST-06の3回同一失敗block、
+ST-08のexact authority／baseline drift／rollback、ST-09の複数観測cycleと人間判断をGo testで
+固定した。Go生成JSONを既存TypeScript parserへ入力するStage別differential testも成功した。
+
+ローカルでは`gofmt`、`go vet ./...`、通常／race Go test、既存Bun 209 test、bundle／
+distribution check、全5 Target cross-build、Project Git round trip、native PATH-less smokeを
+完了した。Binaryは約7.93〜8.96MBで16MiB未満である。詳細は
+`docs/aidlc-go-stage-runtime-evidence.md`に記録した。G5はPR #26のremote Gate確認中とする。
 
 ### Stage 6: Installer／Distribution
 
@@ -560,8 +570,8 @@ tag作成とGitHub Release公開は、本Stageの完了後に別途明示的な�
 | G1 | Go環境、package境界、CI skeleton | 完了 |
 | G2 | Vertical Sliceのsize／compatibility Evidence | 完了 |
 | G3 | Platform／Domain Foundation | 完了 |
-| G4 | Workflow Core | remote Gate確認中 |
-| G5 | 各StageのGo移植。ST-00〜ST-09を個別確認 | 未着手 |
+| G4 | Workflow Core | 完了 |
+| G5 | 各StageのGo移植。ST-00〜ST-09を個別確認 | remote Gate確認中 |
 | G6 | Installer／Distribution切り替え | 未着手 |
 | G7 | TypeScript／Bun削除 | 未着手 |
 | G8 | tag作成／GitHub Release公開 | 未着手 |

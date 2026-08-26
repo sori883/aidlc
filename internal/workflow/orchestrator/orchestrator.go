@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/sori883/aidlc/internal/contract"
+	"github.com/sori883/aidlc/internal/platform/lock"
 	"github.com/sori883/aidlc/internal/workflow/catalog"
 	"github.com/sori883/aidlc/internal/workflow/directive"
 	"github.com/sori883/aidlc/internal/workflow/policy"
@@ -30,6 +31,16 @@ type Registry map[contract.StageID]Handler
 
 // Resolve validates Core State and returns exactly one Core Directive.
 func Resolve(ctx context.Context, projectDir, coreDir string, handlers Registry) (directive.Core, error) {
+	var result directive.Core
+	err := lock.With(ctx, projectDir, lock.Options{}, func(lockContext context.Context) error {
+		var err error
+		result, err = resolveLocked(lockContext, projectDir, coreDir, handlers)
+		return err
+	})
+	return result, err
+}
+
+func resolveLocked(ctx context.Context, projectDir, coreDir string, handlers Registry) (directive.Core, error) {
 	definitions, err := catalog.Load(coreDir)
 	if err != nil {
 		return directive.Core{}, err

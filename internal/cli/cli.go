@@ -16,11 +16,23 @@ import (
 	"github.com/sori883/aidlc/internal/doctor"
 	"github.com/sori883/aidlc/internal/intent"
 	"github.com/sori883/aidlc/internal/platform/jsonx"
+	"github.com/sori883/aidlc/internal/platform/lock"
 	"github.com/sori883/aidlc/internal/platform/runtimepath"
 	"github.com/sori883/aidlc/internal/space"
+	"github.com/sori883/aidlc/internal/stage/st00bootstrap"
+	"github.com/sori883/aidlc/internal/stage/st01orient"
+	"github.com/sori883/aidlc/internal/stage/st02defineintent"
+	"github.com/sori883/aidlc/internal/stage/st03requirements"
+	"github.com/sori883/aidlc/internal/stage/st04architecture"
+	"github.com/sori883/aidlc/internal/stage/st05buildcontract"
+	"github.com/sori883/aidlc/internal/stage/st06build"
+	"github.com/sori883/aidlc/internal/stage/st07review"
+	"github.com/sori883/aidlc/internal/stage/st08release"
+	"github.com/sori883/aidlc/internal/stage/st09outcome"
 	"github.com/sori883/aidlc/internal/version"
 	"github.com/sori883/aidlc/internal/workflow/catalog"
 	"github.com/sori883/aidlc/internal/workflow/delegation"
+	"github.com/sori883/aidlc/internal/workflow/gate"
 	"github.com/sori883/aidlc/internal/workflow/orchestrator"
 	workflowplan "github.com/sori883/aidlc/internal/workflow/plan"
 	"github.com/sori883/aidlc/internal/workflow/risk"
@@ -67,6 +79,25 @@ func Run(args []string, stdout, stderr io.Writer) int {
 
 // RunWithOptions executes the CLI with explicit runtime options.
 func RunWithOptions(args []string, stdout, stderr io.Writer, options Options) int {
+	normalized := append([]string{}, args...)
+	if len(normalized) > 0 && normalized[0] == "next" {
+		normalized = append([]string{"orchestrate", "next"}, normalized[1:]...)
+	}
+	if len(normalized) >= 3 && stageRuntimeNoun(normalized[0]) {
+		code := 1
+		err := lock.With(context.Background(), normalized[2], lock.Options{}, func(ctx context.Context) error {
+			code = runWithContext(ctx, normalized, stdout, stderr, options)
+			return nil
+		})
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		return code
+	}
+	return runWithContext(context.Background(), normalized, stdout, stderr, options)
+}
+
+func runWithContext(ctx context.Context, args []string, stdout, stderr io.Writer, options Options) int {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
 		_, _ = io.WriteString(stdout, renderHelp(false))
 		return 0
@@ -290,7 +321,7 @@ func RunWithOptions(args []string, stdout, stderr io.Writer, options Options) in
 		if err != nil {
 			return writeError(stderr, err.Error())
 		}
-		created, err := space.Create(context.Background(), args[2], args[3], filepath.Join(resolvedCore, "memory"))
+		created, err := space.Create(ctx, args[2], args[3], filepath.Join(resolvedCore, "memory"))
 		if err != nil {
 			return writeError(stderr, err.Error())
 		}
@@ -301,7 +332,7 @@ func RunWithOptions(args []string, stdout, stderr io.Writer, options Options) in
 		if len(args) != 4 {
 			return writeError(stderr, "Usage: aidlc-space list <project-dir> [--json]\n       aidlc-space create <project-dir> <name>\n       aidlc-space switch <project-dir> <name>")
 		}
-		selected, err := space.Switch(context.Background(), args[2], args[3])
+		selected, err := space.Switch(ctx, args[2], args[3])
 		if err != nil {
 			return writeError(stderr, err.Error())
 		}
@@ -381,7 +412,7 @@ func RunWithOptions(args []string, stdout, stderr io.Writer, options Options) in
 			return writeError(stderr, "Usage: aidlc-intent list <project-dir> [--json]\n       aidlc-intent birth <project-dir> <label> [--risk-file risks.json]\n       aidlc-intent switch <project-dir> <intent>")
 		}
 		selectedSpace := workspace.ActiveSpace(args[2])
-		selected, err := intent.Switch(context.Background(), args[2], args[3], selectedSpace)
+		selected, err := intent.Switch(ctx, args[2], args[3], selectedSpace)
 		if err != nil {
 			return writeError(stderr, err.Error())
 		}
@@ -413,7 +444,7 @@ func RunWithOptions(args []string, stdout, stderr io.Writer, options Options) in
 				}
 			}
 		}
-		born, err := intent.BirthWithState(context.Background(), args[2], resolvedCore, args[3], workspace.ActiveSpace(args[2]), intent.BirthWorkflowOptions{Risks: seeds})
+		born, err := intent.BirthWithState(ctx, args[2], resolvedCore, args[3], workspace.ActiveSpace(args[2]), intent.BirthWorkflowOptions{Risks: seeds})
 		if err != nil {
 			return writeError(stderr, err.Error())
 		}
@@ -448,11 +479,11 @@ func RunWithOptions(args []string, stdout, stderr io.Writer, options Options) in
 			if err != nil {
 				return writeError(stderr, err.Error())
 			}
-			register, err := risk.Propose(context.Background(), args[3], snapshot.RecordDir, proposal, "")
+			register, err := risk.Propose(ctx, args[3], snapshot.RecordDir, proposal, "")
 			if err != nil {
 				return writeError(stderr, err.Error())
 			}
-			if _, err := audit.Append(context.Background(), args[3], snapshot.RecordDir, audit.DecisionRecorded, []audit.Field{{Name: "Decision", Value: "Intent Risk Proposal Accepted"}, {Name: "Proposal", Value: proposal.ProposalID}, {Name: "Revision", Value: fmt.Sprint(register.Revision)}, {Name: "Decision Authority", Value: "core"}}, nil); err != nil {
+			if _, err := audit.Append(ctx, args[3], snapshot.RecordDir, audit.DecisionRecorded, []audit.Field{{Name: "Decision", Value: "Intent Risk Proposal Accepted"}, {Name: "Proposal", Value: proposal.ProposalID}, {Name: "Revision", Value: fmt.Sprint(register.Revision)}, {Name: "Decision Authority", Value: "core"}}, nil); err != nil {
 				return writeError(stderr, err.Error())
 			}
 			return writeJSON(stdout, stderr, struct {
@@ -463,11 +494,11 @@ func RunWithOptions(args []string, stdout, stderr io.Writer, options Options) in
 		if err != nil {
 			return writeError(stderr, err.Error())
 		}
-		register, err := risk.Decide(context.Background(), args[3], snapshot.RecordDir, decision, "")
+		register, err := risk.Decide(ctx, args[3], snapshot.RecordDir, decision, "")
 		if err != nil {
 			return writeError(stderr, err.Error())
 		}
-		if _, err := audit.Append(context.Background(), args[3], snapshot.RecordDir, audit.DecisionRecorded, []audit.Field{{Name: "Decision", Value: string(decision.Action)}, {Name: "Risk", Value: decision.RiskID}, {Name: "Revision", Value: fmt.Sprint(register.Revision)}, {Name: "Decision Authority", Value: "human"}}, nil); err != nil {
+		if _, err := audit.Append(ctx, args[3], snapshot.RecordDir, audit.DecisionRecorded, []audit.Field{{Name: "Decision", Value: string(decision.Action)}, {Name: "Risk", Value: decision.RiskID}, {Name: "Revision", Value: fmt.Sprint(register.Revision)}, {Name: "Decision Authority", Value: "human"}}, nil); err != nil {
 			return writeError(stderr, err.Error())
 		}
 		return writeJSON(stdout, stderr, struct {
@@ -549,10 +580,10 @@ func RunWithOptions(args []string, stdout, stderr io.Writer, options Options) in
 		revisedState := resumed.State
 		revisedState.PlanRevision = revised.Revision
 		revisedState.UpdatedAt = time.Now().UTC().Truncate(time.Millisecond).Format("2006-01-02T15:04:05.000Z")
-		if err := state.Store(context.Background(), args[2], resumed.RecordDir, revisedState, revised); err != nil {
+		if err := state.Store(ctx, args[2], resumed.RecordDir, revisedState, revised); err != nil {
 			return writeError(stderr, err.Error())
 		}
-		if _, err := audit.Append(context.Background(), args[2], resumed.RecordDir, audit.PlanRevised, []audit.Field{{Name: "From Revision", Value: fmt.Sprint(resumed.Plan.Revision)}, {Name: "To Revision", Value: fmt.Sprint(revised.Revision)}, {Name: "Decision Authority", Value: "core"}, {Name: "Proposal Count", Value: fmt.Sprint(len(proposals))}}, nil); err != nil {
+		if _, err := audit.Append(ctx, args[2], resumed.RecordDir, audit.PlanRevised, []audit.Field{{Name: "From Revision", Value: fmt.Sprint(resumed.Plan.Revision)}, {Name: "To Revision", Value: fmt.Sprint(revised.Revision)}, {Name: "Decision Authority", Value: "core"}, {Name: "Proposal Count", Value: fmt.Sprint(len(proposals))}}, nil); err != nil {
 			return writeError(stderr, err.Error())
 		}
 		return writeJSON(stdout, stderr, revised, true)
@@ -565,11 +596,453 @@ func RunWithOptions(args []string, stdout, stderr io.Writer, options Options) in
 		if err != nil {
 			return writeError(stderr, err.Error())
 		}
-		result, err := orchestrator.Resolve(context.Background(), args[2], resolvedCore, orchestrator.Registry{})
+		result, err := orchestrator.Resolve(ctx, args[2], resolvedCore, orchestrator.Registry{
+			contract.Stage00: st00bootstrap.Handler{CoreDir: resolvedCore},
+			contract.Stage01: st01orient.Handler{CoreDir: resolvedCore},
+			contract.Stage02: st02defineintent.Handler{CoreDir: resolvedCore},
+			contract.Stage03: st03requirements.Handler{CoreDir: resolvedCore},
+			contract.Stage04: st04architecture.Handler{CoreDir: resolvedCore},
+			contract.Stage05: st05buildcontract.Handler{CoreDir: resolvedCore},
+			contract.Stage06: st06build.Handler{CoreDir: resolvedCore},
+			contract.Stage07: st07review.Handler{CoreDir: resolvedCore},
+			contract.Stage08: st08release.Handler{CoreDir: resolvedCore},
+			contract.Stage09: st09outcome.Handler{CoreDir: resolvedCore},
+		})
 		if err != nil {
 			return writeError(stderr, err.Error())
 		}
 		return writeJSON(stdout, stderr, result, false)
+
+	case args[0] == "orient" && (args[1] == "prepare" || args[1] == "complete"):
+		if (args[1] == "prepare" && len(args) != 3) || (args[1] == "complete" && len(args) != 4) {
+			return writeError(stderr, "Usage: aidlc orient prepare <project-dir>\n       aidlc orient complete <project-dir> <proposal.json>")
+		}
+		resolvedCore, err := resolveCore()
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		if args[1] == "prepare" {
+			result, err := st01orient.Prepare(ctx, args[2], resolvedCore, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		}
+		content, err := os.ReadFile(args[3])
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		result, err := st01orient.Complete(ctx, args[2], resolvedCore, content, "")
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		return writeJSON(stdout, stderr, result, true)
+
+	case args[0] == "define-intent" && (args[1] == "prepare" || args[1] == "complete"):
+		if (args[1] == "prepare" && len(args) != 3) || (args[1] == "complete" && len(args) != 4) {
+			return writeError(stderr, "Usage: aidlc define-intent prepare <project-dir>\n       aidlc define-intent complete <project-dir> <proposal.json>")
+		}
+		resolvedCore, err := resolveCore()
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		if args[1] == "prepare" {
+			result, err := st02defineintent.Prepare(ctx, args[2], resolvedCore, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		}
+		content, err := os.ReadFile(args[3])
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		result, err := st02defineintent.Complete(ctx, args[2], resolvedCore, content, "")
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		return writeJSON(stdout, stderr, result, true)
+
+	case args[0] == "requirements" && (args[1] == "prepare" || args[1] == "complete"):
+		if (args[1] == "prepare" && len(args) != 3) || (args[1] == "complete" && len(args) != 4) {
+			return writeError(stderr, "Usage: aidlc requirements prepare <project-dir>\n       aidlc requirements complete <project-dir> <proposal.json>")
+		}
+		resolvedCore, err := resolveCore()
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		if args[1] == "prepare" {
+			result, err := st03requirements.Prepare(ctx, args[2], resolvedCore, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		}
+		content, err := os.ReadFile(args[3])
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		result, err := st03requirements.Complete(ctx, args[2], resolvedCore, content, "")
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		return writeJSON(stdout, stderr, result, true)
+
+	case args[0] == "architecture":
+		if len(args) < 3 {
+			return writeError(stderr, "Usage: aidlc architecture <prepare|complete|policy-review|policy-approve> <project-dir> [proposal.json|proposal-sha reason [acknowledgements.json]]")
+		}
+		resolvedCore, err := resolveCore()
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		switch args[1] {
+		case "prepare":
+			if len(args) != 3 {
+				return writeError(stderr, "Usage: aidlc architecture prepare <project-dir>")
+			}
+			result, err := st04architecture.Prepare(ctx, args[2], resolvedCore, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "complete", "policy-review":
+			if len(args) != 4 {
+				return writeError(stderr, "Usage: aidlc architecture "+args[1]+" <project-dir> <proposal.json>")
+			}
+			content, err := os.ReadFile(args[3])
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			if args[1] == "complete" {
+				result, err := st04architecture.Complete(ctx, args[2], resolvedCore, content, "")
+				if err != nil {
+					return writeError(stderr, err.Error())
+				}
+				return writeJSON(stdout, stderr, result, true)
+			}
+			result, err := st04architecture.ReviewPolicy(ctx, args[2], resolvedCore, content, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "policy-approve":
+			if len(args) < 5 || len(args) > 6 {
+				return writeError(stderr, "Usage: aidlc architecture policy-approve <project-dir> <proposal-sha256> <reason> [acknowledgements.json]")
+			}
+			acks, err := readOptionalJSON[[]gate.Acknowledgement](args, 5)
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			result, err := st04architecture.ApprovePolicy(ctx, args[2], resolvedCore, args[3], args[4], acks, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		}
+
+	case args[0] == "build-contract":
+		if len(args) < 3 {
+			return writeError(stderr, "Usage: aidlc build-contract <prepare|review|approve> <project-dir> [...]")
+		}
+		resolvedCore, err := resolveCore()
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		switch args[1] {
+		case "prepare":
+			if len(args) != 3 {
+				return writeError(stderr, "Usage: aidlc build-contract prepare <project-dir>")
+			}
+			result, err := st05buildcontract.Prepare(ctx, args[2], resolvedCore, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "review":
+			if len(args) != 4 {
+				return writeError(stderr, "Usage: aidlc build-contract review <project-dir> <proposal.json>")
+			}
+			content, err := os.ReadFile(args[3])
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			result, err := st05buildcontract.Review(ctx, args[2], resolvedCore, content, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "approve":
+			if len(args) < 5 || len(args) > 6 {
+				return writeError(stderr, "Usage: aidlc build-contract approve <project-dir> <candidate-sha256> <reason> [acknowledgements.json]")
+			}
+			acks, err := readOptionalJSON[[]gate.Acknowledgement](args, 5)
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			result, err := st05buildcontract.Approve(ctx, args[2], resolvedCore, args[3], args[4], acks, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		}
+
+	case args[0] == "build":
+		if len(args) < 3 {
+			return writeError(stderr, "Usage: aidlc build <prepare|verify|reuse> <project-dir> [...]")
+		}
+		resolvedCore, err := resolveCore()
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		switch args[1] {
+		case "prepare":
+			if len(args) != 3 {
+				return writeError(stderr, "Usage: aidlc build prepare <project-dir>")
+			}
+			result, err := st06build.Prepare(ctx, args[2], resolvedCore, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "verify":
+			if len(args) < 4 || len(args) > 5 {
+				return writeError(stderr, "Usage: aidlc build verify <project-dir> <bolt-id> [verified-at]")
+			}
+			at := ""
+			if len(args) == 5 {
+				at = args[4]
+			}
+			result, err := st06build.Verify(ctx, args[2], resolvedCore, args[3], at)
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "reuse":
+			if len(args) < 5 || len(args) > 6 {
+				return writeError(stderr, "Usage: aidlc build reuse <project-dir> <candidate.json> <reason> [reused-at]")
+			}
+			at := ""
+			if len(args) == 6 {
+				at = args[5]
+			}
+			result, err := st06build.Reuse(ctx, args[2], resolvedCore, args[3], args[4], at)
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		}
+
+	case args[0] == "review":
+		if len(args) < 3 {
+			return writeError(stderr, "Usage: aidlc review <prepare|approve|feedback> <project-dir> [...]")
+		}
+		resolvedCore, err := resolveCore()
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		switch args[1] {
+		case "prepare":
+			if len(args) != 3 {
+				return writeError(stderr, "Usage: aidlc review prepare <project-dir>")
+			}
+			result, err := st07review.Prepare(ctx, args[2], resolvedCore, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "approve":
+			if len(args) < 5 || len(args) > 7 {
+				return writeError(stderr, "Usage: aidlc review approve <project-dir> <manifest-sha256> <reason> [human-checks.json] [acknowledgements.json]")
+			}
+			checks, err := readOptionalJSON[[]st07review.HumanCheckResult](args, 5)
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			acks, err := readOptionalJSON[[]gate.Acknowledgement](args, 6)
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			result, err := st07review.Approve(ctx, args[2], resolvedCore, args[3], args[4], checks, acks, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "feedback":
+			if len(args) != 6 {
+				return writeError(stderr, "Usage: aidlc review feedback <project-dir> <manifest-sha256> <feedback.json> <reason>")
+			}
+			items, err := readJSONFile[[]st07review.FeedbackItem](args[4])
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			result, err := st07review.Feedback(ctx, args[2], resolvedCore, args[3], args[5], items, []st07review.HumanCheckResult{}, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		}
+
+	case args[0] == "release":
+		if len(args) < 3 {
+			return writeError(stderr, "Usage: aidlc release <prepare|review|authorize|execute|reuse> <project-dir> [...]")
+		}
+		resolvedCore, err := resolveCore()
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		switch args[1] {
+		case "prepare":
+			if len(args) != 3 {
+				return writeError(stderr, "Usage: aidlc release prepare <project-dir>")
+			}
+			result, err := st08release.Prepare(ctx, args[2], resolvedCore, "")
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "review":
+			if len(args) < 4 || len(args) > 5 {
+				return writeError(stderr, "Usage: aidlc release review <project-dir> <proposal.json> [reviewed-at]")
+			}
+			content, err := os.ReadFile(args[3])
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			reviewedAt := ""
+			if len(args) == 5 {
+				reviewedAt = args[4]
+			}
+			result, err := st08release.Review(ctx, args[2], resolvedCore, content, reviewedAt)
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "authorize":
+			if len(args) < 5 || len(args) > 7 {
+				return writeError(stderr, "Usage: aidlc release authorize <project-dir> <plan-sha256> <reason> [acknowledgements.json] [decided-at]")
+			}
+			acks, decidedAt, err := readOptionalAcknowledgementsAndTime(args, 5)
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			result, err := st08release.Authorize(ctx, args[2], resolvedCore, args[3], args[4], acks, decidedAt)
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "execute":
+			if len(args) > 4 {
+				return writeError(stderr, "Usage: aidlc release execute <project-dir> [executed-at]")
+			}
+			at := ""
+			if len(args) == 4 {
+				at = args[3]
+			}
+			result, err := st08release.Execute(ctx, args[2], resolvedCore, at)
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "reuse":
+			if len(args) < 5 || len(args) > 6 {
+				return writeError(stderr, "Usage: aidlc release reuse <project-dir> <release-current.json> <reason> [reused-at]")
+			}
+			at := ""
+			if len(args) == 6 {
+				at = args[5]
+			}
+			result, err := st08release.Reuse(ctx, args[2], resolvedCore, args[3], args[4], at)
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		}
+
+	case args[0] == "outcome":
+		if len(args) < 3 {
+			return writeError(stderr, "Usage: aidlc outcome <prepare|evaluate|decide|reuse> <project-dir> [...]")
+		}
+		resolvedCore, err := resolveCore()
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		switch args[1] {
+		case "prepare":
+			if len(args) > 4 {
+				return writeError(stderr, "Usage: aidlc outcome prepare <project-dir> [prepared-at]")
+			}
+			at := ""
+			if len(args) == 4 {
+				at = args[3]
+			}
+			result, err := st09outcome.Prepare(ctx, args[2], resolvedCore, st09outcome.PrepareOptions{PreparedAt: at})
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "evaluate":
+			if len(args) < 4 || len(args) > 5 {
+				return writeError(stderr, "Usage: aidlc outcome evaluate <project-dir> <proposal.json> [evaluated-at]")
+			}
+			content, err := os.ReadFile(args[3])
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			at := ""
+			if len(args) == 5 {
+				at = args[4]
+			}
+			result, err := st09outcome.Evaluate(ctx, args[2], resolvedCore, content, at)
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "decide":
+			if len(args) < 6 || len(args) > 10 {
+				return writeError(stderr, "Usage: aidlc outcome decide <project-dir> <evaluation-sha256> <decision> <reason> [acknowledgements.json] [not-before] [deadline] [decided-at]")
+			}
+			acks := []gate.Acknowledgement{}
+			optionalIndex := 6
+			if len(args) > optionalIndex {
+				if info, statErr := os.Stat(args[optionalIndex]); statErr == nil && info.Mode().IsRegular() {
+					acks, err = readJSONFile[[]gate.Acknowledgement](args[optionalIndex])
+					if err != nil {
+						return writeError(stderr, err.Error())
+					}
+					optionalIndex++
+				}
+			}
+			var notBefore, deadline *string
+			if len(args) > optionalIndex {
+				notBefore = &args[optionalIndex]
+			}
+			if len(args) > optionalIndex+1 {
+				deadline = &args[optionalIndex+1]
+			}
+			decidedAt := ""
+			if len(args) > optionalIndex+2 {
+				decidedAt = args[optionalIndex+2]
+			}
+			result, err := st09outcome.Decide(ctx, args[2], resolvedCore, st09outcome.DecideOptions{EvaluationSHA256: args[3], Decision: args[4], Reason: args[5], PolicyAcknowledgements: acks, NotBefore: notBefore, Deadline: deadline, DecidedAt: decidedAt})
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		case "reuse":
+			if len(args) < 5 || len(args) > 6 {
+				return writeError(stderr, "Usage: aidlc outcome reuse <project-dir> <outcome-current.json> <reason> [reused-at]")
+			}
+			at := ""
+			if len(args) == 6 {
+				at = args[5]
+			}
+			result, err := st09outcome.Reuse(ctx, args[2], resolvedCore, args[3], args[4], at)
+			if err != nil {
+				return writeError(stderr, err.Error())
+			}
+			return writeJSON(stdout, stderr, result, true)
+		}
 
 	case args[0] == "doctor" && (args[1] == "check" || args[1] == "repair"):
 		if len(args) != 3 {
@@ -581,7 +1054,7 @@ func RunWithOptions(args []string, stdout, stderr io.Writer, options Options) in
 		}
 		report := doctor.Check(args[2], resolvedCore)
 		if args[1] == "repair" {
-			report, err = doctor.Repair(context.Background(), args[2], resolvedCore)
+			report, err = doctor.Repair(ctx, args[2], resolvedCore)
 			if err != nil {
 				return writeError(stderr, err.Error())
 			}
@@ -596,8 +1069,18 @@ func RunWithOptions(args []string, stdout, stderr io.Writer, options Options) in
 	default:
 		return writeError(
 			stderr,
-			fmt.Sprintf("aidlc: Go migration Stage 2 does not implement '%s %s'", args[0], args[1]),
+			fmt.Sprintf("aidlc: command is not implemented: '%s %s'", args[0], args[1]),
 		)
+	}
+	return writeError(stderr, fmt.Sprintf("aidlc: command is not implemented: '%s %s'", args[0], args[1]))
+}
+
+func stageRuntimeNoun(noun string) bool {
+	switch noun {
+	case "orient", "define-intent", "requirements", "architecture", "build-contract", "build", "review", "release", "outcome", "orchestrate":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -626,6 +1109,44 @@ func readStageContracts(directory string) ([]contract.StageContract, error) {
 		contracts = append(contracts, value)
 	}
 	return contracts, nil
+}
+
+func readJSONFile[T any](path string) (T, error) {
+	var zero T
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return zero, err
+	}
+	return jsonx.Decode[T](content)
+}
+
+func readOptionalJSON[T ~[]E, E any](args []string, index int) (T, error) {
+	if len(args) <= index {
+		return T{}, nil
+	}
+	return readJSONFile[T](args[index])
+}
+
+func readOptionalAcknowledgementsAndTime(args []string, index int) ([]gate.Acknowledgement, string, error) {
+	acknowledgements := []gate.Acknowledgement{}
+	if len(args) <= index {
+		return acknowledgements, "", nil
+	}
+	if info, err := os.Stat(args[index]); err == nil && info.Mode().IsRegular() {
+		value, readErr := readJSONFile[[]gate.Acknowledgement](args[index])
+		if readErr != nil {
+			return nil, "", readErr
+		}
+		decidedAt := ""
+		if len(args) > index+1 {
+			decidedAt = args[index+1]
+		}
+		return value, decidedAt, nil
+	}
+	if len(args) > index+1 {
+		return acknowledgements, args[index+1], nil
+	}
+	return acknowledgements, args[index], nil
 }
 
 func renderHelp(all bool) string {
