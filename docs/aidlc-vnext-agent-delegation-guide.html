@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-DLC vNext Stage Agent委譲ガイド</title>
+  <style>
+    :root{--ink:#162033;--muted:#5e6c82;--line:#dbe3ef;--blue:#2457d6;--blue-soft:#eaf0ff;--green:#117854;--green-soft:#e9f7f1;--amber:#9a5a00;--amber-soft:#fff4d8;--bg:#f4f7fb;--white:#fff}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;line-height:1.72}
+    main{width:min(1040px,calc(100% - 28px));margin:0 auto;padding:32px 0 56px;min-width:0}
+    header,section{margin-bottom:18px;padding:28px;border:1px solid var(--line);border-radius:20px;background:var(--white);min-width:0}
+    h1,h2,h3,p{margin-top:0}h1{font-size:clamp(28px,5vw,46px);line-height:1.2}h2{font-size:clamp(21px,3vw,30px)}h3{font-size:18px}
+    p:last-child{margin-bottom:0}.eyebrow{color:var(--blue);font-weight:800;letter-spacing:.08em}.lead{font-size:18px;color:var(--muted);max-width:760px}
+    code{overflow-wrap:anywhere}.flow{display:flex;align-items:stretch;gap:10px;min-width:0}.node{flex:1;padding:18px;border-radius:16px;background:var(--blue-soft);min-width:0}.node.core{background:var(--green-soft)}.node.human{background:var(--amber-soft)}
+    .node b{display:block;margin-bottom:6px}.arrow{align-self:center;color:var(--blue);font-size:24px;font-weight:900}
+    .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.card{padding:18px;border:1px solid var(--line);border-radius:16px;min-width:0}.card small{color:var(--muted);font-weight:700}
+    .table-wrap{max-width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:14px}table{width:100%;border-collapse:collapse;min-width:760px}th,td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#edf2f9}th:first-child,td:first-child{white-space:nowrap}tr:last-child td{border-bottom:0}
+    .scope{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.scope article{padding:18px;border-radius:15px}.proposal{background:var(--blue-soft)}.worktree{background:var(--green-soft)}.readonly{background:var(--amber-soft)}
+    .rule{border-left:6px solid var(--blue)}.rule ul{margin-bottom:0}.note{color:var(--muted)}
+    a{color:var(--blue);text-underline-offset:3px}a:focus-visible{outline:3px solid #f0a000;outline-offset:3px}
+    @media (max-width:760px){main{width:min(100% - 18px,1040px);padding-top:14px}header,section{padding:20px;border-radius:16px}.flow{display:block}.arrow{text-align:center;transform:rotate(90deg);padding:4px}.cards,.scope{grid-template-columns:1fr}.lead{font-size:16px}}
+    @media print{body{background:#fff}main{width:100%;padding:0}header,section{break-inside:avoid;border-color:#bbb}.arrow{color:#000}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">AI-DLC vNext / CODEX</p>
+    <h1>Stageの仕事は、専門Agentへ渡します。</h1>
+    <p class="lead">親Agentは進行役です。各Stageの調査、設計、実装、確認は、固定された役割別Agentが担当します。次のStageを決める権限は、今までどおりCoreにあります。</p>
+  </header>
+
+  <section aria-labelledby="flow-title">
+    <h2 id="flow-title">1回の作業の流れ</h2>
+    <div class="flow" role="img" aria-label="Core、Conductor、Stage Agent、人間の順に作業を受け渡す流れ">
+      <article class="node core"><b>1. Core</b><p>現在のStageと、許可されたWork Requestを決めます。</p></article>
+      <div class="arrow" aria-hidden="true">→</div>
+      <article class="node"><b>2. Conductor</b><p>固定割当を読み、適切なAgentへ仕事を渡します。</p></article>
+      <div class="arrow" aria-hidden="true">→</div>
+      <article class="node"><b>3. Stage Agent</b><p>指定範囲だけを作業し、結果をConductorへ返します。</p></article>
+      <div class="arrow" aria-hidden="true">→</div>
+      <article class="node human"><b>4. 人間</b><p>承認が必要なときだけ、固定された結果を判断します。</p></article>
+    </div>
+    <p class="note">ConductorやStage Agentが、次のStageを選ぶことはありません。</p>
+  </section>
+
+  <section aria-labelledby="roles-title">
+    <h2 id="roles-title">役割は混ぜません</h2>
+    <div class="cards">
+      <article class="card"><small>CORE</small><h3>進行と検証</h3><p>Stage、State、Audit、完了判定を管理します。</p></article>
+      <article class="card"><small>CONDUCTOR</small><h3>委譲と提出</h3><p>Agentを起動し、結果をCoreコマンドへ提出します。</p></article>
+      <article class="card"><small>STAGE AGENT</small><h3>個別作業</h3><p>成果物候補、実装、または独立レビューを担当します。</p></article>
+    </div>
+  </section>
+
+  <section aria-labelledby="assignment-title">
+    <h2 id="assignment-title">10 Stageの担当</h2>
+    <p class="note">スマートフォンでは、表の中だけを横へ動かして確認できます。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Stage</th><th>主な担当</th><th>補助・確認</th><th>扱い</th></tr></thead>
+        <tbody>
+          <tr><td>ST-00</td><td>Core</td><td>なし</td><td>AI作業なし</td></tr>
+          <tr><td>ST-01</td><td><code>aidlc-system-analyst-agent</code></td><td>なし</td><td>現在のシステム把握</td></tr>
+          <tr><td>ST-02</td><td><code>aidlc-product-agent</code></td><td>なし</td><td>目的と成果の定義</td></tr>
+          <tr><td>ST-03</td><td><code>aidlc-requirements-agent</code></td><td>Product＋Quality</td><td>要件と制約</td></tr>
+          <tr><td>ST-04</td><td><code>aidlc-architect-agent</code></td><td>Requirements＋<code>aidlc-architecture-reviewer-agent</code></td><td>設計判断</td></tr>
+          <tr><td>ST-05</td><td><code>aidlc-build-planner-agent</code></td><td>Developer＋<code>aidlc-quality-agent</code></td><td>実装契約</td></tr>
+          <tr><td>ST-06</td><td><code>aidlc-developer-agent</code></td><td>Core Verifier</td><td>選択済みBoltを実装</td></tr>
+          <tr><td>ST-07</td><td><code>aidlc-quality-agent</code></td><td>Architecture Reviewer＋人間</td><td>読み取り専用確認</td></tr>
+          <tr><td>ST-08</td><td><code>aidlc-operations-agent</code></td><td>Quality＋人間</td><td>Release計画</td></tr>
+          <tr><td>ST-09</td><td><code>aidlc-product-agent</code></td><td>Operations＋Quality</td><td>Outcome評価</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="scope-title">
+    <h2 id="scope-title">Agentが変更できる範囲</h2>
+    <div class="scope">
+      <article class="proposal"><h3>proposal-only</h3><p>指定された提案ファイルだけを書きます。製品コードやStateは変更しません。</p></article>
+      <article class="worktree"><h3>assigned-worktree</h3><p>ST-06で渡されたworktreeとBolt targetだけを変更します。</p></article>
+      <article class="readonly"><h3>read-only</h3><p>ファイルを変更せず、根拠付きの確認結果だけを返します。</p></article>
+    </div>
+  </section>
+
+  <section class="rule" aria-labelledby="skill-title">
+    <h2 id="skill-title">Skillの使い方</h2>
+    <ul>
+      <li>すべてのStage Agentは、共通の<code>$aidlc-stage-work</code>を使います。</li>
+      <li>文書、ブラウザ、表計算など、作業に合うSkillがある場合だけ追加で使います。</li>
+      <li>Stage Agentは別のAgentを起動しません。追加の視点はConductorへ依頼します。</li>
+      <li>Agentや必須Skillが見つからない場合、親Agentは代行せず停止します。</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="source-title">
+    <h2 id="source-title">割当の正本</h2>
+    <p><code>.codex/aidlc-common/data/vnext-stage-delegation.json</code>が、StageとAgentの固定対応です。</p>
+    <pre><code>./.codex/tools/aidlc delegation validate
+./.codex/tools/aidlc delegation show ST-06 work
+./.codex/tools/aidlc delegation show ST-07 review</code></pre>
+    <p class="note">Agentの所見は、Coreの検証や人間の承認を置き換えません。</p>
+  </section>
+</main>
+</body>
+</html>

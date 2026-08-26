@@ -20,6 +20,26 @@
 `next`が返すStageはCoreが固定CatalogとGraphから決める。AIや人間が任意の
 次Stageを入力する操作はない。
 
+## Stage Agent委譲
+
+`work`が返ると、親AgentはConductorとして次の割当を確認し、Stage作業を
+カスタムAgentへ委譲する。親Agentが成果物をインラインで代行する運用はしない。
+
+```bash
+./.codex/tools/aidlc delegation validate
+./.codex/tools/aidlc delegation show ST-03 work
+./.codex/tools/aidlc delegation show ST-07 review
+```
+
+各Agentは`$aidlc-stage-work`を使う。`proposal-only`は指定proposalだけ、
+`assigned-worktree`はST-06で指定されたworktreeとBolt targetだけ、
+`read-only`は変更なしという意味である。Agentは別Agentへ再委譲せず、Coreの
+`next`、`complete`、`approve`、`decide`、`execute`を実行しない。
+
+割当Agentまたは必須Skillが見つからない場合は、インライン作業へ切り替えず停止し、
+配布の欠落として扱う。`approval`と`decision`前のAgent所見は人間への参考情報で、
+Coreが生成したReview、SHA-256、人間の判断を置き換えない。
+
 ## 再開
 
 ```bash
@@ -83,6 +103,7 @@ ST-04は通常どおり`architecture complete`を先に実行する。CoreがPol
 bun run version:check
 bun run typecheck
 bun run graph:check
+bun run delegation:check
 bun test
 bun run bundle:check
 bun run distribution:check

@@ -21,6 +21,26 @@ AIは各Stageの成果物を提案できます。ただし、次のStage、実�
 
 Stageの一覧と遷移は固定Catalog／Graphが正本です。AIはStageの追加、削除、並べ替えを行いません。小さな変更でもStage自体は変わらず、各Stageの成果物が短くなります。
 
+## Stage作業のAgent委譲
+
+Codexの親AgentはConductorとしてCore Directiveを受け取り、固定の
+`vnext-stage-delegation.json`に従って各Stageの作業を役割別Agentへ委譲します。
+親AgentはStage成果物をインラインで代行しません。
+
+- ST-00はCoreが自動実行します。
+- ST-01〜ST-06、ST-08、ST-09のAI作業はlead Agentへ委譲します。
+- ST-03以降の重要な提案はsupport／reviewerの独立した視点を通します。
+- ST-07は読み取り専用Agentが確認し、最終判断は人間が行います。
+- すべてのStage Agentは`$aidlc-stage-work`を使い、再委譲しません。
+- State、Audit、Stage遷移、承認、外部実行の権限は引き続きCoreと人間にあります。
+
+割当の確認:
+
+```bash
+./.codex/tools/aidlc delegation validate
+./.codex/tools/aidlc delegation show ST-06 work
+```
+
 ## インストール
 
 導入・更新時だけNode.js 22以上が必要です。導入後の実行にBun、npm、npxは不要です。
@@ -71,7 +91,10 @@ InstallerはOSに合うネイティブCLIとCodex用ファイルを取得し、�
 ```text
 <project>/
 ├── .codex/                       配布RuntimeとネイティブCLI
-├── .agents/skills/aidlc/         Codex Skill
+│   └── agents/                   Stage AgentのpersonaとCodex設定
+├── .agents/skills/
+│   ├── aidlc/                    Conductor Skill
+│   └── aidlc-stage-work/         Stage Agent共通Skill
 ├── AGENTS.md                     Codex向けの共通指示
 └── aidlc/
     ├── memory/                   組織・チーム・プロジェクトのMemory／Policy

@@ -17,6 +17,7 @@ import {
   transformCodexMarkdown,
   writeCodexBundle,
 } from "../core/tools/aidlc-codex-bundle.ts";
+import { loadVNextDelegationCatalog } from "../core/tools/aidlc-vnext-delegation-contract.ts";
 
 function freshBundleDir(): string {
   return join(mkdtempSync(join(tmpdir(), "aidlc-vnext-bundle-")), "bundle");
@@ -59,6 +60,7 @@ test("writes a vNext-only Codex bundle", () => {
     ".codex/tools/aidlc.ts",
     ".codex/tools/aidlc-core-route.ts",
     ".codex/tools/aidlc-vnext-risk-contract.ts",
+    ".codex/tools/aidlc-vnext-delegation-contract.ts",
     ".codex/tools/aidlc-vnext-risk.ts",
     ".codex/tools/aidlc-vnext-policy-gates.ts",
     ".codex/tools/aidlc-vnext-bootstrap.ts",
@@ -77,6 +79,7 @@ test("writes a vNext-only Codex bundle", () => {
     ".codex/tools/aidlc-vnext-state.ts",
     ".codex/aidlc-common/data/vnext-stage-catalog.json",
     ".codex/aidlc-common/data/vnext-stage-graph.json",
+    ".codex/aidlc-common/data/vnext-stage-delegation.json",
     ".codex/aidlc-common/stages/st-00-bootstrap.json",
     ".codex/aidlc-common/stages/st-01-orient.json",
     ".codex/aidlc-common/stages/st-02-define-intent.json",
@@ -88,9 +91,12 @@ test("writes a vNext-only Codex bundle", () => {
     ".codex/memory/team-policy.json",
     ".codex/memory/project-policy.json",
     ".agents/skills/aidlc/SKILL.md",
+    ".agents/skills/aidlc-stage-work/SKILL.md",
+    ".codex/agents/aidlc-developer-agent.md",
+    ".codex/agents/aidlc-developer-agent.toml",
   ]) assert.equal(existsSync(join(outDir, path)), true, path);
 
-  for (const obsolete of [
+  for (const excluded of [
     ".codex/aidlc-common/data/scope-grid.json",
     ".codex/aidlc-common/data/stage-catalog.json",
     ".codex/aidlc-common/data/stage-graph.json",
@@ -98,10 +104,25 @@ test("writes a vNext-only Codex bundle", () => {
     ".codex/tools/aidlc-scope-loader.ts",
     ".codex/tools/aidlc-orchestrate.ts",
     ".codex/tools/aidlc-state.ts",
-  ]) assert.equal(existsSync(join(outDir, obsolete)), false, obsolete);
+    ".codex/agents/beginner-html-writer.toml",
+    ".agents/skills/beginner-html/SKILL.md",
+  ]) assert.equal(existsSync(join(outDir, excluded)), false, excluded);
 
   const files = result.files.join("\n");
   assert.doesNotMatch(files, /scope-grid|aidlc-scope-loader/);
+  const agentNames = new Set<string>();
+  for (const stage of loadVNextDelegationCatalog().stages) {
+    for (const assignment of [stage.work_assignment, stage.review_assignment]) {
+      if (assignment === null) continue;
+      agentNames.add(assignment.lead_agent);
+      assignment.support_agents.forEach((agent) => agentNames.add(agent));
+      if (assignment.reviewer_agent !== null) agentNames.add(assignment.reviewer_agent);
+    }
+  }
+  for (const agent of agentNames) {
+    assert.equal(existsSync(join(outDir, `.codex/agents/${agent}.md`)), true, agent);
+    assert.equal(existsSync(join(outDir, `.codex/agents/${agent}.toml`)), true, agent);
+  }
   assert.match(
     readFileSync(join(outDir, ".agents/skills/aidlc/SKILL.md"), "utf8"),
     /never chooses the next Stage itself/,
@@ -113,6 +134,10 @@ test("writes a vNext-only Codex bundle", () => {
   assert.doesNotMatch(
     readFileSync(join(outDir, ".agents/skills/aidlc/SKILL.md"), "utf8"),
     /aidlc next \.`/,
+  );
+  assert.doesNotMatch(
+    readFileSync(join(outDir, "AGENTS.md"), "utf8"),
+    /beginner_html_writer/,
   );
 });
 

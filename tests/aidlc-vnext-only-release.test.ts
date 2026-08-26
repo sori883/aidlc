@@ -34,7 +34,6 @@ test("M7 source tree contains no retired v2 Workflow island", () => {
     "core/tools/aidlc-unit-graph.ts",
     "core/tools/contracts",
     "core/tools/data",
-    "core/agents",
     "core/knowledge",
     "core/sensors",
     "core/hooks",

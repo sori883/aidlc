@@ -3,12 +3,88 @@
   "schema_version": 1,
   "files": [
     {
+      "path": ".agents/skills/aidlc-stage-work/SKILL.md",
+      "sha256": "e13f11c9e9f3d118dbeae3567fa7a8dbb13741c5cc3f40fe9757217e662a4c1d"
+    },
+    {
       "path": ".agents/skills/aidlc/agents/openai.yaml",
       "sha256": "f6d9d08018ad91d2d3a416a54877d332a469e94caeb3d12ac1eb0a2d3e6dc281"
     },
     {
       "path": ".agents/skills/aidlc/SKILL.md",
-      "sha256": "5b06ba1b65a3c0ebdc2c932356a3a8e7b8fe6aec827e0f09ff1449a891cc8804"
+      "sha256": "add4c49d8137595881b31d41403f255c437845ce7bc3a417e8d57dcad5d8209d"
+    },
+    {
+      "path": ".codex/agents/aidlc-architect-agent.md",
+      "sha256": "1782a975d39c0237c3a9c6567a37d4759810408525c8c88a0622d61e18661b07"
+    },
+    {
+      "path": ".codex/agents/aidlc-architect-agent.toml",
+      "sha256": "a7f8a80ce98a5ecfa3f64a70141e4c186155e23f022f176ecf3a46d503184dfb"
+    },
+    {
+      "path": ".codex/agents/aidlc-architecture-reviewer-agent.md",
+      "sha256": "4fd7a45d8bfc24dfb479ad9c03592bcdae48047f10668d7d0236437c03ca81c4"
+    },
+    {
+      "path": ".codex/agents/aidlc-architecture-reviewer-agent.toml",
+      "sha256": "07bc037252ce5e8adbd8f4be8a93cf693bbc4501acc81acf56b6c3ec643635f4"
+    },
+    {
+      "path": ".codex/agents/aidlc-build-planner-agent.md",
+      "sha256": "cf80142fb7241078f511a6f6028247578fc6dbe7c4ea13f2fcec01add89403f4"
+    },
+    {
+      "path": ".codex/agents/aidlc-build-planner-agent.toml",
+      "sha256": "0e87a410a4c809a3edf1654f14bbd7560ce6c3d30c789afedd6719db0e5642b1"
+    },
+    {
+      "path": ".codex/agents/aidlc-developer-agent.md",
+      "sha256": "3ce70ab500a4c6d79df8124ed0b3638f49619c65e701160986d33f0132c9b016"
+    },
+    {
+      "path": ".codex/agents/aidlc-developer-agent.toml",
+      "sha256": "c387ce05a6aa7a4c83ba854c4fbf1964d1cf6fced25811bdcc67a031cda3b215"
+    },
+    {
+      "path": ".codex/agents/aidlc-operations-agent.md",
+      "sha256": "7aa0e6cb6441e100991202891a62d46e8b37b784e3cdfcbe25f86f5ac6d428fd"
+    },
+    {
+      "path": ".codex/agents/aidlc-operations-agent.toml",
+      "sha256": "64625ab3d66fdcd265825bbdc1675973db6f58bdf3c677a9130fbdcd36566998"
+    },
+    {
+      "path": ".codex/agents/aidlc-product-agent.md",
+      "sha256": "9891a3259ce676aa3cdeab0e5ec477ec98323638aeca308f85fcd56bf140f3cd"
+    },
+    {
+      "path": ".codex/agents/aidlc-product-agent.toml",
+      "sha256": "4d285e026c2874858819d1cbe55fc3f1efd6b18af033d3147371d9d54063bbf8"
+    },
+    {
+      "path": ".codex/agents/aidlc-quality-agent.md",
+      "sha256": "406642be097cf0f97d6528feb904acc2778e2053fa9bd22792ceb771b301e032"
+    },
+    {
+      "path": ".codex/agents/aidlc-quality-agent.toml",
+      "sha256": "c0600ca8b76949923d7e745b0fbf74948d1524d7189f765a128f7d7854704276"
+    },
+    {
+      "path": ".codex/agents/aidlc-requirements-agent.md",
+      "sha256": "c6d8dbf0f7116c883e101c14c7410a000f5b46378563436c9bcb4dc0aa69c5ea"
+    },
+    {
+      "path": ".codex/agents/aidlc-requirements-agent.toml",
+      "sha256": "1aa4739edf90a8d5c7e53e5338e9f92c446d3a384d6b69810ecc1b8c306c15c1"
+    },
+    {
+      "path": ".codex/agents/aidlc-system-analyst-agent.md",
+      "sha256": "a80fc6e1b31b502e7e46f432d6dcd695738e31a711e8c6c0d149e42a23225c7c"
+    },
+    {
+      "path": ".codex/agents/aidlc-system-analyst-agent.toml",
+      "sha256": "35471a30339c26fc4056640066c9617abc4d7eb2d39ab4d5fe5d39cc3fa2716f"
     },
     {
       "path": ".codex/aidlc-common/data/runtime-shared-resources.json",
@@ -17,6 +93,10 @@
     {
       "path": ".codex/aidlc-common/data/vnext-stage-catalog.json",
       "sha256": "58729442f0c491dc41e518ee9fa01a0dc3f4b5146f26bf22cdab5e3d53d67b19"
+    },
+    {
+      "path": ".codex/aidlc-common/data/vnext-stage-delegation.json",
+      "sha256": "29653c9d79fdb90a80b712d29a4358960477ad14cff0d86c9dc8d9cb6047b43e"
     },
     {
       "path": ".codex/aidlc-common/data/vnext-stage-graph.json",
@@ -167,6 +247,10 @@
       "sha256": "a2aada6c313a0653772a8eeaafe40b96c4f77856573c32af77ef876306016314"
     },
     {
+      "path": ".codex/tools/aidlc-vnext-delegation-contract.ts",
+      "sha256": "c1e26480d7787cb00b59f1d9f7c34f0c301d88ab25f5558e973cfc26750fa7ff"
+    },
+    {
       "path": ".codex/tools/aidlc-vnext-directive.ts",
       "sha256": "13bbbb7626afaf613b2af4ce8d315e10233b881085ecf2cd4bd2dd5ac3642402"
     },
@@ -248,11 +332,11 @@
     },
     {
       "path": ".codex/tools/aidlc.ts",
-      "sha256": "4ec42605fe3e8e345b5a1c04576618702298415a24bbe3ef84910d6b349bcc2d"
+      "sha256": "633e2e441118e672ebfe0fb17c23f2e4a39421c0aad6f650b97e4832caba5a7c"
     },
     {
       "path": "AGENTS.md",
-      "sha256": "d17ce493e91ce933459a15facf14f09491ab432f3e9175660cf3dc3520e39df8"
+      "sha256": "4cdc5b4188fc976173979c8f683817137d7a3fdcd910ebb8bed9b87cd00f23b6"
     }
   ]
 }

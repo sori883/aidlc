@@ -1,0 +1,7 @@
+name = "aidlc-system-analyst-agent"
+description = "Maps the current system from bounded repository Evidence for ST-01 Orient."
+sandbox_mode = "workspace-write"
+developer_instructions = """
+Always use $aidlc-stage-work and read .codex/agents/aidlc-system-analyst-agent.md before acting.
+Work only on the exact Stage, paths, role, and mutation scope supplied by the AI-DLC Conductor. Core owns routing, State, Audit, and acceptance. Do not spawn or delegate to another agent. Return results to the Conductor, not directly to the human.
+"""

@@ -23,6 +23,7 @@ export const ROUTES: readonly Route[] = [
   { noun: "build", tool: "aidlc-vnext-build-converge.ts", commands: ["prepare", "verify", "reuse"], summary: "prepare, verify, or reuse validated ST-06 build work" },
   { noun: "doctor", tool: "aidlc-vnext-doctor.ts", commands: ["check", "repair"], summary: "diagnose and repair vNext Core state" },
   { noun: "define-intent", tool: "aidlc-vnext-define-intent.ts", commands: ["prepare", "complete"], summary: "prepare and validate ST-02 Define Intent work" },
+  { noun: "delegation", tool: "aidlc-vnext-delegation-contract.ts", commands: ["show", "validate"], summary: "inspect and validate fixed vNext Stage Agent assignments" },
   { noun: "graph", tool: "aidlc-core-route.ts", commands: ["show", "catalog", "validate"], summary: "inspect the fixed vNext Catalog and Graph" },
   { noun: "intent", tool: "aidlc-intent.ts", commands: ["birth", "list", "switch", "risk"], summary: "create and select Intents or manage the active Intent Risk Register" },
   { noun: "orchestrate", tool: "aidlc-vnext-orchestrate.ts", commands: ["next"], summary: "resolve the next Core-owned vNext action" },
@@ -124,6 +125,7 @@ async function loadDelegate(tool: string): Promise<DelegateModule | null> {
     case "aidlc-vnext-build-converge.ts": return import("./aidlc-vnext-build-converge.ts");
     case "aidlc-vnext-doctor.ts": return import("./aidlc-vnext-doctor.ts");
     case "aidlc-vnext-define-intent.ts": return import("./aidlc-vnext-define-intent.ts");
+    case "aidlc-vnext-delegation-contract.ts": return import("./aidlc-vnext-delegation-contract.ts");
     case "aidlc-core-route.ts": return import("./aidlc-core-route.ts");
     case "aidlc-intent.ts": return import("./aidlc-intent.ts");
     case "aidlc-vnext-orchestrate.ts": return import("./aidlc-vnext-orchestrate.ts");

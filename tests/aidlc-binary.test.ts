@@ -37,6 +37,9 @@ test("builds and smoke-gates a Harness-neutral project-local native binary", () 
   assert.equal(existsSync(resolve(runtime, "aidlc-common/data/vnext-stage-graph.json")), true);
   assert.equal(existsSync(resolve(runtime, "memory/project-policy.json")), true);
   assert.equal(existsSync(resolve(project, ".agents/skills/aidlc/SKILL.md")), true);
+  assert.equal(existsSync(resolve(project, ".agents/skills/aidlc-stage-work/SKILL.md")), true);
+  assert.equal(existsSync(resolve(runtime, "agents/aidlc-developer-agent.md")), true);
+  assert.equal(existsSync(resolve(runtime, "agents/aidlc-developer-agent.toml")), true);
   const skill = readFileSync(resolve(project, ".agents/skills/aidlc/SKILL.md"), "utf8");
   assert.match(skill, /`\.\/\.codex\/tools\/aidlc workspace init \.`/);
   assert.doesNotMatch(skill, /bun run --cwd \.codex aidlc/);
@@ -63,6 +66,13 @@ test("builds and smoke-gates a Harness-neutral project-local native binary", () 
     catalog_version: "vnext-stage-catalog-v1",
     graph_version: "vnext-10-stage-graph-v1",
   });
+  const delegation = spawnSync(installedExecutable, ["delegation", "show", "ST-06", "work"], {
+    cwd: project,
+    encoding: "utf8",
+    env: { ...process.env, PATH: "" },
+  });
+  assert.equal(delegation.status, 0, `${delegation.stdout}\n${delegation.stderr}`);
+  assert.equal(JSON.parse(delegation.stdout).lead_agent, "aidlc-developer-agent");
   const workspace = spawnSync(installedExecutable, ["workspace", "init", "."], { cwd: project, encoding: "utf8", env: { ...process.env, PATH: "" } });
   assert.equal(workspace.status, 0, workspace.stderr);
   const risksPath = resolve(project, "known-risks.json");

@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>AI-DLC vNext ステージ・入力・出力 完全ガイド</title>
+  <style>
+    :root {
+      --ink:#182033; --muted:#5c667a; --paper:#fff; --bg:#f3f6fb; --line:#dce3ee;
+      --blue:#2457d6; --blue-soft:#edf3ff; --teal:#087f78; --teal-soft:#e8faf7;
+      --violet:#7048e8; --violet-soft:#f2efff; --orange:#c96a10; --orange-soft:#fff4e8;
+      --green:#087f5b; --green-soft:#eafaf3; --red:#b42318; --red-soft:#fff0ee;
+      --shadow:0 14px 40px rgba(30,43,68,.08);
+    }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; color:var(--ink); background:var(--bg); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif; line-height:1.72; }
+    a { color:inherit; }
+    code { padding:.12em .4em; border-radius:7px; background:#edf1f7; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.9em; overflow-wrap:anywhere; }
+    .page { width:min(1180px,calc(100% - 32px)); margin:24px auto 72px; }
+    .hero { padding:52px; color:#fff; border-radius:28px; background:linear-gradient(135deg,#10264d 0%,#2457d6 60%,#0b8f87 120%); box-shadow:var(--shadow); }
+    .hero .kicker { margin:0 0 7px; font-size:.83rem; font-weight:900; letter-spacing:.12em; opacity:.78; }
+    .hero h1 { max-width:900px; margin:0; font-size:clamp(2.25rem,6vw,4.6rem); line-height:1.08; letter-spacing:-.03em; }
+    .hero .summary { max-width:850px; margin:22px 0 0; font-size:clamp(1rem,2.4vw,1.22rem); }
+    .hero .source { margin-top:24px; padding:12px 15px; border:1px solid rgba(255,255,255,.24); border-radius:14px; background:rgba(255,255,255,.1); font-size:.9rem; }
+    .layout { display:grid; grid-template-columns:240px minmax(0,1fr); gap:22px; align-items:start; margin-top:22px; }
+    .nav { position:sticky; top:14px; max-height:calc(100vh - 28px); overflow:auto; padding:18px; border:1px solid var(--line); border-radius:20px; background:var(--paper); box-shadow:var(--shadow); }
+    .nav strong { display:block; margin-bottom:10px; font-size:.82rem; letter-spacing:.08em; color:var(--muted); }
+    .nav a { display:block; padding:8px 10px; border-radius:10px; text-decoration:none; font-size:.9rem; }
+    .nav a:hover { background:var(--blue-soft); color:var(--blue); }
+    .nav .sep { height:1px; margin:10px 0; background:var(--line); }
+    .content { min-width:0; }
+    .panel, .stage { margin-bottom:20px; padding:32px; border:1px solid var(--line); border-radius:24px; background:var(--paper); box-shadow:var(--shadow); }
+    .panel h2, .stage h2 { margin:0; font-size:clamp(1.45rem,3vw,2rem); line-height:1.25; }
+    .panel h3 { margin:25px 0 7px; font-size:1.08rem; }
+    .lead { color:var(--muted); }
+    .callout { margin-top:18px; padding:18px 20px; border-left:6px solid var(--blue); border-radius:14px; background:var(--blue-soft); }
+    .warning { border-left-color:var(--orange); background:var(--orange-soft); }
+    .success { border-left-color:var(--green); background:var(--green-soft); }
+    .legend { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:20px; }
+    .legend article, .role, .glossary article { padding:17px; border:1px solid var(--line); border-radius:16px; background:#fbfcff; }
+    .legend b, .role b { display:block; margin-bottom:5px; }
+    .dot { display:inline-block; width:10px; height:10px; margin-right:7px; border-radius:50%; }
+    .dot.in { background:var(--blue); } .dot.work { background:var(--violet); } .dot.proposal { background:var(--orange); } .dot.out { background:var(--green); }
+    .roles { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:18px; }
+    .role.ai { border-top:5px solid var(--violet); } .role.core { border-top:5px solid var(--blue); } .role.human { border-top:5px solid var(--orange); }
+    .big-flow { margin-top:22px; padding:20px; overflow-x:auto; border:1px solid var(--line); border-radius:18px; background:#f8faff; }
+    .flow-row { display:flex; min-width:920px; align-items:center; gap:7px; }
+    .flow-node { flex:1; min-width:75px; padding:12px 7px; text-align:center; border:1px solid #b9c8e8; border-radius:13px; background:#fff; }
+    .flow-node b { display:block; color:var(--blue); font-size:.82rem; }
+    .flow-node span { display:block; margin-top:3px; font-size:.77rem; line-height:1.25; }
+    .flow-arrow { flex:0 0 auto; color:var(--blue); font-size:1.25rem; font-weight:900; }
+    .feedback { margin-top:12px; text-align:center; color:var(--red); font-size:.88rem; font-weight:800; }
+    .lineage { display:flex; flex-direction:column; gap:6px; align-items:stretch; width:min(100%,720px); margin:20px auto 0; }
+    .lineage .item { width:100%; padding:14px 16px; border:1px solid var(--line); border-radius:13px; background:#fff; }
+    .lineage .arrow { display:grid; place-items:center; min-height:28px; color:var(--blue); font-size:0; font-weight:900; line-height:1; }
+    .lineage .arrow::before { content:"↓"; font-size:1.4rem; }
+    .stage { scroll-margin-top:18px; overflow:hidden; padding:0; }
+    .stage-head { display:flex; gap:18px; align-items:flex-start; padding:28px 30px; color:#fff; background:linear-gradient(135deg,#173c91,#2457d6); }
+    .stage:nth-of-type(n) .stage-head.build { background:linear-gradient(135deg,#6337c7,#7048e8); }
+    .stage:nth-of-type(n) .stage-head.human { background:linear-gradient(135deg,#a65309,#d97716); }
+    .stage:nth-of-type(n) .stage-head.outcome { background:linear-gradient(135deg,#08685f,#0b9588); }
+    .stage-id { flex:0 0 auto; min-width:76px; padding:9px 10px; text-align:center; border:1px solid rgba(255,255,255,.35); border-radius:13px; background:rgba(255,255,255,.13); font-weight:900; }
+    .stage-head h2 { color:#fff; }
+    .stage-head p { margin:6px 0 0; opacity:.9; }
+    .stage-body { padding:30px; }
+    .plain { margin:0 0 22px; padding:17px 19px; border-left:5px solid var(--teal); border-radius:13px; background:var(--teal-soft); font-size:1.04rem; }
+    .io { display:grid; grid-template-columns:minmax(0,1fr) 56px minmax(0,1fr); gap:12px; align-items:stretch; }
+    .io-side { padding:20px; border:1px solid var(--line); border-radius:18px; }
+    .io-side.input { background:var(--blue-soft); border-color:#bfd0f6; }
+    .io-side.output { background:var(--green-soft); border-color:#b8e6d4; }
+    .io-title { margin:0 0 10px; font-size:1.02rem; }
+    .io ul, .process ul, .stage ul { margin:8px 0 0; padding-left:1.18rem; }
+    li + li { margin-top:5px; }
+    .io-arrow { display:grid; place-items:center; color:var(--blue); font-size:2rem; font-weight:900; }
+    .process { margin-top:16px; padding:20px; border:1px solid #d5c9fa; border-radius:18px; background:var(--violet-soft); }
+    .process h3, .gate h3, .path h3 { margin:0 0 7px; font-size:1.03rem; }
+    .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:13px; counter-reset:step; }
+    .step { position:relative; padding:16px 14px 14px 48px; border:1px solid var(--line); border-radius:14px; background:#fff; }
+    .step::before { counter-increment:step; content:counter(step); position:absolute; left:14px; top:14px; width:24px; height:24px; display:grid; place-items:center; border-radius:50%; background:var(--violet); color:#fff; font-size:.78rem; font-weight:900; }
+    .gate-path { display:grid; grid-template-columns:1.1fr .9fr; gap:12px; margin-top:16px; }
+    .gate, .path { padding:18px; border:1px solid var(--line); border-radius:16px; background:#fbfcff; }
+    .gate { border-left:5px solid var(--orange); }
+    .path { border-left:5px solid var(--green); }
+    .mini-tag { display:inline-block; margin:2px 3px 2px 0; padding:4px 9px; border-radius:999px; background:#fff; border:1px solid var(--line); font-size:.78rem; font-weight:800; }
+    .formats { width:100%; margin-top:18px; border-collapse:collapse; font-size:.92rem; }
+    .formats th, .formats td { padding:11px 12px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); }
+    .formats th { background:#f5f7fb; }
+    .glossary { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:18px; }
+    .glossary h3 { margin:0; }
+    .glossary p { margin:5px 0 0; color:var(--muted); }
+    .back { display:inline-block; margin-top:18px; color:var(--blue); font-size:.9rem; font-weight:800; text-decoration:none; }
+    footer { padding:18px 0 0; color:var(--muted); text-align:center; font-size:.88rem; }
+    @media (max-width:900px) {
+      .layout { grid-template-columns:1fr; }
+      .nav { position:static; max-height:none; display:grid; grid-template-columns:repeat(3,1fr); gap:4px; }
+      .nav strong, .nav .sep { display:none; }
+      .legend { grid-template-columns:repeat(2,1fr); }
+    }
+    @media (max-width:680px) {
+      .page { width:min(100% - 18px,1180px); margin-top:9px; }
+      .hero { padding:31px 22px; border-radius:18px; }
+      .panel, .stage { border-radius:17px; }
+      .panel { padding:22px 18px; }
+      .stage-head { padding:22px 18px; }
+      .stage-id { min-width:66px; }
+      .stage-body { padding:20px 16px; }
+      .nav { grid-template-columns:repeat(2,1fr); padding:12px; }
+      .legend, .roles, .steps, .glossary { grid-template-columns:1fr; }
+      .io { grid-template-columns:1fr; }
+      .io-arrow { min-height:34px; transform:rotate(90deg); }
+      .gate-path { grid-template-columns:1fr; }
+      .formats { display:block; overflow-x:auto; white-space:nowrap; }
+    }
+    @media print {
+      body { background:#fff; }
+      .page { width:100%; margin:0; }
+      .hero, .panel, .stage { box-shadow:none; break-inside:avoid; }
+      .nav { display:none; }
+      .layout { display:block; }
+      .stage { break-before:page; }
+    }
+  </style>
+</head>
+<body id="top">
+<div class="page">
+  <header class="hero">
+    <p class="kicker">AI-DLC vNext · BEGINNER'S COMPLETE GUIDE</p>
+    <h1>10個のステージと<br>入力・出力をゼロから理解する</h1>
+    <p class="summary">AI-DLC vNextは、開発を10個の決められた区間に分けます。各区間は、前の区間で確定した情報を入力として受け取り、検証済みの成果物を出力します。この資料だけで全体を追えるように、専門用語を一つずつ説明します。</p>
+    <div class="source">この資料は会話中の説明ではなく、現在の固定Stage Catalog、Stage Graph、各Stage Contract、TypeScript実装を読み直して作成しています。</div>
+  </header>
+
+  <div class="layout">
+    <nav class="nav" aria-label="目次">
+      <strong>CONTENTS</strong>
+      <a href="#first">最初に理解すること</a>
+      <a href="#whole-flow">全体の流れ</a>
+      <a href="#st00">ST-00 Bootstrap</a>
+      <a href="#st01">ST-01 Orient</a>
+      <a href="#st02">ST-02 Define Intent</a>
+      <a href="#st03">ST-03 Requirements</a>
+      <a href="#st04">ST-04 Architecture</a>
+      <a href="#st05">ST-05 Build Contract</a>
+      <a href="#st06">ST-06 Build</a>
+      <a href="#st07">ST-07 Human Review</a>
+      <a href="#st08">ST-08 Release</a>
+      <a href="#st09">ST-09 Outcome</a>
+      <div class="sep"></div>
+      <a href="#formats">JSONとHTML</a>
+      <a href="#glossary">用語集</a>
+    </nav>
+
+    <main class="content">
+      <section class="panel" id="first">
+        <h2>最初に理解すること</h2>
+        <p class="lead">「入力」と「出力」は、単なるファイルの受け渡しではありません。AIが思いつきで先へ進まないように、どの事実を使い、何を確定したかを残す仕組みです。</p>
+
+        <div class="legend">
+          <article><b><span class="dot in"></span>開始時の入力</b>Stageを始める前に、すでに確定している事実です。</article>
+          <article><b><span class="dot work"></span>作業依頼</b>Coreが入力から作る、AIへの範囲限定された指示書です。</article>
+          <article><b><span class="dot proposal"></span>AIの提案</b>まだ正式成果物ではありません。Coreの検証を受けます。</article>
+          <article><b><span class="dot out"></span>正式な出力</b>検証・承認後にCoreが保存する正本です。</article>
+        </div>
+
+        <h3>3者の役割</h3>
+        <div class="roles">
+          <article class="role ai"><b>AI</b>調査し、案を作り、指定された形式でCoreへ提出します。次のStageは選びません。</article>
+          <article class="role core"><b>Core</b>固定Graphを管理し、入力・提案・承認・SHA-256を検証して、正式成果物と遷移を記録します。</article>
+          <article class="role human"><b>人間</b>価値判断、承認、Feedback、Release権限、Outcomeの受け止めを決めます。</article>
+        </div>
+
+        <div class="callout">
+          <b>すべてのStageに共通する裏側の入力</b><br>
+          図に書かれた業務成果物とは別に、Coreは常に<code>State</code>、<code>Stage Execution Plan</code>、固定<code>Catalog</code>、固定<code>Graph</code>、<code>Effective Policy</code>、<code>Audit</code>、Workspace lockの整合性を確認します。
+        </div>
+
+        <h3>Stageは飛ばすのか</h3>
+        <p>10個のStageそのものは固定です。Planは各Stageに「新しく作る」「承認済みのものを再利用する」「今回には該当しないと証明する」のいずれかを記録します。ただし、どの方法を使えるかは各Stage Contractが決め、必須Stageは<code>not_applicable</code>を拒否します。小さな変更は、Stageを消すのではなく、必要な入力・出力が小さくなります。</p>
+      </section>
+
+      <section class="panel" id="whole-flow">
+        <h2>全体の流れ</h2>
+        <p class="lead">通常は左から右へ進みます。ST-07で人間が変更を求めた場合だけ、影響が始まる最も早いStageへ戻ります。</p>
+        <div class="big-flow">
+          <div class="flow-row">
+            <div class="flow-node"><b>ST-00</b><span>開始点検</span></div><div class="flow-arrow">→</div>
+            <div class="flow-node"><b>ST-01</b><span>現在把握</span></div><div class="flow-arrow">→</div>
+            <div class="flow-node"><b>ST-02</b><span>目的確定</span></div><div class="flow-arrow">→</div>
+            <div class="flow-node"><b>ST-03</b><span>要求確定</span></div><div class="flow-arrow">→</div>
+            <div class="flow-node"><b>ST-04</b><span>構成判断</span></div><div class="flow-arrow">→</div>
+            <div class="flow-node"><b>ST-05</b><span>製造契約</span></div><div class="flow-arrow">→</div>
+            <div class="flow-node"><b>ST-06</b><span>実装・検証</span></div><div class="flow-arrow">→</div>
+            <div class="flow-node"><b>ST-07</b><span>人間確認</span></div><div class="flow-arrow">→</div>
+            <div class="flow-node"><b>ST-08</b><span>Release</span></div><div class="flow-arrow">→</div>
+            <div class="flow-node"><b>ST-09</b><span>成果確認</span></div>
+          </div>
+          <div class="feedback">ST-07のFeedbackだけが、ST-03／ST-04／ST-05／ST-06のいずれかへ固定理由付きで戻れます。</div>
+        </div>
+
+        <h3>主要成果物のバトン</h3>
+        <div class="lineage">
+          <div class="item"><b>Intent Birth</b><br>Design Brief・State・Plan・Policy</div><div class="arrow">→</div>
+          <div class="item"><b>ST-00〜ST-01</b><br>Bootstrap Receipt・System Map・Current Context</div><div class="arrow">→</div>
+          <div class="item"><b>ST-02〜ST-03</b><br>Intent Definition・Requirements</div><div class="arrow">→</div>
+          <div class="item"><b>ST-04〜ST-05</b><br>Architecture Current・Build Contract</div><div class="arrow">→</div>
+          <div class="item"><b>ST-06〜ST-07</b><br>Runnable Candidate・Accepted Candidate</div><div class="arrow">→</div>
+          <div class="item"><b>ST-08〜ST-09</b><br>Release Current・Outcome Current</div>
+        </div>
+      </section>
+
+      <section class="stage" id="st00">
+        <header class="stage-head">
+          <div class="stage-id">ST-00</div><div><h2>Bootstrap</h2><p>AIが作業を始める前に、土台が壊れていないか点検する。</p></div>
+        </header>
+        <div class="stage-body">
+          <p class="plain"><b>初心者向けの一言:</b> 「このプロジェクトで安全に作業を始めてよいか」をCoreが機械的に確認する受付です。</p>
+          <div class="io">
+            <div class="io-side input"><h3 class="io-title">入力</h3><ul><li><b>Stage Execution Plan</b> — 10 Stageをどう扱うかのCore計画</li><li><b>vNext State</b> — 現在地と状態</li><li><b>Effective Policy</b> — 組織・チーム・プロジェクトの追加ルール</li></ul></div>
+            <div class="io-arrow">→</div>
+            <div class="io-side output"><h3 class="io-title">正式な出力</h3><ul><li><b>Bootstrap Receipt</b> — 何を確認し、すべて通ったかを示す点検記録</li></ul></div>
+          </div>
+          <div class="process"><h3>Stage内の処理</h3><div class="steps"><div class="step">Intent、Space、Workspaceを確認</div><div class="step">Catalog、Graph、Plan、Policy、Repositoryを確認</div><div class="step">Receiptを保存し、ST-01へ進める</div></div></div>
+          <div class="gate-path"><div class="gate"><h3>人間が必要になる場面</h3><p>通常は不要です。欠落、改ざん、読めないRepositoryなどの例外がある場合だけ、人間へ戻します。</p></div><div class="path"><h3>主な保存先</h3><code>artifacts/bootstrap-receipt-r1.json</code></div></div>
+          <a class="back" href="#top">↑ 先頭へ</a>
+        </div>
+      </section>
+
+      <section class="stage" id="st01">
+        <header class="stage-head">
+          <div class="stage-id">ST-01</div><div><h2>Orient</h2><p>今回必要な範囲の「現在のシステム」をEvidence付きで把握する。</p></div>
+        </header>
+        <div class="stage-body">
+          <p class="plain"><b>初心者向けの一言:</b> 地図を見ずに改修を始めないため、現在のコード・構成・関係を確認します。全世界を毎回調べるのではなく、今回必要な範囲を観測して共有地図へ積み上げます。</p>
+          <div class="io">
+            <div class="io-side input"><h3 class="io-title">入力</h3><ul><li><b>Design Brief</b> — 最初に渡された依頼の概要</li><li><b>Bootstrap Receipt</b> — 開始点検に合格した証拠</li><li><b>Effective Policy</b> — 調査時に守るルール</li><li><b>既存System Map baseline</b> — 以前までの共有地図。なければ新規作成</li></ul></div>
+            <div class="io-arrow">→</div>
+            <div class="io-side output"><h3 class="io-title">正式な出力</h3><ul><li><b>Workspace Profile</b> — 対象Repositoryとsnapshot</li><li><b>System Map</b> — Evidence付きの累積的な現在観測Map</li><li><b>System Map Baseline</b> — 現在の共有revisionを示すポインタ</li><li><b>Current Context</b> — 今回のIntentが使うMap範囲とrevisionの固定参照</li></ul></div>
+          </div>
+          <div class="process"><h3>Stage内の作業用成果物</h3><div class="steps"><div class="step">Coreが<code>orient-work-request.json</code>を作る</div><div class="step">AIがSystem Map PatchとContext候補を提案</div><div class="step">Coreがpath、SHA-256、ID、relation、freshnessを検証</div></div><p><span class="mini-tag">observed</span><span class="mini-tag">unobserved</span><span class="mini-tag">stale</span><span class="mini-tag">unknown</span> を区別し、不完全な地図を「完全」と誤認しないようにします。</p></div>
+          <div class="gate-path"><div class="gate"><h3>人間が必要になる場面</h3><p>通常は不要です。対象Repositoryが不明、Evidenceが取れない、秘密情報を含むなどの例外時だけ確認します。</p></div><div class="path"><h3>主な保存先</h3><code>aidlc/spaces/&lt;space&gt;/codekb/system-map/</code><br><code>artifacts/current-context.json</code></div></div>
+          <div class="callout"><b>重要:</b> System Mapの正本はJSONです。通常はHTMLを作りません。Current Contextは使ったMap revisionとSHA-256を固定するため、後で共有Mapが更新されても過去Intentの根拠は変わりません。</div>
+          <a class="back" href="#top">↑ 先頭へ</a>
+        </div>
+      </section>
+
+      <section class="stage" id="st02">
+        <header class="stage-head">
+          <div class="stage-id">ST-02</div><div><h2>Define Intent</h2><p>今回の仕事の目的と境界を短く、はっきり定義する。</p></div>
+        </header>
+        <div class="stage-body">
+          <p class="plain"><b>初心者向けの一言:</b> 「何を作るか」の前に、「何のために、どこまでを、どうなれば成功とするか」を合意できる形にします。</p>
+          <div class="io">
+            <div class="io-side input"><h3 class="io-title">入力</h3><ul><li><b>Design Brief</b> — 元の依頼</li><li><b>Current Context</b> — 現在の事実と対象範囲</li><li><b>Effective Policy</b> — 守るべき追加ルール</li></ul></div>
+            <div class="io-arrow">→</div>
+            <div class="io-side output"><h3 class="io-title">正式な出力</h3><ul><li><b>Intent Definition</b><ul><li>目的</li><li>期待する結果</li><li>対象／対象外</li><li>成功の見方</li><li>既知の不明点</li></ul></li></ul></div>
+          </div>
+          <div class="process"><h3>Stage内の処理</h3><div class="steps"><div class="step">Coreが入力を固定したWork Requestを作る</div><div class="step">AIがIntent Definition Proposalを作る</div><div class="step">Coreが範囲の矛盾や後続設計の混入を拒否する</div></div></div>
+          <div class="gate-path"><div class="gate"><h3>人間が必要になる場面</h3><p>優先順位、価値判断、目的の曖昧さが入力から決められない場合は、AIが人間へ質問します。</p></div><div class="path"><h3>主な保存先</h3><code>artifacts/intent-definition.json</code></div></div>
+          <div class="callout warning"><b>ここではまだ決めない:</b> 詳細要求、Architecture、API設計、実装手順、Bolt、次のStageは書きません。</div>
+          <a class="back" href="#top">↑ 先頭へ</a>
+        </div>
+      </section>
+
+      <section class="stage" id="st03">
+        <header class="stage-head">
+          <div class="stage-id">ST-03</div><div><h2>Requirements &amp; Constraints</h2><p>目的を、追跡可能で確認できる要求と制約へ変える。</p></div>
+        </header>
+        <div class="stage-body">
+          <p class="plain"><b>初心者向けの一言:</b> 「こうなってほしい」を、後で合否を判断できる約束へ変えます。</p>
+          <div class="io">
+            <div class="io-side input"><h3 class="io-title">入力</h3><ul><li><b>Intent Definition</b> — 目的・範囲・成功の見方</li><li><b>Current Context</b> — 対象の現在事実</li><li><b>Effective Policy</b> — 品質・セキュリティ等のルール</li><li><b>既存Requirements</b> — revision更新時のみ任意</li></ul></div>
+            <div class="io-arrow">→</div>
+            <div class="io-side output"><h3 class="io-title">正式な出力</h3><ul><li><b>Requirements Definition revision</b><ul><li>機能要求</li><li>品質要求</li><li>制約</li><li>常に守る不変条件</li><li>未解決質問</li></ul></li><li><b>Requirements Current</b> — 現在採用するrevisionへのポインタ</li></ul></div>
+          </div>
+          <div class="process"><h3>Stage内の処理</h3><div class="steps"><div class="step">Coreが目的・成功signalのcoverageを要求</div><div class="step">AIが安定IDと根拠pointer付きで提案</div><div class="step">Coreが重複、抜け、参照切れ、blocking questionを検証</div></div><p>各要求は、どの入力のどの項目から来たのかをJSON Pointerで追跡できます。</p></div>
+          <div class="gate-path"><div class="gate"><h3>人間が必要になる場面</h3><p>要求同士の衝突、優先順位、Policy例外、リスク受容、blocking questionが残る場合です。</p></div><div class="path"><h3>主な保存先</h3><code>artifacts/requirements/revisions/000001/requirements.json</code><br><code>artifacts/requirements/current.json</code></div></div>
+          <div class="callout warning"><b>ここではまだ決めない:</b> 技術構成、実装方式、テストコマンド、Bolt、Stage遷移は含めません。</div>
+          <a class="back" href="#top">↑ 先頭へ</a>
+        </div>
+      </section>
+
+      <section class="stage" id="st04">
+        <header class="stage-head">
+          <div class="stage-id">ST-04</div><div><h2>Architecture Decision</h2><p>要求を満たすために、システム構造を変える必要があるか判断する。</p></div>
+        </header>
+        <div class="stage-body">
+          <p class="plain"><b>初心者向けの一言:</b> 「どの部品をどう組み替えるか」という大きな設計判断を扱います。現在の地図と将来案は混ぜません。</p>
+          <div class="io">
+            <div class="io-side input"><h3 class="io-title">入力</h3><ul><li><b>Requirements Definition／Current</b></li><li><b>Current Context</b></li><li><b>System Map</b> — 現在像</li><li><b>Effective Policy</b></li><li><b>既存Architecture Decision</b> — 再利用時は任意</li><li><b>Human Decision</b> — 再利用承認時は任意</li></ul></div>
+            <div class="io-arrow">→</div>
+            <div class="io-side output"><h3 class="io-title">正式な出力</h3><ul><li><b>Architecture Current</b> — 今回採用した処理と参照先</li><li><b>Architecture Decision revision</b> — 新しい構造判断が必要な場合だけ作成</li><li><b>Policy Approval</b> — Policyが要求した場合だけ</li></ul></div>
+          </div>
+          <div class="process"><h3>3つの処理方法</h3><p><span class="mini-tag">execute</span>新しいArchitecture Decisionを作る　<span class="mini-tag">reuse</span>既存の承認済み判断を再利用する　<span class="mini-tag">not_applicable</span>構造への影響がないことを全要求について証明する</p><div class="steps"><div class="step">全Requirementを1回ずつ影響評価</div><div class="step">AIが現在entity参照とplanned changesを提案</div><div class="step">Coreがcoverage、Evidence、承認を検証</div></div></div>
+          <div class="gate-path"><div class="gate"><h3>人間が必要になる場面</h3><p>Provider、費用、データ移行、破壊的変更、Security／Compliance例外、戻しにくい判断、Policy Gate、既存判断の再利用承認です。</p></div><div class="path"><h3>主な保存先</h3><code>artifacts/architecture/current.json</code><br><code>artifacts/architecture/revisions/000001/architecture-decision.json</code></div></div>
+          <div class="callout"><b>HTMLの扱い:</b> 通常のArchitecture成果物はJSONです。Policy上の人間判断が必要なときだけ<code>architecture-policy-review.html</code>を生成します。</div>
+          <a class="back" href="#top">↑ 先頭へ</a>
+        </div>
+      </section>
+
+      <section class="stage" id="st05">
+        <header class="stage-head build">
+          <div class="stage-id">ST-05</div><div><h2>Build Contract</h2><p>何を、どの単位で、どう検証して作るかを人間と合意する。</p></div>
+        </header>
+        <div class="stage-body">
+          <p class="plain"><b>初心者向けの一言:</b> 実装を始める直前の契約書です。変更対象、合格条件、検証方法、作業の依存関係を固定します。</p>
+          <div class="io">
+            <div class="io-side input"><h3 class="io-title">入力</h3><ul><li><b>Requirements Definition／Current</b></li><li><b>Architecture Current／Decision</b></li><li><b>Current Context／System Map</b></li><li><b>Effective Policy</b></li><li><b>既存Build Contract／Human Decision</b> — 再利用時などに任意</li></ul></div>
+            <div class="io-arrow">→</div>
+            <div class="io-side output"><h3 class="io-title">正式な出力</h3><ul><li><b>Build Contract Candidate</b> — 承認待ち候補</li><li><b>Build Contract Review HTML</b> — 人間向け確認画面</li><li><b>Human Decision</b> — SHA-256に結び付いた承認</li><li><b>Build Contract Current</b></li><li><b>Build Contract revision</b> — execute時</li></ul></div>
+          </div>
+          <div class="process"><h3>Build Contractに入るもの</h3><div class="steps"><div class="step">変更Contractと受入条件</div><div class="step">Verifierと正確なargv／cwd</div><div class="step">依存関係付きBolt DAGと統合条件</div></div><p>CoreはDAGの循環、Repository境界、並列target衝突、要求coverageを検査し、実行batchを導出します。AIはbatchや次のBoltを選びません。</p></div>
+          <div class="gate-path"><div class="gate"><h3>人間が必要になる場面</h3><p>このStageは重要な承認境界です。人間はReview HTMLで対象file、合格条件、Verifier、Bolt関係を確認し、候補のSHA-256へ承認または修正依頼を出します。</p></div><div class="path"><h3>主な保存先</h3><code>artifacts/build-contract/review/build-contract-review.html</code><br><code>artifacts/build-contract/revisions/000001/build-contract.json</code></div></div>
+          <div class="callout warning"><b>まだ実装しません:</b> ST-05ではテストコマンドも実行しません。実装と実行は人間承認後のST-06です。</div>
+          <a class="back" href="#top">↑ 先頭へ</a>
+        </div>
+      </section>
+
+      <section class="stage" id="st06">
+        <header class="stage-head build">
+          <div class="stage-id">ST-06</div><div><h2>Build &amp; Converge</h2><p>承認済みContractどおりに、一つずつBoltを実装・検証する。</p></div>
+        </header>
+        <div class="stage-body">
+          <p class="plain"><b>初心者向けの一言:</b> ここが実際にコードを作るStageです。ただしAIが好きな場所から始めず、Coreが依存関係から「次の1 Bolt」を指定します。</p>
+          <div class="io">
+            <div class="io-side input"><h3 class="io-title">入力</h3><ul><li><b>Build Contract Current／Build Contract</b></li><li><b>ST-05 Human Decision</b> — 承認の証拠</li><li><b>Effective Policy</b></li><li><b>System Map</b> — accepted source revision</li><li><b>既存Runnable Candidate</b> — 正確な再利用時のみ任意</li></ul></div>
+            <div class="io-arrow">→</div>
+            <div class="io-side output"><h3 class="io-title">正式な出力</h3><ul><li><b>Build Session</b></li><li><b>Bolt Work Request</b></li><li><b>Attempt Checkpoint</b></li><li><b>Verifier Evidence</b></li><li><b>Runnable Candidate</b> — 全Boltと統合検証が通った候補</li><li><b>Build Current</b></li></ul></div>
+          </div>
+          <div class="process"><h3>反復の流れ</h3><div class="steps"><div class="step">CoreがreadyなBoltを1つ選び、隔離Git worktreeを作る</div><div class="step">AIが指定targetだけを変更する</div><div class="step">Coreが変更pathとVerifierを確認し、合格まで同じBoltを再試行</div></div><p>全Boltが通った後に統合Verifierを実行し、初めてRunnable Candidateを作ります。同じ失敗が3回続く場合は停止します。</p></div>
+          <div class="gate-path"><div class="gate"><h3>人間が必要になる場面</h3><p>通常の実装反復では不要です。Contract矛盾、破壊的操作、外部作用、credential、base drift、収束不能などの例外で停止します。</p></div><div class="path"><h3>主な保存先</h3><code>artifacts/build/build-session.json</code><br><code>artifacts/build/bolts/&lt;bolt-id&gt;/...</code><br><code>artifacts/build/runnable-candidate.json</code></div></div>
+          <div class="callout"><b>実装なしの場合:</b> Build Contract Currentが<code>not_applicable</code>なら、Git操作もRunnable Candidate作成も行わず、理由付きBuild Currentだけを記録します。</div>
+          <a class="back" href="#top">↑ 先頭へ</a>
+        </div>
+      </section>
+
+      <section class="stage" id="st07">
+        <header class="stage-head human">
+          <div class="stage-id">ST-07</div><div><h2>Human Feedback &amp; Approval</h2><p>動く候補を人間が確認し、承認または具体的なFeedbackを返す。</p></div>
+        </header>
+        <div class="stage-body">
+          <p class="plain"><b>初心者向けの一言:</b> 機械テストだけでは判断できない「本当に意図どおりか」を、人間が実物と説明を見て判断します。</p>
+          <div class="io">
+            <div class="io-side input"><h3 class="io-title">入力</h3><ul><li><b>Build Current／Runnable Candidate</b></li><li><b>Requirements Definition</b></li><li><b>Architecture Current</b></li><li><b>Build Contract</b></li><li><b>Effective Policy／System Map</b></li><li><b>Human Decision</b> — Stage中に受け取る承認またはFeedback</li></ul></div>
+            <div class="io-arrow">→</div>
+            <div class="io-side output"><h3 class="io-title">正式な出力</h3><ul><li><b>Review Manifest／Review HTML</b></li><li><b>Human Decision</b></li><li><b>Accepted Candidate</b> — 承認時</li><li><b>Feedback Current</b> — 修正依頼時</li><li><b>Review Current</b> — Stageの結論</li><li><b>更新System Map</b> — 承認sourceの昇格</li></ul></div>
+          </div>
+          <div class="process"><h3>人間の2つの選択</h3><div class="steps"><div class="step"><b>Approve</b><br>全human checkを満たし、exact candidateを承認</div><div class="step"><b>Request changes</b><br>Requirement IDと影響種別を付けてFeedback</div><div class="step">Coreが承認ならST-08、Feedbackなら固定ルールで戻り先を決める</div></div><p><span class="mini-tag">要求変更 → ST-03</span><span class="mini-tag">構成影響 → ST-04</span><span class="mini-tag">製造契約影響 → ST-05</span><span class="mini-tag">候補の不具合 → ST-06</span></p></div>
+          <div class="gate-path"><div class="gate"><h3>人間が必要になる場面</h3><p>ここでは必ず人間の明示判断が中心です。AIは承認を推測せず、戻り先も選びません。</p></div><div class="path"><h3>主な保存先</h3><code>artifacts/review/review.html</code><br><code>artifacts/review/human-decision.json</code><br><code>artifacts/review/accepted-candidate.json</code></div></div>
+          <div class="callout"><b>実装なしの場合:</b> ST-06にRunnable Candidateがない場合はReviewを重複実行せず、ST-05の「実装なし」承認をEvidenceとして決定的に通過します。</div>
+          <a class="back" href="#top">↑ 先頭へ</a>
+        </div>
+      </section>
+
+      <section class="stage" id="st08">
+        <header class="stage-head human">
+          <div class="stage-id">ST-08</div><div><h2>Release</h2><p>人間が承認した候補だけを、承認済み手順で外部環境へ反映する。</p></div>
+        </header>
+        <div class="stage-body">
+          <p class="plain"><b>初心者向けの一言:</b> 「作れた」から「利用できる場所へ出した」へ進むStageです。外部への変更なので、計画と権限を厳密に分けます。</p>
+          <div class="io">
+            <div class="io-side input"><h3 class="io-title">入力</h3><ul><li><b>Review Current</b> — ST-07の結論</li><li><b>Accepted Candidate</b> — 候補がある場合</li><li><b>Effective Policy</b></li><li><b>Release Capability Snapshot</b> — 実行可能な安全な操作</li><li><b>Deployment Map</b> — 既存の配備状態</li><li><b>Release Authority</b> — 実行前の人間権限</li></ul></div>
+            <div class="io-arrow">→</div>
+            <div class="io-side output"><h3 class="io-title">正式な出力</h3><ul><li><b>Release Work Request／Plan</b></li><li><b>Release Review HTML</b></li><li><b>Release Authority</b></li><li><b>Step Receipts／Release Receipt</b></li><li><b>Release Current</b></li><li><b>Deployment Map revision</b> — 外部の配備状態</li></ul></div>
+          </div>
+          <div class="process"><h3>外部作用を安全にする順序</h3><div class="steps"><div class="step">Coreがcapabilityと現在target状態を観測</div><div class="step">exact PlanとrollbackをHTMLで人間へ提示</div><div class="step">人間のAuthority後だけ実行し、各作用をReceiptへ記録</div></div><p>Targetが承認後に変わった場合は実行しません。結果が曖昧な外部操作を、重複の危険を冒して再実行しません。</p></div>
+          <div class="gate-path"><div class="gate"><h3>人間が必要になる場面</h3><p>外部へ変更を加えるRelease Planには、PlanのSHA-256と観測済みtarget状態に結び付いた明示的Release Authorityが必要です。</p></div><div class="path"><h3>主な保存先</h3><code>artifacts/release/release-plan.json</code><br><code>artifacts/release/review/release.html</code><br><code>aidlc/spaces/&lt;space&gt;/codekb/deployment-map/</code></div></div>
+          <div class="callout warning"><b>rollbackも記録対象:</b> Release失敗後に安全に戻せた場合も、「何もなかった」ことにはしません。rolled backという結果をReceiptとRelease Currentへ残します。</div>
+          <a class="back" href="#top">↑ 先頭へ</a>
+        </div>
+      </section>
+
+      <section class="stage" id="st09">
+        <header class="stage-head outcome">
+          <div class="stage-id">ST-09</div><div><h2>Outcome Evaluation</h2><p>作ったものではなく、最初に狙った結果が得られたか確認する。</p></div>
+        </header>
+        <div class="stage-body">
+          <p class="plain"><b>初心者向けの一言:</b> 「Releaseできた」だけで成功とは呼びません。最初の目的・成功signalと、実際のEvidenceを一つずつ比較してIntentを閉じます。</p>
+          <div class="io">
+            <div class="io-side input"><h3 class="io-title">入力</h3><ul><li><b>Intent Definition</b> — 期待した結果と成功signal</li><li><b>Requirements Definition</b></li><li><b>Review Manifest</b> — Candidateがあった場合</li><li><b>Release Current</b> — released／rolled_back／not_applicableを区別</li><li><b>Effective Policy</b></li></ul></div>
+            <div class="io-arrow">→</div>
+            <div class="io-side output"><h3 class="io-title">正式な出力</h3><ul><li><b>Outcome Work Request</b></li><li><b>Outcome Evidence</b></li><li><b>Outcome Evaluation</b></li><li><b>Outcome HTML</b></li><li><b>Outcome Human Decision</b> — 必要時</li><li><b>Outcome Current</b></li><li><b>Follow-up Brief</b> — 選択時だけ。新Intentは自動作成しない</li></ul></div>
+          </div>
+          <div class="process"><h3>完了の決め方</h3><div class="steps"><div class="step">Coreが全Outcome、signal、Requirement、受入条件を固定</div><div class="step">各signalへ検証済みEvidenceを1つ以上対応</div><div class="step">全達成かつ追加Human Gateなしなら自動完了。それ以外は人間が誠実な終わり方を選ぶ</div></div><p><span class="mini-tag">continue-observation</span><span class="mini-tag">complete-with-outcome</span><span class="mini-tag">complete-and-draft-follow-up</span></p></div>
+          <div class="gate-path"><div class="gate"><h3>人間が必要になる場面</h3><p>partial、failed、inconclusive、rolled backの場合です。観測を続けるか、現結果で完了するか、Follow-up Briefも作るかを決めます。</p></div><div class="path"><h3>主な保存先</h3><code>artifacts/outcome/outcome-evaluation.json</code><br><code>artifacts/outcome/outcome.html</code><br><code>artifacts/outcome/current.json</code></div></div>
+          <div class="callout success"><b>終端Stage:</b> ST-09の後に次のStageはありません。CoreはOutcomeと完了理由を保存してIntent Stateを<code>completed</code>にします。Follow-up Briefは次の相談材料であり、AIが勝手に新Intentを作ることはありません。</div>
+          <a class="back" href="#top">↑ 先頭へ</a>
+        </div>
+      </section>
+
+      <section class="panel" id="formats">
+        <h2>どの出力がJSONで、どれがHTMLか</h2>
+        <p class="lead">JSONは機械が検証する正本です。HTMLは人間が判断しやすくする表示です。HTMLだけを正本にはしません。</p>
+        <table class="formats">
+          <thead><tr><th>対象</th><th>通常の形式</th><th>HTMLを作る条件</th></tr></thead>
+          <tbody>
+            <tr><td>System Map／Current Context</td><td>JSON</td><td>System Map HTMLは人間が明示的に依頼した場合だけ</td></tr>
+            <tr><td>Intent Definition／Requirements</td><td>JSON</td><td>標準では作らない</td></tr>
+            <tr><td>Architecture</td><td>JSON</td><td>Policyによる人間判断が必要な場合</td></tr>
+            <tr><td>Build Contract</td><td>JSON＋Review HTML</td><td>人間承認のため必ずReviewを作る</td></tr>
+            <tr><td>Candidate Review</td><td>JSON＋Review HTML</td><td>Runnable Candidateを人間が確認するとき</td></tr>
+            <tr><td>Release</td><td>JSON＋Release HTML</td><td>外部作用の計画を人間が承認するとき</td></tr>
+            <tr><td>Outcome</td><td>JSON＋Outcome HTML</td><td>結果を人間が読み、必要なら判断するとき</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel" id="glossary">
+        <h2>初心者向け用語集</h2>
+        <div class="glossary">
+          <article><h3>Artifact</h3><p>Stageが読み書きする成果物です。path、version、SHA-256で「どの内容か」を固定します。</p></article>
+          <article><h3>Evidence</h3><p>判断を裏付ける証拠です。file、検証結果、外部観測、人間確認などがあります。</p></article>
+          <article><h3>Current</h3><p>そのIntentが現在採用している結論やrevisionを指す小さな正本です。</p></article>
+          <article><h3>Revision</h3><p>上書きしない履歴番号です。過去の判断を後から確認できます。</p></article>
+          <article><h3>SHA-256</h3><p>内容から作る指紋です。承認後に内容が変わっていないことを確認します。</p></article>
+          <article><h3>System Map</h3><p>Repository、Component、API、Database、外部Service、関係をEvidence付きで累積する現在観測Mapです。</p></article>
+          <article><h3>Effective Policy</h3><p>Org、Team、Projectの機械実行可能な追加ルールを、固定優先順で統合したsnapshotです。</p></article>
+          <article><h3>Bolt</h3><p>ST-05で決める実装単位です。依存関係DAGに従い、ST-06でCoreが一つずつ選びます。</p></article>
+          <article><h3>Candidate</h3><p>検証には通ったが、人間承認やReleaseがまだの候補です。RunnableとAcceptedを区別します。</p></article>
+          <article><h3>Receipt</h3><p>機械点検や外部操作が実際にどう終わったかを残す記録です。</p></article>
+          <article><h3>Core Directive</h3><p>CoreがCodexへ返す次の行動です。work、approval、decision、advanced、parked、doneがあります。</p></article>
+          <article><h3>fail closed</h3><p>不明・不整合・改ざん時に推測して進まず、安全側で停止する考え方です。</p></article>
+        </div>
+        <div class="callout success"><b>全体を一文で:</b> 前のStageの検証済み出力を次のStageの入力にし、AIは案を作り、Coreは正本と遷移を管理し、人間は価値・承認・外部作用・成果を判断します。</div>
+      </section>
+    </main>
+  </div>
+  <footer>AI-DLC vNext · Stage Input / Output Guide · Generated from current implementation contracts</footer>
+</div>
+</body>
+</html>

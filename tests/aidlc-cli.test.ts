@@ -17,6 +17,11 @@ function run(args: string[]) {
 }
 
 test("integrated CLI exposes only vNext workflow routes", () => {
+  assert.deepEqual(resolveAction(["delegation", "validate"]), {
+    type: "delegate",
+    tool: "aidlc-vnext-delegation-contract.ts",
+    args: ["validate"],
+  });
   assert.deepEqual(resolveAction(["graph", "validate"]), {
     type: "delegate",
     tool: "aidlc-core-route.ts",

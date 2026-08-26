@@ -10,3 +10,12 @@ or claim Core authority.
 ST-00 through terminal ST-09 have implemented Stage Contracts. When `aidlc next`
 returns `parked`, show the Core-owned reason and stop. Do not invent work beyond
 the returned Directive.
+
+## Stage Delegation
+
+For every Core `work` Directive, the Conductor must delegate through the fixed
+`.codex/aidlc-common/data/vnext-stage-delegation.json` assignment and the
+matching Codex custom Agent. It must not replace a missing Agent with inline
+work. Delegated agents are leaf participants, use `$aidlc-stage-work`, and may
+mutate only their assigned proposal path or ST-06 worktree. Core owns routing,
+State, Audit, acceptance, and every human or release authority boundary.

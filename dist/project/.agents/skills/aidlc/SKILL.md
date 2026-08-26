@@ -53,8 +53,9 @@ Core can return:
 - `advanced`: Core completed a deterministic Stage. Show the completed Stage,
   Evidence, and new current Stage. Then run `next` once more.
 - `work`: Core fixed the current Stage and prepared a validated work-request
-  Artifact. Read that request, produce only its requested proposal, and submit
-  it through the named Core command. Never add a route or authority field.
+  Artifact. Delegate that request through the mandatory Stage Delegation flow
+  below, then submit the delegated result through the named Core command. Never
+  add a route or authority field.
 - `approval`: Core validated an ST-05 Build Contract candidate, ST-07 Runnable
   Candidate, or ST-08 Release Plan and generated its human review. Show the review and
   exact SHA-256. Run an approval or feedback command only after an actual human
@@ -65,6 +66,57 @@ Core can return:
 - `parked`: show the Stage ID and reason, then stop. Never bypass a Core stop or
   invent work outside the fixed Stage Contract.
 - `done`: show the reason and stop.
+
+## Stage Delegation
+
+The fixed assignment source is
+`.codex/aidlc-common/data/vnext-stage-delegation.json`. Read and validate the
+entry matching the Directive's `stage` before dispatch. For every `work`
+Directive, the Conductor must delegate the Stage work and must not create or
+edit the Stage proposal inline.
+
+Resolve the exact assignment with
+`./.codex/tools/aidlc delegation show <ST-00..ST-09> <work|review>`.
+Treat a missing or `null` required assignment as a broken distribution and
+stop without producing Stage output.
+
+Use the matching Codex custom Agent from
+`.codex/agents/<agent-name>.toml`. Pass the Directive, Work Request or review
+Artifact, Stage Contract, assignment entry, exact input and output paths,
+mutation scope, relevant policy and Evidence paths, and the persona path. Tell
+every participant to use `$aidlc-stage-work`. Pass paths and boundaries rather
+than copying large file bodies.
+
+Execute the assignment topology as follows:
+
+- `subagent`: dispatch the lead for a bounded draft. Dispatch supports with the
+  draft and their exact contribution boundaries. Send support contributions
+  back to the lead for integration.
+- `pipeline`: dispatch the lead, then each support serially. Each participant
+  receives the prior result and may advance only the assigned output.
+- `mob`: dispatch the lead for a draft, then dispatch supports independently
+  against the same draft. Supports remain mutually blind. Send all
+  contributions back to the lead for integration.
+
+If `reviewer_agent` is present, dispatch it after integration with read-only
+scope. `READY` permits submission. On `NOT-READY`, send only the findings and
+bounded paths back to the lead, then review again up to
+`reviewer_max_iterations`. If the limit is reached, stop and ask the human;
+the Conductor must not repair the artifact itself.
+
+Only the Conductor runs the Core submission command documented in the current
+Stage section. Subagents must never run `aidlc next`, submit, approve, decide,
+execute, or write State, Plan, Audit, Current pointers, or canonical revisions.
+Do not fall back to inline Stage work when an assigned Agent, required Skill,
+or delegation capability is unavailable. Report the missing distributed
+capability and stop without mutating Stage output.
+
+For an `approval` or `decision` Directive whose Stage has a
+`review_assignment`, dispatch that assignment read-only before presenting the
+Core-generated review. The delegated analysis is advisory to the human
+decision; it cannot change the reviewed hash, replace the Core review, or imply
+approval. Show the original Core review and exact SHA-256 together with clearly
+separated advisory findings, then wait for the human.
 
 ST-00 Bootstrap is Core-owned and automatic. It validates the active Intent,
 Plan, fixed Catalog and Graph, Effective Policy, Workspace, selected Repository

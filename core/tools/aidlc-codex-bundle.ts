@@ -68,6 +68,7 @@ const ACTIVE_TOOL_FILES = [
   "aidlc-core-route.ts",
   "aidlc-effective-policy.ts",
   "aidlc-vnext-risk-contract.ts",
+  "aidlc-vnext-delegation-contract.ts",
   "aidlc-vnext-risk.ts",
   "aidlc-vnext-policy-gates.ts",
   "aidlc-vnext-bootstrap.ts",
@@ -259,6 +260,16 @@ export function codexBundleFiles(
       transformCore,
     );
   }
+  collectTree(
+    files,
+    join(coreDir, "agents"),
+    join(CODEX_HARNESS.layout.agentRoot),
+  );
+  collectTree(
+    files,
+    join(harnessDir, "agents"),
+    join(CODEX_HARNESS.layout.agentRoot),
+  );
   for (const name of ACTIVE_TOOL_FILES) {
     files.set(
       `${CODEX_RUNTIME_ROOT}/tools/${name}`,
@@ -270,8 +281,8 @@ export function codexBundleFiles(
   }
   collectTree(
     files,
-    join(harnessDir, "skills", "aidlc"),
-    join(CODEX_HARNESS.layout.skillRoot, "aidlc"),
+    join(harnessDir, "skills"),
+    join(CODEX_HARNESS.layout.skillRoot),
     (path, content) => path.endsWith(".md")
       ? transformCodexMarkdown(content, toolScripts)
       : content,

@@ -11,6 +11,9 @@ test("renders a vNext-only native Codex project layout", () => {
   assert.equal(files.has(".codex/aidlc-common/data/vnext-stage-catalog.json"), true);
   assert.equal(files.has(".codex/aidlc-common/data/vnext-stage-graph.json"), true);
   assert.equal(files.has(".agents/skills/aidlc/SKILL.md"), true);
+  assert.equal(files.has(".agents/skills/aidlc-stage-work/SKILL.md"), true);
+  assert.equal(files.has(".codex/agents/aidlc-developer-agent.md"), true);
+  assert.equal(files.has(".codex/agents/aidlc-developer-agent.toml"), true);
   assert.equal(files.has("AGENTS.md"), true);
   assert.equal(files.has(PROJECT_LAYOUT_MANIFEST), true);
 
@@ -20,6 +23,8 @@ test("renders a vNext-only native Codex project layout", () => {
     ".codex/aidlc-common/data/stage-graph.json",
     ".codex/scopes/aidlc-poc.md",
     ".codex/aidlc-common/stages/initialization/state-init.md",
+    ".codex/agents/beginner-html-writer.toml",
+    ".agents/skills/beginner-html/SKILL.md",
   ]) assert.equal(files.has(obsolete), false, obsolete);
 
   const allText = [...files.values()].join("\n");
@@ -40,6 +45,7 @@ test("renders a vNext-only native Codex project layout", () => {
   assert.match(skill, /aidlc outcome evaluate \. <proposal\.json>/);
   assert.match(skill, /aidlc outcome decide \. <evaluation-sha256>/);
   assert.doesNotMatch(skill, /aidlc next \.\./);
+  assert.doesNotMatch(files.get("AGENTS.md") ?? "", /beginner_html_writer/);
 });
 
 test("renders the same project-local native command on all platforms", () => {
