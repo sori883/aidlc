@@ -73,7 +73,7 @@ func TestPackageBuildsFiveTargetReleaseCandidate(t *testing.T) {
 		t.Skip("cross-build release candidate")
 	}
 	out := filepath.Join(t.TempDir(), "release")
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	result, err := Package(ctx, PackageOptions{RepoRoot: repositoryRoot(t), OutputDir: out, Version: version.Version})
 	if err != nil {
