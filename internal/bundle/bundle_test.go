@@ -1,6 +1,7 @@
 package bundle
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,6 +11,111 @@ import (
 
 	"github.com/sori883/aidlc/internal/platform/jsonx"
 )
+
+func TestDevelopmentOnlyBeginnerHTMLHelper(t *testing.T) {
+	root := repositoryRoot(t)
+	agent := readRepositoryFile(t, root, ".codex/agents/beginner-html-writer.toml")
+	for _, marker := range []string{
+		`name = "beginner_html_writer"`,
+		`sandbox_mode = "workspace-write"`,
+		"$beginner-html",
+		"source of truth",
+		"mobile and desktop",
+		"Runtime, Contract, canonical JSON",
+	} {
+		if !strings.Contains(agent, marker) {
+			t.Fatalf("beginner HTML agent is missing %q", marker)
+		}
+	}
+	if strings.Contains(agent, "\nmodel =") {
+		t.Fatal("beginner HTML agent must inherit the parent model")
+	}
+
+	skill := readRepositoryFile(t, root, ".agents/skills/beginner-html/SKILL.md")
+	for _, marker := range []string{
+		"name: beginner-html",
+		"beginner-facing HTML documentation",
+		"source of truth",
+		"single-file HTML",
+		"390px",
+		"scrollWidth <= clientWidth",
+		"escape",
+		"Runtime, Contract, or canonical JSON",
+	} {
+		if !strings.Contains(strings.ToLower(skill), strings.ToLower(marker)) {
+			t.Fatalf("beginner HTML skill is missing %q", marker)
+		}
+	}
+	if strings.Contains(strings.ToUpper(skill), "TODO") || strings.Contains(strings.ToUpper(skill), "PLACEHOLDER") {
+		t.Fatal("beginner HTML skill contains an unfinished placeholder")
+	}
+
+	for _, excluded := range []string{
+		"harness/codex/agents/beginner-html-writer.toml",
+		"harness/codex/skills/beginner-html/SKILL.md",
+	} {
+		if _, err := os.Lstat(filepath.Join(root, filepath.FromSlash(excluded))); err == nil {
+			t.Fatalf("development-only helper leaked into harness: %s", excluded)
+		} else if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
+	harnessInstructions := readRepositoryFile(t, root, "harness/codex/AGENTS.md")
+	for _, marker := range []string{"beginner_html_writer", "Beginner-facing HTML delegation"} {
+		if strings.Contains(harnessInstructions, marker) {
+			t.Fatalf("installed project routes to development-only helper: %s", marker)
+		}
+	}
+}
+
+func TestDelegationGuideCoversCanonicalAssignments(t *testing.T) {
+	root := repositoryRoot(t)
+	html := readRepositoryFile(t, root, "docs/aidlc-vnext-agent-delegation-guide.html")
+	for _, marker := range []string{
+		`<html lang="ja">`,
+		`name="viewport"`,
+		"vnext-stage-delegation.json",
+		"Conductor",
+		"Core",
+		"人間",
+		"aidlc-stage-work",
+		"@media (max-width:",
+	} {
+		if !strings.Contains(html, marker) {
+			t.Fatalf("delegation guide is missing %q", marker)
+		}
+	}
+
+	var catalog struct {
+		Stages []struct {
+			StageID        string `json:"stage_id"`
+			WorkAssignment *struct {
+				LeadAgent string `json:"lead_agent"`
+			} `json:"work_assignment"`
+			ReviewAssignment *struct {
+				LeadAgent string `json:"lead_agent"`
+			} `json:"review_assignment"`
+		} `json:"stages"`
+	}
+	if err := json.Unmarshal([]byte(readRepositoryFile(t, root, "core/aidlc-common/data/vnext-stage-delegation.json")), &catalog); err != nil {
+		t.Fatal(err)
+	}
+	for _, stage := range catalog.Stages {
+		if !strings.Contains(html, stage.StageID) {
+			t.Fatalf("delegation guide is missing stage %s", stage.StageID)
+		}
+		for _, assignment := range []*struct {
+			LeadAgent string `json:"lead_agent"`
+		}{stage.WorkAssignment, stage.ReviewAssignment} {
+			if assignment != nil && !strings.Contains(html, assignment.LeadAgent) {
+				t.Fatalf("delegation guide is missing lead agent %s", assignment.LeadAgent)
+			}
+		}
+	}
+	if strings.Contains(strings.ToUpper(html), "TODO") || strings.Contains(strings.ToUpper(html), "PLACEHOLDER") {
+		t.Fatal("delegation guide contains an unfinished placeholder")
+	}
+}
 
 func TestFilesRenderNativeCodexProject(t *testing.T) {
 	paths := binaryPaths()
@@ -23,8 +129,8 @@ func TestFilesRenderNativeCodexProject(t *testing.T) {
 		if strings.HasSuffix(file.Path, ".ts") {
 			t.Fatalf("TypeScript leaked into Go bundle: %s", file.Path)
 		}
-		if strings.HasSuffix(file.Path, ".md") && strings.Contains(string(file.Content), "bun run --cwd .codex aidlc") {
-			t.Fatalf("Bun Runtime command leaked into %s", file.Path)
+		if strings.HasSuffix(file.Path, ".md") && strings.Contains(string(file.Content), "run --cwd .codex") {
+			t.Fatalf("legacy Runtime command leaked into %s", file.Path)
 		}
 	}
 	launcher, ok := byPath[LauncherPath]
@@ -44,6 +150,34 @@ func TestFilesRenderNativeCodexProject(t *testing.T) {
 		if !contains(layout.Files, path) {
 			t.Fatalf("layout does not declare binary %s", path)
 		}
+	}
+}
+
+func TestWriteMigratesSchemaOneProjectLayout(t *testing.T) {
+	files, err := Files(repositoryRoot(t), binaryPaths())
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "project")
+	if err := os.MkdirAll(filepath.Join(out, ".codex"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	legacy := LayoutManifest{Format: LayoutFormat, SchemaVersion: 1, Files: []string{"AGENTS.md"}}
+	content, err := jsonx.MarshalCanonical(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(out, filepath.FromSlash(LayoutManifestPath)), content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(out, "AGENTS.md"), []byte("legacy\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Write(out, files); err != nil {
+		t.Fatal(err)
+	}
+	if result, err := Check(out, files); err != nil || !result.Valid {
+		t.Fatalf("migrated check = %+v, %v", result, err)
 	}
 }
 
@@ -127,6 +261,15 @@ func repositoryRoot(t *testing.T) string {
 		t.Fatal("runtime.Caller failed")
 	}
 	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+}
+
+func readRepositoryFile(t *testing.T, root, path string) string {
+	t.Helper()
+	content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(content)
 }
 
 func binaryPaths() []string {

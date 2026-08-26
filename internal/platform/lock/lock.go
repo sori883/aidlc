@@ -48,7 +48,7 @@ type held struct {
 	handle   Handle
 }
 
-// Dir returns the lock path compatible with the TypeScript implementation.
+// Dir returns the stable cross-platform lock path.
 func Dir(projectDir string) (string, error) {
 	absolute, err := filepath.Abs(projectDir)
 	if err != nil {

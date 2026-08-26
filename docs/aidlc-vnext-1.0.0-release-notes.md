@@ -22,8 +22,8 @@ System Mapの標準出力はJSONだけです。人間向けHTMLは、依頼さ�
 ## 導入
 
 ```bash
-curl -fsSLO https://github.com/sori883/aidlc/releases/download/v1.0.0/install.mjs
-node install.mjs install --harness codex --project .
+curl -fsSLO https://github.com/sori883/aidlc/releases/download/v1.0.0/install.sh
+sh install.sh --harness codex --project .
 ./.codex/tools/aidlc workspace init .
 ./.codex/tools/aidlc intent birth . "First Intent"
 ./.codex/tools/aidlc next .

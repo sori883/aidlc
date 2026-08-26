@@ -7,7 +7,7 @@
 
 MCP 接続設定はプロジェクト固有の `.codex/config.toml` に格納しています。Codex は、信頼済みのプロジェクトでのみプロジェクト固有設定を読み込みます。
 
-Serena のプロジェクト設定は `.serena/project.yml` に格納しています。TypeScript を解析対象とし、人間の作業領域である `work/` はインデックスから除外します。`.serena/.gitignore` により、キャッシュと端末固有の `project.local.yml` はバージョン管理されません。
+Serena のプロジェクト設定は `.serena/project.yml` に格納しています。Goを解析対象とし、人間の作業領域である`work/`はインデックスから除外します。`.serena/.gitignore`により、cacheと端末固有の`project.local.yml`はバージョン管理されません。
 
 ## 構成
 
@@ -64,8 +64,8 @@ bearer_token_env_var = "CONTEXT7_API_KEY"
 
 動作確認には、例えば次の依頼を使用できます。
 
-- 「Context7 で Bun の最新ドキュメントを調べてください」
-- 「Serena で `core/tools` 配下の主要なシンボルを一覧にしてください」
+- 「Context7でGo標準ライブラリの最新ドキュメントを調べてください」
+- 「Serenaで`internal/`配下の主要なsymbolを一覧にしてください」
 
 ## トラブルシューティング
 

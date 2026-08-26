@@ -16,7 +16,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 	"time"
 )
@@ -44,10 +43,9 @@ var Targets = []Target{
 
 // Options controls a Stage 2 proof run.
 type Options struct {
-	RepoRoot   string
-	OutputDir  string
-	Target     string
-	SkipParity bool
+	RepoRoot  string
+	OutputDir string
+	Target    string
 }
 
 // Artifact records the evidence collected for one binary.
@@ -66,7 +64,6 @@ type Report struct {
 	SchemaVersion int        `json:"schema_version"`
 	Artifacts     []Artifact `json:"artifacts"`
 	GitRoundTrip  bool       `json:"git_round_trip"`
-	Parity        bool       `json:"typescript_parity"`
 }
 
 // Run builds, inspects, commits, clones, and (for the native target) executes
@@ -106,7 +103,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		return Report{}, err
 	}
 
-	report := Report{SchemaVersion: 1, Parity: options.SkipParity}
+	report := Report{SchemaVersion: 1}
 	for _, target := range selected {
 		outputPath := filepath.Join(outputDir, target.Name, filepath.Base(target.Path))
 		if err := build(ctx, repoRoot, outputPath, target); err != nil {
@@ -141,12 +138,6 @@ func Run(ctx context.Context, options Options) (Report, error) {
 			return Report{}, err
 		}
 		report.Artifacts[index].NativeSmoke = true
-		if !options.SkipParity {
-			if err := compareTypeScript(ctx, repoRoot, binaryPath); err != nil {
-				return Report{}, err
-			}
-			report.Parity = true
-		}
 	}
 	if !hasTarget(selected, nativeName) {
 		return Report{}, fmt.Errorf("selected targets do not include native target %s", nativeName)
@@ -305,108 +296,6 @@ type commandResult struct {
 	Stderr string
 }
 
-func compareTypeScript(ctx context.Context, repoRoot, binaryPath string) error {
-	bunPath, err := exec.LookPath("bun")
-	if err != nil {
-		return fmt.Errorf("locate Bun for differential parity: %w", err)
-	}
-	commands := [][]string{{"--version"}, {"help"}, {"help", "--all"}, {"graph", "validate"}, {"delegation", "validate"}}
-	for _, stage := range []string{"ST-00", "ST-01", "ST-02", "ST-03", "ST-04", "ST-05", "ST-06", "ST-07", "ST-08", "ST-09"} {
-		commands = append(commands, []string{"delegation", "show", stage})
-		commands = append(commands, []string{"delegation", "show", stage, "work"})
-		commands = append(commands, []string{"delegation", "show", stage, "review"})
-	}
-	goEnv := []string{"AIDLC_RUNTIME_CORE_DIR=" + filepath.Join(repoRoot, "core")}
-	tsEnv := append(os.Environ(), "AIDLC_RUNTIME_CORE_DIR="+filepath.Join(repoRoot, "core"))
-	for _, args := range commands {
-		goResult, goErr := capture(ctx, repoRoot, goEnv, binaryPath, args...)
-		tsArgs := append([]string{filepath.Join(repoRoot, "core", "tools", "aidlc.ts")}, args...)
-		tsResult, tsErr := capture(ctx, repoRoot, tsEnv, bunPath, tsArgs...)
-		if (goErr != nil) != (tsErr != nil) || goResult != tsResult {
-			return fmt.Errorf("TypeScript parity mismatch for %q: Go=%+v (%v), TypeScript=%+v (%v)", args, goResult, goErr, tsResult, tsErr)
-		}
-	}
-	return compareWorkspace(ctx, repoRoot, binaryPath, bunPath, goEnv, tsEnv)
-}
-
-func compareWorkspace(ctx context.Context, repoRoot, binaryPath, bunPath string, goEnv, tsEnv []string) error {
-	parent, err := os.MkdirTemp("", "aidlc-stage2-parity-")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(parent)
-	goProject := filepath.Join(parent, "go")
-	tsProject := filepath.Join(parent, "typescript")
-	if err := os.MkdirAll(goProject, 0o755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(tsProject, 0o755); err != nil {
-		return err
-	}
-	goResult, goErr := capture(ctx, repoRoot, goEnv, binaryPath, "workspace", "init", goProject)
-	tsResult, tsErr := capture(ctx, repoRoot, tsEnv, bunPath, filepath.Join(repoRoot, "core", "tools", "aidlc.ts"), "workspace", "init", tsProject)
-	goResult.Stdout = strings.ReplaceAll(goResult.Stdout, goProject, "<PROJECT>")
-	tsResult.Stdout = strings.ReplaceAll(tsResult.Stdout, tsProject, "<PROJECT>")
-	if (goErr != nil) != (tsErr != nil) || goResult != tsResult {
-		return fmt.Errorf("workspace init parity mismatch: Go=%+v (%v), TypeScript=%+v (%v)", goResult, goErr, tsResult, tsErr)
-	}
-	for _, args := range [][]string{
-		{"space", "list", "--json"},
-		{"space", "create", "Team A"},
-		{"space", "switch", "Team A"},
-		{"space", "list"},
-	} {
-		goArgs := append([]string{args[0], args[1], goProject}, args[2:]...)
-		tsArgs := append([]string{filepath.Join(repoRoot, "core", "tools", "aidlc.ts"), args[0], args[1], tsProject}, args[2:]...)
-		goResult, goErr = capture(ctx, repoRoot, goEnv, binaryPath, goArgs...)
-		tsResult, tsErr = capture(ctx, repoRoot, tsEnv, bunPath, tsArgs...)
-		if (goErr != nil) != (tsErr != nil) || goResult != tsResult {
-			return fmt.Errorf("Space parity mismatch for %q: Go=%+v (%v), TypeScript=%+v (%v)", args, goResult, goErr, tsResult, tsErr)
-		}
-	}
-	if err := seedIntentFixture(goProject); err != nil {
-		return err
-	}
-	if err := seedIntentFixture(tsProject); err != nil {
-		return err
-	}
-	for _, args := range [][]string{
-		{"intent", "list", "--json"},
-		{"intent", "switch", "payment-api"},
-		{"intent", "list"},
-	} {
-		goArgs := append([]string{args[0], args[1], goProject}, args[2:]...)
-		tsArgs := append([]string{filepath.Join(repoRoot, "core", "tools", "aidlc.ts"), args[0], args[1], tsProject}, args[2:]...)
-		goResult, goErr = capture(ctx, repoRoot, goEnv, binaryPath, goArgs...)
-		tsResult, tsErr = capture(ctx, repoRoot, tsEnv, bunPath, tsArgs...)
-		if (goErr != nil) != (tsErr != nil) || goResult != tsResult {
-			return fmt.Errorf("Intent parity mismatch for %q: Go=%+v (%v), TypeScript=%+v (%v)", args, goResult, goErr, tsResult, tsErr)
-		}
-	}
-	goFiles, err := treeFiles(filepath.Join(goProject, "aidlc"))
-	if err != nil {
-		return err
-	}
-	tsFiles, err := treeFiles(filepath.Join(tsProject, "aidlc"))
-	if err != nil {
-		return err
-	}
-	if len(goFiles) != len(tsFiles) {
-		return fmt.Errorf("workspace file count mismatch: Go=%d, TypeScript=%d", len(goFiles), len(tsFiles))
-	}
-	for index := range goFiles {
-		if goFiles[index] != tsFiles[index] {
-			return fmt.Errorf("workspace path mismatch: Go=%s, TypeScript=%s", goFiles[index], tsFiles[index])
-		}
-		goBytes, _ := os.ReadFile(filepath.Join(goProject, "aidlc", filepath.FromSlash(goFiles[index])))
-		tsBytes, _ := os.ReadFile(filepath.Join(tsProject, "aidlc", filepath.FromSlash(tsFiles[index])))
-		if !bytes.Equal(goBytes, tsBytes) {
-			return fmt.Errorf("workspace content mismatch: %s", goFiles[index])
-		}
-	}
-	return nil
-}
-
 func seedIntentFixture(projectDir string) error {
 	root := filepath.Join(projectDir, "aidlc", "spaces", "team-a", "intents")
 	dirName := "260826-payment-api"
@@ -549,23 +438,4 @@ func copyFile(sourcePath, targetPath string, mode os.FileMode) error {
 		return err
 	}
 	return target.Close()
-}
-
-func treeFiles(root string) ([]string, error) {
-	var files []string
-	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.Type().IsRegular() {
-			relative, err := filepath.Rel(root, path)
-			if err != nil {
-				return err
-			}
-			files = append(files, filepath.ToSlash(relative))
-		}
-		return nil
-	})
-	sort.Strings(files)
-	return files, err
 }

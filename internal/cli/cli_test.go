@@ -14,7 +14,7 @@ import (
 	"github.com/sori883/aidlc/internal/intent"
 )
 
-func TestVersionHelpAndValidationOutputsMatchBaseline(t *testing.T) {
+func TestVersionHelpAndValidationOutputsMatchProductionContract(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -29,6 +29,8 @@ func TestVersionHelpAndValidationOutputsMatchBaseline(t *testing.T) {
 			want: "aidlc <noun> <command> [args]\n\n" +
 				"Common commands:\n" +
 				"  aidlc next [args]       resolve the next Workflow action\n" +
+				"  aidlc install [options] install AI-DLC into a Project\n" +
+				"  aidlc update [options]  safely update an installed Project\n" +
 				"  aidlc doctor check      diagnose the active Workspace\n" +
 				"  aidlc state resume      show the persisted resume point\n" +
 				"  aidlc --help            show this help\n" +

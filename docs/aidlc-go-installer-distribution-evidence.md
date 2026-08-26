@@ -106,5 +106,5 @@ tamper、symlink、bootstrap installer、installed launcher、全5 binary checks
 Go testのfixtureは`testing.T.TempDir()`、開発PoCとnative smokeの一時fileはOS tempへ配置して
 終了時に削除するため、追加のcache／test temporary ignoreは不要である。
 
-GitHub Actionsでは全5 native runner上でRelease候補生成、Installer E2E、host launcher smokeを
-実行する。remote Gate結果はStage 6 commitのpush後に本書と移行計画へ反映する。
+GitHub Actions run `32947254181`でGo／TypeScript quality Gateと全5 native runner上の
+Release候補生成、Installer E2E、host launcher smokeが成功し、G6を完了した。

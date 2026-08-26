@@ -1,5 +1,8 @@
 # AI-DLC vNext 実装マイルストーン
 
+> 2026-08-26のGo cutover後はGo 1.26.4実装がProduction正本である。本書の各Milestoneに
+> 記録されたBun／TypeScriptのtest結果は、その時点の履歴Evidenceとして保持する。
+
 ## 1. 目的
 
 既存のAI-DLC v2実装から実行エンジンを回収しながら、10 StageとAI中心の反復モデルを持つ
@@ -10,8 +13,8 @@ vNextとして再定義する。完成形ではv2 Workflowを残さず、vNext�
 
 ## 2. vNextで固定する設計方針
 
-- JavaScriptランタイムとパッケージマネージャーはBunを使用する
-- 実装言語はTypeScriptとする
+- Production Runtimeと開発ToolchainはGo 1.26.4を使用する
+- 外部Go moduleを追加せず、標準ライブラリを優先する
 - 最初に対応するHarnessはCodexとする
 - vNextは次の10 Stageで構成する
   - ST-00 Bootstrap
@@ -47,7 +50,7 @@ vNextとして再定義する。完成形ではv2 Workflowを残さず、vNext�
 
 | 分類 | v2資産 | vNextでの扱い |
 |---|---|---|
-| そのまま活用 | Bun／TypeScript基盤、CLI、Installer、native binary配布 | 原則維持 |
+| 移植して活用 | CLI、Installer、native binary配布 | Go実装でContractを維持 |
 | そのまま活用 | Harness ContractとCodex Adapterの責務分離 | 原則維持 |
 | 活用 | Workspace、Space、Intent、Artifact、Memory | vNext Contractに合わせて再利用 |
 | 拡張 | State、Audit、Doctor、Sensor | Stage判定、反復、人間判断の状態を追加 |
@@ -412,12 +415,12 @@ M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7
 - 新しいCore判断に決定的なunit testを追加する
 - Codex固有処理をDomain Coreへ混入させない
 - 設計変更と運用手順を`docs/`へ記録する
-- TypeScriptのtypecheck、Graph、Runtime Contract、関連testを通過させる
+- Goのformat、vet、通常・race test、native build、Graph、Runtime Contractを通過させる
 
 ## 7. ブランチと統合方針
 
-- 開発ブランチ: `codex/aidlc-vnext`
-- 基点: `origin/main`
+- 開発ブランチ: `codex/go-runtime-migration`
+- 基点: `codex/aidlc-vnext`の`c6d67dc5fb32ca2e93869079d36d8769f69217d0`
 - マイルストーンごとに、Core contract、Stage data、Harness、Distributionを分けてcommitする
 - 回収した実行機構のtestが通らない状態を次のマイルストーンへ持ち越さない
 - Workflow選択分岐を追加せず、vNextの単一経路へ段階的に置き換える
@@ -425,9 +428,7 @@ M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7
 
 ## 8. 次に着手する作業
 
-M0〜M7の実装は完了した。次に行える作業は次の二つで、どちらも別途明示承認を必要とする。
-
-1. M7変更をcommitし、`origin/codex/aidlc-vnext`へpushする
-2. main側のRelease Gateを確認した後、`v1.0.0` tagとGitHub Releaseを公開する
+Go移行のStage 8 release rehearsalを完了し、同一Draft PRでremote Gateを確認する。
+`v1.0.0` tag作成とGitHub Release公開は、PR mergeとmain Gate成功後の別承認操作とする。
 
 2は1とは別の外部公開操作であり、自動的には実施しない。

@@ -51,7 +51,6 @@ func TestBuildReviewAndAuthorizedGitRelease(t *testing.T) {
 	if err != nil || accepted.State.CurrentStage != contract.Stage08 {
 		t.Fatalf("review approve = %+v, %v", accepted, err)
 	}
-	assertTypeScriptParserParity(t, "./core/tools/aidlc-vnext-review-contract.ts", "parseCandidateReviewDecision", accepted.Decision)
 
 	releaseRequest, err := st08release.Prepare(ctx, projectDir, coreDir, t8)
 	if err != nil || releaseRequest.Request == nil || len(releaseRequest.Request.SourceTargets) != 1 {
@@ -63,7 +62,6 @@ func TestBuildReviewAndAuthorizedGitRelease(t *testing.T) {
 	source := releaseRequest.Request.SourceTargets[0]
 	repositoryID := source.RepositoryID
 	releaseProposal := st08release.Proposal{SchemaVersion: 1, Artifact: "release-plan-proposal", Version: 1, ProposalID: "release-001", IntentID: born.UUID, WorkRequestSHA256: releaseRequest.Reference.SHA256, Disposition: contract.Execute, Targets: []st08release.ProposedTarget{{TargetID: "TARGET-001", TargetKind: "source", Provider: "git", CapabilityID: st08release.GitCapabilityID, RepositoryID: &repositoryID, Locator: "origin#refs/heads/main"}}, Steps: []st08release.Step{{StepID: "STEP-001", TargetID: "TARGET-001", Operation: "source-promote", CapabilityID: st08release.GitCapabilityID, DependsOn: []string{}, DesiredState: source.CandidateRevision, PostReleaseCheck: "target-matches-desired", RollbackMode: "automatic"}}, ReleaseNotes: []string{"Add the verified message artifact."}, Reason: "Promote the accepted Candidate to main.", ProposedBy: "ai"}
-	assertTypeScriptParserParity(t, "./core/tools/aidlc-vnext-release-contract.ts", "parseReleasePlanProposal", releaseProposal)
 	if _, err := st08release.Review(ctx, projectDir, coreDir, []byte("{}"), t8); err == nil {
 		t.Fatal("ST-08 accepted an invalid proposal")
 	}
@@ -114,7 +112,6 @@ func TestBuildReviewAndAuthorizedGitRelease(t *testing.T) {
 		observations = append(observations, st09outcome.Observation{SignalID: signal.SignalID, Result: "inconclusive", EvidenceRefs: []contract.ArtifactReference{*released.CurrentReference}, Reason: "Human confirmation is still required.", ObservedAt: t9})
 	}
 	outcomeProposal := st09outcome.Proposal{SchemaVersion: 1, Artifact: "outcome-evaluation-proposal", Version: 1, ProposalID: "outcome-release-001", IntentID: born.UUID, WorkRequestSHA256: outcomeRequest.Reference.SHA256, Observations: observations, Reason: "The release is verified but the promised outcome needs a human judgment.", ProposedBy: "ai"}
-	assertTypeScriptParserParity(t, "./core/tools/aidlc-vnext-outcome-contract.ts", "parseOutcomeEvaluationProposal", outcomeProposal)
 	evaluated, err := st09outcome.Evaluate(ctx, projectDir, coreDir, encode(t, outcomeProposal), t9)
 	if err != nil || evaluated.Outcome != "awaiting_decision" {
 		t.Fatalf("outcome evaluate = %+v, %v", evaluated, err)
@@ -263,7 +260,6 @@ func advanceToST07Candidate(t *testing.T, ctx context.Context, projectDir, coreD
 	if len(verified.Candidate.IntegrationVerifierEvidenceRefs) != 1 {
 		t.Fatalf("integration refs = %v", verified.Candidate.IntegrationVerifierEvidenceRefs)
 	}
-	assertTypeScriptParserParity(t, "./core/tools/aidlc-vnext-build-converge-contract.ts", "parseRunnableCandidate", *verified.Candidate)
 }
 
 func stateRecordDir(t *testing.T, projectDir string) string {

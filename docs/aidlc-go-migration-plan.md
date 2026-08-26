@@ -9,10 +9,10 @@
 | 基準Branch | `codex/aidlc-vnext` |
 | G0 Baseline | `c6d67dc5fb32ca2e93869079d36d8769f69217d0` |
 | Go移行Branch | `codex/go-runtime-migration` |
-| Production Runtime | TypeScript 7.0.2／Bun 1.3.14。Go版へ未切り替え |
+| Production Runtime | Go 1.26.4へ切り替え中 |
 | 移行先 | Go 1.26.4 |
 | 最初のHarness | Codex |
-| 状態 | G0〜G5完了、G6 remote Gate確認中 |
+| 状態 | G0〜G6完了、G7 remote Gate確認中 |
 
 本書は、AI-DLC vNextの実装をTypeScript／BunからGoへ段階的に移行するための
 設計、互換境界、実装順序、検証Gateを定義する。Goへの一括書き換えは行わず、
@@ -506,7 +506,7 @@ distribution check、全5 Target cross-build、Project Git round trip、native P
 `docs/aidlc-go-stage-runtime-evidence.md`に記録した。PR #26のGitHub ActionsでもGo／TypeScript
 quality Gateと全5 native runnerが成功し、G5を完了した。
 
-### Stage 6: Installer／Distribution（G6 remote Gate確認中）
+### Stage 6: Installer／Distribution（G6完了）
 
 - Go Installer
 - 5 Target Project layout
@@ -525,9 +525,10 @@ conflict／tamper／symlink拒否、bootstrap install、全5 binary checksum、i
 ローカルではformat／vet／通常・race Go test、既存Bun 209 test、旧bundle／distribution
 Gate、Go bundle drift check、全5 Target release packagingを完了した。全binaryは約
 8.06〜9.05MBで16MiB未満である。詳細は
-`docs/aidlc-go-installer-distribution-evidence.md`に記録した。G6はPR #26のremote Gate確認中とする。
+`docs/aidlc-go-installer-distribution-evidence.md`に記録した。PR #26のrun `32947254181`で
+Go／TypeScript quality Gateと全5 native runnerが成功し、G6を完了した。
 
-### Stage 7: Cutover
+### Stage 7: Cutover（G7 remote Gate確認中）
 
 1. `.codex/tools/aidlc`をGo版へ切り替える
 2. Skill／Agent／Docs／generated distをGo commandへ揃える
@@ -535,6 +536,12 @@ Gate、Go bundle drift check、全5 Target release packagingを完了した。�
 4. 全Parity／E2E／Distribution Gateを実行する
 5. TypeScript／Bunを削除する前の最終差分レビューを記録する
 6. 全削除条件を確認してTypeScript実装、Bun設定、Node Installerを削除する
+
+`c34f7fc`をrollback境界として削除条件を再確認し、Production CLI help、Harness source、
+現行docs、schema 2 `dist/project`、main／PR／Release CIをGoへ切り替えた。tracked script
+133 fileと旧generated bundleを含む計184 file、`package.json`、`bun.lock`、`tsconfig.json`、
+Node Installerを削除した。cutover後の通常・race Go test、bundle check、全5 Target packagingは
+成功した。詳細は`docs/aidlc-go-cutover-evidence.md`に記録した。G7はPR #26のremote Gate確認中とする。
 
 ### Stage 8: Release Rehearsal
 
@@ -584,8 +591,8 @@ tag作成とGitHub Release公開は、本Stageの完了後に別途明示的な�
 | G3 | Platform／Domain Foundation | 完了 |
 | G4 | Workflow Core | 完了 |
 | G5 | 各StageのGo移植。ST-00〜ST-09を個別確認 | 完了 |
-| G6 | Installer／Distribution切り替え | remote Gate確認中 |
-| G7 | TypeScript／Bun削除 | 未着手 |
+| G6 | Installer／Distribution切り替え | 完了 |
+| G7 | TypeScript／Bun削除 | remote Gate確認中 |
 | G8 | tag作成／GitHub Release公開 | 未着手 |
 
 2026-08-26に、Stage 2以降を追加の承認待ちなしでStage単位に検証し、同一Branch・

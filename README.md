@@ -43,18 +43,18 @@ Codexの親AgentはConductorとしてCore Directiveを受け取り、固定の
 
 ## インストール
 
-導入・更新時だけNode.js 22以上が必要です。導入後の実行にBun、npm、npxは不要です。
+導入後のProjectには全5 TargetのGo CLIが入り、Node.js、Bun、GoのRuntimeは不要です。
 
 ```bash
-curl -fsSLO https://github.com/sori883/aidlc/releases/download/v1.0.0/install.mjs
-node install.mjs install --harness codex --project .
+curl -fsSLO https://github.com/sori883/aidlc/releases/download/v1.0.0/install.sh
+sh install.sh --harness codex --project .
 ```
 
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest "https://github.com/sori883/aidlc/releases/download/v1.0.0/install.mjs" -OutFile "install.mjs"
-node install.mjs install --harness codex --project .
+Invoke-WebRequest "https://github.com/sori883/aidlc/releases/download/v1.0.0/install.ps1" -OutFile "install.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 --harness codex --project .
 ```
 
 InstallerはOSに合うネイティブCLIとCodex用ファイルを取得し、サイズとSHA-256を確認してから配置します。管理外ファイルとの競合や検証失敗がある場合は、プロジェクトを書き換えません。
@@ -91,7 +91,8 @@ InstallerはOSに合うネイティブCLIとCodex用ファイルを取得し、�
 ```text
 <project>/
 ├── .codex/                       配布RuntimeとネイティブCLI
-│   └── agents/                   Stage AgentのpersonaとCodex設定
+│   ├── agents/                   Stage AgentのpersonaとCodex設定
+│   └── tools/                    POSIX launcherと全5 TargetのGo CLI
 ├── .agents/skills/
 │   ├── aidlc/                    Conductor Skill
 │   └── aidlc-stage-work/         Stage Agent共通Skill
@@ -108,8 +109,7 @@ System Mapの正本はJSONです。HTMLは人間から指示された場合だ�
 ## 更新と旧State
 
 ```bash
-curl -fsSLO https://github.com/sori883/aidlc/releases/download/v1.0.0/install.mjs
-node install.mjs update --harness codex --project .
+./.codex/tools/aidlc update --harness codex --project .
 ./.codex/tools/aidlc doctor check .
 ```
 
@@ -119,17 +119,18 @@ pre-vNext形式のWorkflow Stateは自動変換しません。Doctorは`VNEXT_UN
 
 ## 開発
 
-開発環境はBunとTypeScriptです。
+開発環境はGo 1.26.4です。外部Go moduleは使っていません。
 
 ```bash
-bun install
-bun run release:check
-bun run bundle:write
-bun run distribution:write
-bun run binary:build:all
-bun run package:github
+git ls-files -z -- '*.go' ':(exclude)work/**' | xargs -0 gofmt -w
+go vet ./...
+go test -count=1 ./...
+go test -race -count=1 ./...
+go run ./cmd/aidlc-dev bundle write --out dist/project
+go run ./cmd/aidlc-dev bundle check --out dist/project
+go run ./cmd/aidlc-dev package-release --out build/github-release
 ```
 
-`package:github`はローカルに公開候補を生成します。タグ作成やGitHub Release公開は別の明示的な作業です。
+`package-release`はローカルに公開候補を生成します。タグ作成やGitHub Release公開は別の明示的な作業です。
 
 詳しい配布手順は[docs/release-packaging.md](docs/release-packaging.md)、1.0.0の変更点は[docs/aidlc-vnext-1.0.0-release-notes.md](docs/aidlc-vnext-1.0.0-release-notes.md)を参照してください。

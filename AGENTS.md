@@ -6,7 +6,7 @@
 - Go標準ライブラリを優先してください。外部Go moduleを追加する場合は、必要性と設計理由を説明し、ユーザーの明示的な承認を得てください。
 - Go実装のQuality Gateとして、`gofmt`、`go vet`、`go test`、native buildを実行してください。
 - Goのbuild outputは`build/`配下へ置き、Go cacheはRepository外に保ってください。testの一時ファイルには`testing.T.TempDir()`を使用してください。
-- Go移行が完了し、ユーザーが切り替えを承認するまでは、既存TypeScript／Bun実装、Quality Gate、Release経路、配布済みCLIを維持してください。
+- Production Runtime、Installer、Distribution、Quality GateはGo実装を正本としてください。
 
 ## 配置ルール
 - 設計、マイルストーン、準拠方針、開発・運用手順などのドキュメントは、プロジェクトルートの `docs/` 配下に格納してください。

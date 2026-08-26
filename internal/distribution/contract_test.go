@@ -49,7 +49,7 @@ func TestManifestRequiresExactFiveTargetMatrix(t *testing.T) {
 	}
 }
 
-func TestInstallationManifestAcceptsPriorLargeBunBinary(t *testing.T) {
+func TestInstallationManifestAcceptsPriorLargeRuntimeBinary(t *testing.T) {
 	manifest := InstallationManifest{
 		Format:        InstallationFormat,
 		SchemaVersion: 1,
@@ -64,7 +64,7 @@ func TestInstallationManifestAcceptsPriorLargeBunBinary(t *testing.T) {
 		}},
 	}
 	if err := manifest.Validate(); err != nil {
-		t.Fatalf("prior Bun installation manifest must remain readable: %v", err)
+		t.Fatalf("prior installation manifest must remain readable: %v", err)
 	}
 }
 

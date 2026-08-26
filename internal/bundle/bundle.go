@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/sori883/aidlc/internal/platform/fsx"
 	"github.com/sori883/aidlc/internal/platform/jsonx"
@@ -77,7 +76,7 @@ func Files(repoRoot string, binaryPaths []string) ([]File, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := add(source.Target, rewriteCommands(content), false, source.Area); err != nil {
+		if err := add(source.Target, content, false, source.Area); err != nil {
 			return nil, err
 		}
 	}
@@ -163,38 +162,11 @@ func collect(repoRoot, sourceRoot, targetRoot, area string, add func(string, []b
 		if err != nil {
 			return err
 		}
-		if strings.HasSuffix(target, ".md") {
-			content = rewriteCommands(content)
-		}
 		if err := add(target, content, false, area); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func rewriteCommands(content []byte) []byte {
-	rendered := strings.ReplaceAll(string(content), "bun run --cwd .codex aidlc", "./.codex/tools/aidlc")
-	commands := []string{
-		"workspace init", "intent list", "intent birth", "intent switch", "intent risk show", "intent risk propose", "intent risk decide",
-		"space list", "space switch", "state resume", "next", "orient complete", "define-intent complete", "requirements complete",
-		"architecture complete", "architecture policy-review", "architecture policy-approve", "build-contract review", "build-contract approve",
-		"build prepare", "build verify", "build reuse", "review prepare", "review approve", "review feedback", "release prepare",
-		"release review", "release authorize", "release execute", "release reuse", "outcome prepare", "outcome evaluate", "outcome decide",
-		"outcome reuse", "plan revise",
-	}
-	for _, command := range commands {
-		rendered = strings.ReplaceAll(rendered, "./.codex/tools/aidlc "+command+" ..", "./.codex/tools/aidlc "+command+" .")
-	}
-	rendered = strings.ReplaceAll(rendered, " ../<proposal.json>", " <proposal.json>")
-	rendered = strings.ReplaceAll(rendered, " ../<proposals.json>", " <proposals.json>")
-	rendered = strings.ReplaceAll(rendered, " ../<runnable-candidate.json>", " <runnable-candidate.json>")
-	rendered = strings.ReplaceAll(rendered, " ../<human-decision.json>", " <human-decision.json>")
-	rendered = strings.ReplaceAll(rendered, " ../<risks.json>", " <risks.json>")
-	rendered = strings.ReplaceAll(rendered, " ../<policy-acknowledgements.json>", " <policy-acknowledgements.json>")
-	rendered = strings.ReplaceAll(rendered, " ../<feedback.json>", " <feedback.json>")
-	rendered = strings.ReplaceAll(rendered, " ../<release-current.json>", " <release-current.json>")
-	return []byte(rendered)
 }
 
 func Write(outDir string, files []File) error {
@@ -289,11 +261,25 @@ func inspectWritableOutput(outDir string) (LayoutManifest, error) {
 	if err != nil {
 		return LayoutManifest{}, err
 	}
-	manifest, err := DecodeLayout(content)
+	manifest, err := decodeWritableLayout(content)
 	if err != nil {
 		return LayoutManifest{}, fmt.Errorf("refusing to overwrite a directory with an invalid Project layout manifest: %w", err)
 	}
 	return manifest, nil
+}
+
+func decodeWritableLayout(content []byte) (LayoutManifest, error) {
+	value, err := jsonx.Decode[LayoutManifest](content)
+	if err != nil {
+		return LayoutManifest{}, err
+	}
+	if value.Format != LayoutFormat || (value.SchemaVersion != 1 && value.SchemaVersion != LayoutSchema) || value.Files == nil {
+		return LayoutManifest{}, fmt.Errorf("Project layout manifest identity is invalid")
+	}
+	if err := validateLayoutFiles(value.Files); err != nil {
+		return LayoutManifest{}, err
+	}
+	return value, nil
 }
 
 func Check(outDir string, expected []File) (CheckResult, error) {
@@ -365,20 +351,27 @@ func DecodeLayout(content []byte) (LayoutManifest, error) {
 	if value.Format != LayoutFormat || value.SchemaVersion != LayoutSchema || value.Files == nil {
 		return LayoutManifest{}, fmt.Errorf("Project layout manifest identity is invalid")
 	}
-	if !sort.StringsAreSorted(value.Files) {
-		return LayoutManifest{}, fmt.Errorf("Project layout files must be sorted")
+	if err := validateLayoutFiles(value.Files); err != nil {
+		return LayoutManifest{}, err
+	}
+	return value, nil
+}
+
+func validateLayoutFiles(files []string) error {
+	if !sort.StringsAreSorted(files) {
+		return fmt.Errorf("Project layout files must be sorted")
 	}
 	seen := map[string]struct{}{}
-	for _, path := range value.Files {
+	for _, path := range files {
 		if err := fsx.ValidateRelative(path); err != nil {
-			return LayoutManifest{}, err
+			return err
 		}
 		if _, exists := seen[path]; exists {
-			return LayoutManifest{}, fmt.Errorf("duplicate Project layout path: %s", path)
+			return fmt.Errorf("duplicate Project layout path: %s", path)
 		}
 		seen[path] = struct{}{}
 	}
-	return value, nil
+	return nil
 }
 
 const posixLauncher = `#!/bin/sh

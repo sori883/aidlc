@@ -1,6 +1,6 @@
 {
   "format": "aidlc-project-distribution",
-  "schema_version": 1,
+  "schema_version": 2,
   "files": [
     ".agents/skills/aidlc-stage-work/SKILL.md",
     ".agents/skills/aidlc/SKILL.md",
@@ -45,6 +45,12 @@
     ".codex/memory/team-policy.json",
     ".codex/memory/team.md",
     ".codex/memory/templates/.gitkeep",
+    ".codex/tools/aidlc",
+    ".codex/tools/aidlc.exe",
+    ".codex/tools/bin/aidlc-darwin-amd64",
+    ".codex/tools/bin/aidlc-darwin-arm64",
+    ".codex/tools/bin/aidlc-linux-amd64",
+    ".codex/tools/bin/aidlc-linux-arm64",
     "AGENTS.md"
   ]
 }

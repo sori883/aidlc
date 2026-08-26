@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+
+tool_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+system=$(uname -s)
+machine=$(uname -m)
+
+case "$system:$machine" in
+  Darwin:x86_64) binary="$tool_dir/bin/aidlc-darwin-amd64" ;;
+  Darwin:arm64) binary="$tool_dir/bin/aidlc-darwin-arm64" ;;
+  Linux:x86_64) binary="$tool_dir/bin/aidlc-linux-amd64" ;;
+  Linux:aarch64|Linux:arm64) binary="$tool_dir/bin/aidlc-linux-arm64" ;;
+  *) echo "aidlc: unsupported platform $system-$machine" >&2; exit 1 ;;
+esac
+
+if [ ! -x "$binary" ]; then
+  echo "aidlc: installed binary is missing or not executable: $binary" >&2
+  exit 1
+fi
+exec "$binary" "$@"

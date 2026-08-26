@@ -1212,6 +1212,8 @@ func renderHelp(all bool) string {
 	builder.WriteString("aidlc <noun> <command> [args]\n\n")
 	builder.WriteString("Common commands:\n")
 	builder.WriteString("  aidlc next [args]       resolve the next Workflow action\n")
+	builder.WriteString("  aidlc install [options] install AI-DLC into a Project\n")
+	builder.WriteString("  aidlc update [options]  safely update an installed Project\n")
 	builder.WriteString("  aidlc doctor check      diagnose the active Workspace\n")
 	builder.WriteString("  aidlc state resume      show the persisted resume point\n")
 	builder.WriteString("  aidlc --help            show this help\n")

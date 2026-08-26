@@ -42,7 +42,6 @@ func runStage2PoC(args []string) {
 	flags.SetOutput(os.Stderr)
 	target := flags.String("target", "all", "target to build; default builds all five targets")
 	output := flags.String("output", "build/stage2-poc", "ignored evidence output directory")
-	skipParity := flags.Bool("skip-parity", false, "skip the Bun differential comparison")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		os.Exit(1)
 	}
@@ -58,7 +57,7 @@ func runStage2PoC(args []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	report, err := stage2poc.Run(ctx, stage2poc.Options{
-		RepoRoot: repoRoot, OutputDir: outputDir, Target: *target, SkipParity: *skipParity,
+		RepoRoot: repoRoot, OutputDir: outputDir, Target: *target,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

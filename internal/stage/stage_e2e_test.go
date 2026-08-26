@@ -1,16 +1,12 @@
 package stage_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -51,7 +47,6 @@ func TestNoBuildIntentRunsEveryGoStageAndCompletes(t *testing.T) {
 	if result, err := st00bootstrap.Execute(ctx, projectDir, coreDir, st00bootstrap.Options{CreatedAt: t1}); err != nil || result.State.CurrentStage != contract.Stage01 {
 		t.Fatalf("ST-00 = %+v, %v", result, err)
 	} else {
-		assertTypeScriptParserParity(t, "./core/tools/aidlc-vnext-bootstrap.ts", "parseBootstrapReceipt", result.Receipt)
 	}
 	if _, _, err := st00bootstrap.VerifyAt(projectDir, stateRecordDir(t, projectDir)); err != nil {
 		t.Fatalf("ST-00 resume verification: %v", err)
@@ -71,7 +66,6 @@ func TestNoBuildIntentRunsEveryGoStageAndCompletes(t *testing.T) {
 		t.Fatal("ST-01 accepted an invalid proposal")
 	}
 	orientProposal := st01orient.Proposal{SchemaVersion: 1, Artifact: "orient-proposal", Version: 1, IntentID: born.UUID, WorkRequestSHA256: orientRequest.Reference.SHA256, SystemMapPatch: st01orient.Patch{SchemaVersion: 1, Artifact: "system-map-patch", Version: 1, ProposalID: "orient-001", MapID: "default-system", Perspective: "accepted-code-baseline", SourceSnapshots: orientRequest.Profile.RepositorySnapshots, Evidence: []st01orient.Evidence{}, CoverageUpserts: []st01orient.Coverage{}, EntityUpserts: []st01orient.Entity{}, RelationUpserts: []st01orient.Relation{}, RemoveEntityIDs: []string{}, RemoveRelationIDs: []string{}, Reason: "Record the current repository baseline.", ProposedAt: t1, ProposedBy: "ai"}, CurrentContext: st01orient.ContextProposal{EntityIDs: []string{}, RelationIDs: []string{}, AdditionalFindings: []string{}, OutOfScope: []string{}, IntentOnlyNotes: []string{}, Unknowns: []string{}}, ProposedBy: "ai"}
-	assertTypeScriptParserParity(t, "./core/tools/aidlc-vnext-orient-contract.ts", "parseOrientProposal", orientProposal)
 	orient, err := st01orient.Complete(ctx, projectDir, coreDir, encode(t, orientProposal), t1)
 	if err != nil || orient.State.CurrentStage != contract.Stage02 {
 		t.Fatalf("ST-01 = %+v, %v", orient, err)
@@ -92,7 +86,6 @@ func TestNoBuildIntentRunsEveryGoStageAndCompletes(t *testing.T) {
 		t.Fatal("ST-02 accepted an invalid proposal")
 	}
 	intentProposal := st02defineintent.Proposal{SchemaVersion: 1, Artifact: "intent-definition-proposal", Version: 1, ProposalID: "intent-001", IntentID: born.UUID, WorkRequestSHA256: intentRequest.Reference.SHA256, Purpose: "Document an already-correct repository without code changes.", ExpectedOutcomes: []string{"The repository remains unchanged."}, InScope: []string{"Document the verified no-change outcome."}, OutOfScope: []string{"Source changes."}, SuccessSignals: []string{"The accepted evidence confirms no source change."}, Unknowns: []string{}, Reason: "The Intent is documentation-only.", ProposedBy: "ai"}
-	assertTypeScriptParserParity(t, "./core/tools/aidlc-vnext-define-intent-contract.ts", "parseIntentDefinitionProposal", intentProposal)
 	intentResult, err := st02defineintent.Complete(ctx, projectDir, coreDir, encode(t, intentProposal), t2)
 	if err != nil || intentResult.State.CurrentStage != contract.Stage03 {
 		t.Fatalf("ST-02 = %+v, %v", intentResult, err)
@@ -113,7 +106,6 @@ func TestNoBuildIntentRunsEveryGoStageAndCompletes(t *testing.T) {
 		t.Fatal("ST-03 accepted an invalid proposal")
 	}
 	requirementsProposal := st03requirements.Proposal{SchemaVersion: 1, Artifact: "requirements-definition-proposal", Version: 1, ProposalID: "requirements-001", IntentID: born.UUID, WorkRequestSHA256: requirementsRequest.Reference.SHA256, FunctionalRequirements: []st03requirements.Item{{ID: "REQ-F-001", Statement: "The repository content remains unchanged.", SourceRefs: []st03requirements.SourceRef{{Artifact: "intent-definition", Pointer: "/expected_outcomes/0"}, {Artifact: "intent-definition", Pointer: "/success_signals/0"}}}}, QualityRequirements: []st03requirements.Item{}, Constraints: []st03requirements.Item{}, Invariants: []st03requirements.Item{}, OpenQuestions: []st03requirements.OpenQuestion{}, Reason: "One traceable no-change requirement is sufficient.", ProposedBy: "ai"}
-	assertTypeScriptParserParity(t, "./core/tools/aidlc-vnext-requirements-contract.ts", "parseRequirementsDefinitionProposal", requirementsProposal)
 	requirementsResult, err := st03requirements.Complete(ctx, projectDir, coreDir, encode(t, requirementsProposal), t3)
 	if err != nil || requirementsResult.State.CurrentStage != contract.Stage04 {
 		t.Fatalf("ST-03 = %+v, %v", requirementsResult, err)
@@ -134,7 +126,6 @@ func TestNoBuildIntentRunsEveryGoStageAndCompletes(t *testing.T) {
 		t.Fatal("ST-04 accepted an invalid proposal")
 	}
 	architectureProposal := st04architecture.Proposal{SchemaVersion: 1, Artifact: "architecture-assessment-proposal", Version: 1, ProposalID: "architecture-001", IntentID: born.UUID, WorkRequestSHA256: architectureRequest.Reference.SHA256, Disposition: contract.NotApplicable, RequirementAssessments: []st04architecture.Assessment{{RequirementID: "REQ-F-001", ArchitectureImpact: false, Reason: "No system structure changes are required.", CurrentEntityRefs: []string{}}}, Decisions: []st04architecture.DecisionDraft{}, Evidence: []contract.ArtifactReference{architectureRequest.Request.RequirementsRef, architectureRequest.Request.SystemMapRef}, Reason: "The requirement has no architecture impact.", ProposedBy: "ai"}
-	assertTypeScriptParserParity(t, "./core/tools/aidlc-vnext-architecture-contract.ts", "parseArchitectureAssessmentProposal", architectureProposal)
 	architectureResult, err := st04architecture.Complete(ctx, projectDir, coreDir, encode(t, architectureProposal), t4)
 	if err != nil || architectureResult.State.CurrentStage != contract.Stage05 {
 		t.Fatalf("ST-04 = %+v, %v", architectureResult, err)
@@ -155,7 +146,6 @@ func TestNoBuildIntentRunsEveryGoStageAndCompletes(t *testing.T) {
 		t.Fatal("ST-05 accepted an invalid proposal")
 	}
 	buildProposal := st05buildcontract.Proposal{SchemaVersion: 1, Artifact: "build-contract-proposal", Version: 1, ProposalID: "build-contract-001", IntentID: born.UUID, WorkRequestSHA256: buildRequest.Reference.SHA256, Disposition: contract.NotApplicable, RequirementAssessments: []st05buildcontract.Assessment{{RequirementID: "REQ-F-001", BuildImpact: false, Reason: "No repository change is required."}}, ChangeContracts: []st05buildcontract.ChangeContract{}, AcceptanceCriteria: []st05buildcontract.AcceptanceCriterion{}, Verifiers: []st05buildcontract.Verifier{}, Bolts: []st05buildcontract.Bolt{}, Evidence: []contract.ArtifactReference{buildRequest.Request.RequirementsRef, buildRequest.Request.ArchitectureCurrentRef}, Reason: "The accepted state already satisfies the requirement.", ProposedBy: "ai"}
-	assertTypeScriptParserParity(t, "./core/tools/aidlc-vnext-build-contract-contract.ts", "parseBuildContractProposal", buildProposal)
 	buildReview, err := st05buildcontract.Review(ctx, projectDir, coreDir, encode(t, buildProposal), t5)
 	if err != nil {
 		t.Fatal(err)
@@ -197,7 +187,6 @@ func TestNoBuildIntentRunsEveryGoStageAndCompletes(t *testing.T) {
 		observations = append(observations, st09outcome.Observation{SignalID: signal.SignalID, Result: "achieved", EvidenceRefs: []contract.ArtifactReference{requiredReference(t, releaseResult.CurrentReference)}, Reason: "The deterministic no-release record verifies this signal.", ObservedAt: t9})
 	}
 	proposal := st09outcome.Proposal{SchemaVersion: 1, Artifact: "outcome-evaluation-proposal", Version: 1, ProposalID: "outcome-001", IntentID: born.UUID, WorkRequestSHA256: outcomeRequest.Reference.SHA256, Observations: observations, Reason: "Every promised signal is achieved without source or release changes.", ProposedBy: "ai"}
-	assertTypeScriptParserParity(t, "./core/tools/aidlc-vnext-outcome-contract.ts", "parseOutcomeEvaluationProposal", proposal)
 	outcome, err := st09outcome.Evaluate(ctx, projectDir, coreDir, encode(t, proposal), t9)
 	if err != nil || outcome.Outcome != "completed" || outcome.State.Status != state.Completed {
 		t.Fatalf("ST-09 = %+v, %v", outcome, err)
@@ -278,44 +267,5 @@ func assertTamperRejected(t *testing.T, path string, operation func() error) {
 	}
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func assertTypeScriptParserParity(t *testing.T, module, parser string, value any) {
-	t.Helper()
-	bun, err := exec.LookPath("bun")
-	if err != nil {
-		t.Log("Bun unavailable; TypeScript differential parity skipped")
-		return
-	}
-	repositoryDir := filepath.Dir(core(t))
-	modulePath := filepath.Join(repositoryDir, filepath.FromSlash(strings.TrimPrefix(module, "./")))
-	if _, err := os.Stat(modulePath); os.IsNotExist(err) {
-		t.Log("TypeScript baseline removed after recorded migration parity; parser comparison skipped")
-		return
-	} else if err != nil {
-		t.Fatal(err)
-	}
-	input, err := json.Marshal(value)
-	if err != nil {
-		t.Fatal(err)
-	}
-	script := fmt.Sprintf("import { %s as parse } from %q; let raw=''; for await (const chunk of process.stdin) raw += chunk; process.stdout.write(JSON.stringify(parse(JSON.parse(raw))));", parser, module)
-	command := exec.Command(bun, "-e", script)
-	command.Dir = repositoryDir
-	command.Stdin = bytes.NewReader(input)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		t.Fatalf("TypeScript parser parity %s: %v: %s", parser, err, output)
-	}
-	var goValue, tsValue any
-	if err := json.Unmarshal(input, &goValue); err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(output, &tsValue); err != nil {
-		t.Fatalf("TypeScript parser %s returned invalid JSON: %v: %s", parser, err, output)
-	}
-	if !reflect.DeepEqual(goValue, tsValue) {
-		t.Fatalf("Go JSON differs from TypeScript parser output for %s\nGo: %s\nTypeScript: %s", parser, input, output)
 	}
 }

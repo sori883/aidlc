@@ -12,13 +12,13 @@ inside that boundary; it never chooses the next Stage itself.
 
 Run from the project root:
 
-1. `bun run --cwd .codex aidlc workspace init ..`
-2. `bun run --cwd .codex aidlc intent list .. --json`
+1. `./.codex/tools/aidlc workspace init .`
+2. `./.codex/tools/aidlc intent list . --json`
 3. Before Birth, ask the human about known Intent-specific risks. If there are
    any, write the confirmed JSON array and run
-   `bun run --cwd .codex aidlc intent birth .. "<label>" --risk-file ../<risks.json>`.
-   Otherwise run `bun run --cwd .codex aidlc intent birth .. "<label>"`.
-4. Run `bun run --cwd .codex aidlc next ..`
+   `./.codex/tools/aidlc intent birth . "<label>" --risk-file <risks.json>`.
+   Otherwise run `./.codex/tools/aidlc intent birth . "<label>"`.
+4. Run `./.codex/tools/aidlc next .`
 
 Do not ask for a Scope, work type, lightweight/enterprise profile, or free-form
 route. Those controls do not exist in vNext.
@@ -32,12 +32,12 @@ executable rule from Markdown and never use Policy to remove a fixed Gate or
 change the Stage Graph.
 
 Show the current Register with
-`bun run --cwd .codex aidlc intent risk show ..`. When new Evidence reveals a
+`./.codex/tools/aidlc intent risk show .`. When new Evidence reveals a
 risk, submit a strict add-or-increase proposal with
-`bun run --cwd .codex aidlc intent risk propose .. ../<proposal.json>`.
+`./.codex/tools/aidlc intent risk propose . <proposal.json>`.
 AI may add a risk or increase its severity, but may not reduce, dismiss,
 resolve, or reactivate one. Only after an actual human decision may Codex run
-`bun run --cwd .codex aidlc intent risk decide .. ../<human-decision.json>`.
+`./.codex/tools/aidlc intent risk decide . <human-decision.json>`.
 Never edit Risk Current or immutable revisions directly.
 
 At ST-04, ST-05, ST-07, ST-08, and a human-decided ST-09, read the Policy section in
@@ -76,7 +76,7 @@ Directive, the Conductor must delegate the Stage work and must not create or
 edit the Stage proposal inline.
 
 Resolve the exact assignment with
-`bun run --cwd .codex aidlc delegation show <ST-00..ST-09> <work|review>`.
+`./.codex/tools/aidlc delegation show <ST-00..ST-09> <work|review>`.
 Treat a missing or `null` required assignment as a broken distribution and
 stop without producing Stage output.
 
@@ -128,7 +128,7 @@ ST-01 Orient is a two-part Stage. Core prepares `workspace-profile.json` and
 an `orient-proposal` containing a System Map Patch and Current Context proposal.
 Submit it with:
 
-`bun run --cwd .codex aidlc orient complete .. ../<proposal.json>`
+`./.codex/tools/aidlc orient complete . <proposal.json>`
 
 Core strictly validates source snapshots, Evidence paths and SHA-256 digests,
 IDs and references, accepted-baseline perspective, and `base_revision`. Core
@@ -144,7 +144,7 @@ resolved from the human request, ask the human before submitting the proposal.
 Do not add detailed requirements, architecture, Bolt planning, implementation,
 or route instructions. Submit the proposal with:
 
-`bun run --cwd .codex aidlc define-intent complete .. ../<proposal.json>`
+`./.codex/tools/aidlc define-intent complete . <proposal.json>`
 
 Core alone writes `intent-definition.json`, pins the Design Brief and Current
 Context digests, records Audit and State, and advances through the fixed ST-02
@@ -161,7 +161,7 @@ the Intent scope. Do not add architecture, test procedures, Bolt planning,
 implementation instructions, or routes. If an unresolved question is blocking,
 ask the human before submitting. Submit the proposal with:
 
-`bun run --cwd .codex aidlc requirements complete .. ../<proposal.json>`
+`./.codex/tools/aidlc requirements complete . <proposal.json>`
 
 Core rejects unknown fields, broken pointers, duplicate IDs, missing coverage,
 blocking questions, and stale Work Request hashes. Core alone writes the
@@ -192,18 +192,18 @@ submitting provider/cost choices, destructive or migration choices,
 security/compliance exceptions, requirement conflicts, or hard-to-reverse
 decisions. Submit the proposal with:
 
-`bun run --cwd .codex aidlc architecture complete .. ../<proposal.json>`
+`./.codex/tools/aidlc architecture complete . <proposal.json>`
 
 If Core reports that ST-04 Policy approval is required, do not alter the
 proposal to bypass it. Generate the exact human review with:
 
-`bun run --cwd .codex aidlc architecture policy-review .. ../<proposal.json>`
+`./.codex/tools/aidlc architecture policy-review . <proposal.json>`
 
 Show the generated review HTML and Proposal SHA-256 to the human. After the
 human supplies a reason and one acknowledgement for every listed requirement,
 submit:
 
-`bun run --cwd .codex aidlc architecture policy-approve .. <proposal-sha256> "<human reason>" ../<policy-acknowledgements.json>`
+`./.codex/tools/aidlc architecture policy-approve . <proposal-sha256> "<human reason>" <policy-acknowledgements.json>`
 
 Core binds this approval to the reviewed Proposal, Effective Policy, and
 current Risk Register. A changed Risk Register makes the old review stale.
@@ -234,7 +234,7 @@ Command verifiers use an argv array plus repository source and relative cwd.
 Never execute a verifier in ST-05, place secrets in a proposal, assign batch
 numbers, claim approval, or choose the next Bolt or Stage. Submit a proposal:
 
-`bun run --cwd .codex aidlc build-contract review .. ../<proposal.json>`
+`./.codex/tools/aidlc build-contract review . <proposal.json>`
 
 Core validates requirement traceability, repository boundaries, verifier
 references, DAG cycles, cross-Bolt dependencies, and parallel target conflicts.
@@ -242,7 +242,7 @@ It derives execution batches and writes an escaped static
 `review/build-contract-review.html`. When Core returns `approval`, show that
 file and SHA-256. Only after the human explicitly approves, run:
 
-`bun run --cwd .codex aidlc build-contract approve .. <candidate-sha256> <reason> [policy-acknowledgements.json]`
+`./.codex/tools/aidlc build-contract approve . <candidate-sha256> <reason> [policy-acknowledgements.json]`
 
 Approval is bound to the exact candidate SHA-256. Core then writes the human
 decision, immutable Build Contract revision for `execute` (or an exact reuse/no
@@ -260,7 +260,7 @@ edit the ordinary Repository working tree or choose another Bolt.
 After implementing and locally checking the selected Bolt, submit the exact
 Bolt to Core:
 
-`bun run --cwd .codex aidlc build verify .. <bolt-id>`
+`./.codex/tools/aidlc build verify . <bolt-id>`
 
 Core rejects changed paths outside the approved targets and runs only the
 verifier argv/cwd or machine assertion shown in the approved ST-05 review. A
@@ -281,7 +281,7 @@ If an earlier canonical Runnable Candidate is available for the exact same
 Intent, Build Contract, source revisions, changed-file set, and passed
 Checkpoint Evidence, ask Core to validate reuse with:
 
-`bun run --cwd .codex aidlc build reuse .. ../<runnable-candidate.json> <reason>`
+`./.codex/tools/aidlc build reuse . <runnable-candidate.json> <reason>`
 
 Never claim compatibility from a filename or description. Core must verify the
 Artifact digest, Git revisions, diff, and Evidence references before it records
@@ -295,12 +295,12 @@ it is awaiting a decision.
 
 After an actual human approves every human check, run:
 
-`bun run --cwd .codex aidlc review approve .. <review-manifest-sha256> <reason> [human-checks.json] [policy-acknowledgements.json]`
+`./.codex/tools/aidlc review approve . <review-manifest-sha256> <reason> [human-checks.json] [policy-acknowledgements.json]`
 
 If the human requests changes, record one or more feedback items with a known
 requirement ID and at least one confirmed impact, then run:
 
-`bun run --cwd .codex aidlc review feedback .. <review-manifest-sha256> ../<feedback.json> <reason>`
+`./.codex/tools/aidlc review feedback . <review-manifest-sha256> <feedback.json> <reason>`
 
 The four allowed impacts are `requirements_changed`, `architecture_impact`,
 `build_contract_impact`, and `candidate_defect`. AI may explain a classification
@@ -322,24 +322,24 @@ AI may propose only structured Targets and Steps using a listed `capability_id`;
 never propose shell commands, credential values, an arbitrary provider adapter,
 or a destination Stage. Submit the JSON proposal with:
 
-`bun run --cwd .codex aidlc release review .. ../<proposal.json>`
+`./.codex/tools/aidlc release review . <proposal.json>`
 
 Core re-observes every Target, pins an immutable Release Plan, and generates
 `artifacts/release/review/release.html`. Show that HTML to the human. Only the
 exact Plan SHA-256 can be authorized:
 
-`bun run --cwd .codex aidlc release authorize .. <release-plan-sha256> <reason> [policy-acknowledgements.json]`
+`./.codex/tools/aidlc release authorize . <release-plan-sha256> <reason> [policy-acknowledgements.json]`
 
 Authorization alone performs no external operation. After explicit human
 instruction to execute, run:
 
-`bun run --cwd .codex aidlc release execute ..`
+`./.codex/tools/aidlc release execute .`
 
 If a prior immutable Release Current may already satisfy the exact Candidate,
 ask Core to validate Candidate revisions, Policy digest, Plan, Authority,
 Receipt, Deployment Map, and the live external Target before reuse:
 
-`bun run --cwd .codex aidlc release reuse .. ../<release-current.json> <reason>`
+`./.codex/tools/aidlc release reuse . <release-current.json> <reason>`
 
 Never infer reuse from a filename, version label, or old Receipt alone.
 
@@ -360,7 +360,7 @@ stable signal ID. AI must assess every listed signal exactly once using only
 Project-bound Evidence references; it must not add shell commands, routes,
 authority, or a new Intent instruction. Submit the proposal with:
 
-`bun run --cwd .codex aidlc outcome evaluate .. ../<proposal.json>`
+`./.codex/tools/aidlc outcome evaluate . <proposal.json>`
 
 Core writes immutable Outcome Evidence and Evaluation JSON plus a derived,
 escaped `artifacts/outcome/outcome.html`. If every signal is `achieved` and the
@@ -378,7 +378,7 @@ then wait for the human. The three decisions are:
 
 Run the human's exact decision with:
 
-`bun run --cwd .codex aidlc outcome decide .. <evaluation-sha256> <decision> <reason> [policy-acknowledgements.json] [not-before] [deadline]`
+`./.codex/tools/aidlc outcome decide . <evaluation-sha256> <decision> <reason> [policy-acknowledgements.json] [not-before] [deadline]`
 
 The Follow-up Brief never creates or activates a new Intent. ST-09 has no
 backward Graph edge and rejects `not_applicable`. After terminal completion,
@@ -388,7 +388,7 @@ backward Graph edge and rejects `not_applicable`. After terminal completion,
 
 AI may write a proposal JSON array and ask Core to evaluate it with:
 
-`bun run --cwd .codex aidlc plan revise .. ../<proposals.json>`
+`./.codex/tools/aidlc plan revise . <proposals.json>`
 
 Each proposal contains only a Stage ID, `execute`/`reuse`/`not_applicable`, a
 reason, evidence references, and proposer identity. `reuse` and
