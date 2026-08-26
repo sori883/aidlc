@@ -444,7 +444,8 @@ Stageごとに、最低限次をユーザーと確認する。名前と一行説
 ## 9. 次に提案する作業
 
 Go移行PRではStage 8のclean checkout、固定5 Target package、fresh install／update、
-Project Git round trip、version／checksum／Manifest整合をrelease rehearsalとして確認する。
+Project Git round trip、version／checksum／Manifest整合をrelease rehearsalとして確認済みである。
+結果は`docs/aidlc-go-release-rehearsal.md`を参照する。
 
 Git tag `v1.0.0`とGitHub Release公開はcommit／pushとは別の外部公開操作である。ユーザーの
 明示的承認なしに実施しない。公開する場合はmainへの統合とmain Workflow成功を先に確認する。

@@ -9,10 +9,10 @@
 | 基準Branch | `codex/aidlc-vnext` |
 | G0 Baseline | `c6d67dc5fb32ca2e93869079d36d8769f69217d0` |
 | Go移行Branch | `codex/go-runtime-migration` |
-| Production Runtime | Go 1.26.4へ切り替え中 |
+| Production Runtime | Go 1.26.4 |
 | 移行先 | Go 1.26.4 |
 | 最初のHarness | Codex |
-| 状態 | G0〜G6完了、G7 remote Gate確認中 |
+| 状態 | G0〜G8完了。PR merge／tag／GitHub Release公開は未実施 |
 
 本書は、AI-DLC vNextの実装をTypeScript／BunからGoへ段階的に移行するための
 設計、互換境界、実装順序、検証Gateを定義する。Goへの一括書き換えは行わず、
@@ -528,7 +528,7 @@ Gate、Go bundle drift check、全5 Target release packagingを完了した。�
 `docs/aidlc-go-installer-distribution-evidence.md`に記録した。PR #26のrun `32947254181`で
 Go／TypeScript quality Gateと全5 native runnerが成功し、G6を完了した。
 
-### Stage 7: Cutover（G7 remote Gate確認中）
+### Stage 7: Cutover（G7完了）
 
 1. `.codex/tools/aidlc`をGo版へ切り替える
 2. Skill／Agent／Docs／generated distをGo commandへ揃える
@@ -541,9 +541,11 @@ Go／TypeScript quality Gateと全5 native runnerが成功し、G6を完了し�
 現行docs、schema 2 `dist/project`、main／PR／Release CIをGoへ切り替えた。tracked script
 133 fileと旧generated bundleを含む計184 file、`package.json`、`bun.lock`、`tsconfig.json`、
 Node Installerを削除した。cutover後の通常・race Go test、bundle check、全5 Target packagingは
-成功した。詳細は`docs/aidlc-go-cutover-evidence.md`に記録した。G7はPR #26のremote Gate確認中とする。
+成功した。cutover commitは`92517d7`、native E2E timeout修正は`77da143`である。PR #26の
+run `32950628084`ではGo qualityと全5 native runnerが成功した。詳細は
+`docs/aidlc-go-cutover-evidence.md`に記録し、G7を完了した。
 
-### Stage 8: Release Rehearsal
+### Stage 8: Release Rehearsal（G8完了）
 
 - clean checkoutから全Target build
 - fresh install／update／clone
@@ -553,7 +555,15 @@ Node Installerを削除した。cutover後の通常・race Go test、bundle chec
 - Release Assetのimmutable boundary確認
 - Release candidate report作成
 
-tag作成とGitHub Release公開は、本Stageの完了後に別途明示的な人間承認を得る。
+GitHub上の`77da143`をfresh cloneし、通常・race Gate、全5 Target build、fresh install、
+idempotent update、bootstrap、Project Git commit／clone／host native実行、固定9 Asset、
+8 checksum、同一clean commitからのbyte再現性、既存candidate directoryの上書き拒否を
+確認した。`77da143` rehearsal candidateのManifest SHA-256は
+`7b691c07ba56ad394779f636401fb69c0aa12e753463d088a96206745c049b19`である。
+詳細は`docs/aidlc-go-release-rehearsal.md`に記録し、G8を完了した。
+
+tag作成とGitHub Release公開は、本Stageに含めず、別途明示的な人間承認を得る。
+実際の公開Asset digestは、承認された最終tag commitから再生成して確定する。
 
 ## 10. 削除条件
 
@@ -592,8 +602,9 @@ tag作成とGitHub Release公開は、本Stageの完了後に別途明示的な�
 | G4 | Workflow Core | 完了 |
 | G5 | 各StageのGo移植。ST-00〜ST-09を個別確認 | 完了 |
 | G6 | Installer／Distribution切り替え | 完了 |
-| G7 | TypeScript／Bun削除 | remote Gate確認中 |
-| G8 | tag作成／GitHub Release公開 | 未着手 |
+| G7 | TypeScript／Bun削除 | 完了 |
+| G8 | Release rehearsal／公開準備確認 | 完了 |
+| Publication | PR merge／tag作成／GitHub Release公開 | 未承認・未実施 |
 
 2026-08-26に、Stage 2以降を追加の承認待ちなしでStage単位に検証し、同一Branch・
 単一Draft PRで継続するユーザー承認を得た。以降のGateは停止点ではなく技術的な

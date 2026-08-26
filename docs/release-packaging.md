@@ -52,6 +52,9 @@ go run ./cmd/aidlc-dev package-release --out build/github-release
 
 packagerは`CGO_ENABLED=0`、`-trimpath`、`-s -w`で固定5 Targetをbuildし、Mach-O／ELF／PE、
 Go build info、16MiB Gate、native PATH-less smoke、checksum、固定Asset集合を検証する。
+main Gateはdarwin-amd64、darwin-arm64、linux-amd64、linux-arm64、windows-amd64のnative
+runnerでもCLIとInstaller／Release候補E2Eを成功させる。tag workflowは同commitのmain Gate成功を
+確認するまで公開しない。
 
 ## 更新時の保護
 
@@ -67,3 +70,6 @@ Go build info、16MiB Gate、native PATH-less smoke、checksum、固定Asset集�
 
 `package-release`はlocal artifact生成までである。tag作成とGitHub Release公開は、Release Gate
 完了後に別途明示的な承認を得て実施する。公開済みtagとAssetは差し替えない。
+
+Go移行時のclean checkout rehearsal結果は
+[`docs/aidlc-go-release-rehearsal.md`](aidlc-go-release-rehearsal.md)に記録している。

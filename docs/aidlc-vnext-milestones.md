@@ -428,7 +428,7 @@ M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7
 
 ## 8. 次に着手する作業
 
-Go移行のStage 8 release rehearsalを完了し、同一Draft PRでremote Gateを確認する。
-`v1.0.0` tag作成とGitHub Release公開は、PR mergeとmain Gate成功後の別承認操作とする。
+Go移行のStage 8 release rehearsalとDraft PRのremote Gateは完了した。次に行えるのは、PRを
+レビュー／mergeし、main Gate成功後に`v1.0.0` tagとGitHub Releaseを公開する別承認操作である。
 
-2は1とは別の外部公開操作であり、自動的には実施しない。
+この外部公開操作は自動的には実施しない。

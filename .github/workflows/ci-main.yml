@@ -55,3 +55,44 @@ jobs:
         run: |
           go build -trimpath -o build/go/aidlc ./cmd/aidlc
           test -s build/go/aidlc
+
+  native:
+    name: Native ${{ matrix.target }}
+    needs: test
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-amd64
+            runner: ubuntu-latest
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: darwin-amd64
+            runner: macos-15-intel
+          - target: darwin-arm64
+            runner: macos-15
+          - target: windows-amd64
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.4"
+          cache: false
+
+      - name: Run native CLI compatibility proof
+        shell: bash
+        run: >-
+          go run ./cmd/aidlc-dev stage2-poc
+          --target "${{ matrix.target }}"
+          --output "build/native-proof-${{ matrix.target }}"
+
+      - name: Run native Go release and Installer proof
+        shell: bash
+        run: go test -count=1 -run TestPackageBuildsFiveTargetReleaseCandidate ./internal/distribution

@@ -5,7 +5,10 @@
 - Branch: `codex/go-runtime-migration`
 - Stage: Stage 7（Production cutover）
 - Cutover直前commit: `c34f7fca452695b1957edc2e361ab5af32b8837c`
+- Cutover commit: `92517d7042ce66013806ce1ce662d59fa5129e34`
+- Native E2E timeout修正commit: `77da14306108e4740c3288a348d3f58059239e68`
 - Stage 6 remote Gate: GitHub Actions run `32947254181`、全job成功
+- Stage 7 remote Gate: GitHub Actions run `32950628084`、全job成功
 - Toolchain: Go 1.26.4
 - 外部Go module: なし
 
@@ -68,6 +71,8 @@ git diff --check
 `go list -m all`は`github.com/sori883/aidlc`だけである。Release候補は固定9 Asset、
 native smoke成功、Manifest SHA-256
 `d709a8a1f036840f4962b9183ecb429c9d0007878258306eead207302b989818`となった。
+これはcommit前のlocal候補で、Go build infoは`c34f7fc`、`vcs.modified=true`を記録している。
+clean checkoutから作るrehearsal候補のdigestはStage 8 Evidenceを正とする。
 
 | Target | Format | Bytes |
 |---|---:|---:|
@@ -77,5 +82,9 @@ native smoke成功、Manifest SHA-256
 | linux-arm64 | ELF | 8,061,090 |
 | windows-amd64 | PE | 9,055,232 |
 
-tag作成、GitHub Release作成／公開、PR mergeは実施していない。G7はcutover commit push後の
-remote Gateが全5 native runnerで成功した時点で完了とする。
+最初のcutover run `32949886440`ではmacOS Intelの全5 Target cross-buildがtestの2分上限を
+超えたため、Production処理を変えずE2E contextだけをCLIと同じ5分へ修正した。再実行run
+`32950628084`ではGo qualityとdarwin-amd64、darwin-arm64、linux-amd64、linux-arm64、
+windows-amd64の全native CLI／Installer proofが成功し、G7を完了した。
+
+tag作成、GitHub Release作成／公開、PR mergeは実施していない。

@@ -83,6 +83,61 @@ func TestReleaseVersionAndGoCutoverSourcesStayConsistent(t *testing.T) {
 	}
 }
 
+func TestReleaseWorkflowsKeepNativeAndImmutableBoundaries(t *testing.T) {
+	root := repositoryRoot(t)
+	mainWorkflow := readRepositoryFile(t, root, ".github/workflows/ci-main.yml")
+	for _, marker := range []string{
+		`go-version: "1.26.4"`,
+		"go test -race -count=1 ./...",
+		"stage2-poc",
+		"TestPackageBuildsFiveTargetReleaseCandidate",
+		"linux-amd64",
+		"linux-arm64",
+		"darwin-amd64",
+		"darwin-arm64",
+		"windows-amd64",
+	} {
+		if !strings.Contains(mainWorkflow, marker) {
+			t.Fatalf("main workflow is missing %q", marker)
+		}
+	}
+	for _, retired := range []string{"setup-bun", "bun run", "bun test"} {
+		if strings.Contains(strings.ToLower(mainWorkflow), retired) {
+			t.Fatalf("main workflow still configures Bun: %s", retired)
+		}
+	}
+
+	releaseWorkflow := readRepositoryFile(t, root, ".github/workflows/release-github.yml")
+	for _, marker := range []string{
+		`go-version: "1.26.4"`,
+		"git merge-base --is-ancestor",
+		"--workflow ci-main.yml",
+		"gh release view",
+		"go run ./cmd/aidlc-dev package-release",
+		"build/github-release/SHA256SUMS",
+		"build/github-release/aidlc-distribution.json",
+		"build/github-release/aidlc-darwin-amd64",
+		"build/github-release/aidlc-darwin-arm64",
+		"build/github-release/aidlc-linux-amd64",
+		"build/github-release/aidlc-linux-arm64",
+		"build/github-release/aidlc-windows-amd64.exe",
+		"build/github-release/install.sh",
+		"build/github-release/install.ps1",
+	} {
+		if !strings.Contains(releaseWorkflow, marker) {
+			t.Fatalf("release workflow is missing %q", marker)
+		}
+	}
+	for _, retired := range []string{"setup-bun", "bun run", "bun test"} {
+		if strings.Contains(strings.ToLower(releaseWorkflow), retired) {
+			t.Fatalf("release workflow still configures Bun: %s", retired)
+		}
+	}
+	if strings.Contains(releaseWorkflow, "build/github-release/*") {
+		t.Fatal("release workflow uploads assets through a mutable glob")
+	}
+}
+
 func treeHasFiles(path string) (bool, error) {
 	info, err := os.Lstat(path)
 	if os.IsNotExist(err) {
@@ -117,4 +172,13 @@ func repositoryRoot(t *testing.T) string {
 		t.Fatal("runtime.Caller failed")
 	}
 	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+}
+
+func readRepositoryFile(t *testing.T, root, path string) string {
+	t.Helper()
+	content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(content)
 }
