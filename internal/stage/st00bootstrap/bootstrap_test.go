@@ -77,6 +77,28 @@ func TestExecuteResumesWithoutDuplicateCompletion(t *testing.T) {
 	}
 }
 
+func TestVerifyAtAcceptsRelativeProjectDirectory(t *testing.T) {
+	projectDir, coreDir, born := fixture(t, nil)
+	if _, err := Execute(context.Background(), projectDir, coreDir, Options{CreatedAt: "2026-08-26T00:00:01.000Z"}); err != nil {
+		t.Fatal(err)
+	}
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(projectDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Errorf("restore working directory: %v", err)
+		}
+	})
+	if _, _, err := VerifyAt(".", born.RecordDir); err != nil {
+		t.Fatalf("VerifyAt relative Project directory: %v", err)
+	}
+}
+
 func TestExecuteFailsClosedForTamperAndMissingRepository(t *testing.T) {
 	t.Run("policy tamper", func(t *testing.T) {
 		projectDir, coreDir, born := fixture(t, nil)

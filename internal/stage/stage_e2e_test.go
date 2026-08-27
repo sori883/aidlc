@@ -22,6 +22,7 @@ import (
 	"github.com/sori883/aidlc/internal/stage/st07review"
 	"github.com/sori883/aidlc/internal/stage/st08release"
 	"github.com/sori883/aidlc/internal/stage/st09outcome"
+	"github.com/sori883/aidlc/internal/workflow/gate"
 	"github.com/sori883/aidlc/internal/workflow/state"
 	"github.com/sori883/aidlc/internal/workspace"
 )
@@ -146,11 +147,11 @@ func TestNoBuildIntentRunsEveryGoStageAndCompletes(t *testing.T) {
 		t.Fatal("ST-05 accepted an invalid proposal")
 	}
 	buildProposal := st05buildcontract.Proposal{SchemaVersion: 1, Artifact: "build-contract-proposal", Version: 1, ProposalID: "build-contract-001", IntentID: born.UUID, WorkRequestSHA256: buildRequest.Reference.SHA256, Disposition: contract.NotApplicable, RequirementAssessments: []st05buildcontract.Assessment{{RequirementID: "REQ-F-001", BuildImpact: false, Reason: "No repository change is required."}}, ChangeContracts: []st05buildcontract.ChangeContract{}, AcceptanceCriteria: []st05buildcontract.AcceptanceCriterion{}, Verifiers: []st05buildcontract.Verifier{}, Bolts: []st05buildcontract.Bolt{}, Evidence: []contract.ArtifactReference{buildRequest.Request.RequirementsRef, buildRequest.Request.ArchitectureCurrentRef}, Reason: "The accepted state already satisfies the requirement.", ProposedBy: "ai"}
-	buildReview, err := st05buildcontract.Review(ctx, projectDir, coreDir, encode(t, buildProposal), t5)
-	if err != nil {
+	if _, err := st05buildcontract.Review(ctx, projectDir, coreDir, encode(t, buildProposal), t5); err != nil {
 		t.Fatal(err)
 	}
-	buildApproved, err := st05buildcontract.Approve(ctx, projectDir, coreDir, buildReview.CandidateReference.SHA256, "Approve the verified no-build contract.", nil, t5)
+	proof := humanProof(t, projectDir, "approve-build-contract", "Approve the verified no-build contract.", st05buildcontract.ApprovalParameters{PolicyAcknowledgements: []gate.Acknowledgement{}}, t5)
+	buildApproved, err := st05buildcontract.Approve(ctx, projectDir, coreDir, proof)
 	if err != nil || buildApproved.State.CurrentStage != contract.Stage06 {
 		t.Fatalf("ST-05 = %+v, %v", buildApproved, err)
 	}

@@ -1,3 +1,200 @@
 {
-  "hooks": {}
+  "description": "AI-DLC Human Receipt and Review Freeze, metadata-only Hook Audit and health, read-only context injection, actor-independent Tool scope guard, deterministic Sensors, and bounded Stage Agent result validation.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook record \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook record $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3
+          },
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook inject \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook inject $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3,
+            "additionalContextLimit": 12000
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook record \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook record $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook turn \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook turn $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3
+          },
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook receipt \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook receipt $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3,
+            "additionalContextLimit": 2000
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook record \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook record $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3
+          },
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook inject \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook inject $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3,
+            "additionalContextLimit": 12000
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook record \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook record $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook subagent \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook subagent $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 5
+          }
+        ],
+        "matcher": "^aidlc-.*-agent$"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook record \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook record $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3
+          }
+        ],
+        "matcher": "^(Bash|apply_patch|spawn_agent|request_user_input|update_plan)$"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook guard \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook guard $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3
+          }
+        ],
+        "matcher": "^(Bash|apply_patch)$"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook record \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook record $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3
+          }
+        ],
+        "matcher": "^(Bash|apply_patch|spawn_agent|request_user_input|update_plan)$"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook sensor \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook sensor $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 5
+          }
+        ],
+        "matcher": "^apply_patch$"
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook record \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook record $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3
+          }
+        ],
+        "matcher": "^(Bash|apply_patch)$"
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook record \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook record $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook record \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook record $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook record \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook record $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3
+          },
+          {
+            "type": "command",
+            "command": "sh -c 'root=$PWD; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/distribution-manifest.json\" ] && [ -x \"$root/.codex/tools/aidlc\" ]; then exec \"$root/.codex/tools/aidlc\" hook freeze \"$root\" --harness codex; fi; root=$(dirname \"$root\"); done; exit 1'",
+            "commandWindows": "powershell -NoProfile -NonInteractive -Command \"$root = (Get-Location).Path; while ($true) { $manifest = Join-Path $root '.codex\\distribution-manifest.json'; $tool = Join-Path $root '.codex\\tools\\aidlc.exe'; if ((Test-Path -LiteralPath $manifest -PathType Leaf) -and (Test-Path -LiteralPath $tool -PathType Leaf)) { & $tool hook freeze $root --harness codex; exit $LASTEXITCODE }; $parent = Split-Path -Parent $root; if ([string]::IsNullOrEmpty($parent) -or $parent -eq $root) { exit 1 }; $root = $parent }\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
 }

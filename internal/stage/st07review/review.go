@@ -22,6 +22,7 @@ import (
 	"github.com/sori883/aidlc/internal/stage/st06build"
 	"github.com/sori883/aidlc/internal/workflow/directive"
 	"github.com/sori883/aidlc/internal/workflow/gate"
+	"github.com/sori883/aidlc/internal/workflow/humanapproval"
 	workflowplan "github.com/sori883/aidlc/internal/workflow/plan"
 	"github.com/sori883/aidlc/internal/workflow/state"
 	"github.com/sori883/aidlc/internal/workspace"
@@ -79,6 +80,7 @@ type Decision struct {
 	RunnableCandidateRef   contract.ArtifactReference `json:"runnable_candidate_ref"`
 	GateRequirementSetRef  contract.ArtifactReference `json:"gate_requirement_set_ref"`
 	PolicyAcknowledgements []gate.Acknowledgement     `json:"policy_acknowledgements"`
+	HumanInputReceiptRef   contract.ArtifactReference `json:"human_input_receipt_ref"`
 	Decision               string                     `json:"decision"`
 	HumanCheckResults      []HumanCheckResult         `json:"human_check_results"`
 	FeedbackItems          []FeedbackItem             `json:"feedback_items"`
@@ -140,6 +142,7 @@ type PrepareResult struct {
 	Pending          *Pending                    `json:"pending"`
 	Current          *Current                    `json:"current"`
 	CurrentReference *contract.ArtifactReference `json:"currentReference"`
+	HumanGate        *humanapproval.OpenResult   `json:"humanGate"`
 	State            state.IntentState           `json:"state"`
 }
 type DecisionResult struct {
@@ -151,6 +154,8 @@ type DecisionResult struct {
 	FeedbackReference          *contract.ArtifactReference `json:"feedbackReference"`
 	Current                    Current                     `json:"current"`
 	CurrentReference           contract.ArtifactReference  `json:"currentReference"`
+	HumanGateResolution        humanapproval.Resolution    `json:"humanGateResolution"`
+	HumanGateResolutionRef     contract.ArtifactReference  `json:"humanGateResolutionReference"`
 	State                      state.IntentState           `json:"state"`
 }
 
@@ -306,16 +311,31 @@ func Prepare(ctx context.Context, projectDir, coreDir, at string) (PrepareResult
 	if _, err := writeRaw(current.ProjectDir, ReviewPath(current.Snapshot.RecordDir), "review-html", htmlBytes); err != nil {
 		return PrepareResult{}, err
 	}
+	humanGate, err := humanapproval.Open(ctx, current.ProjectDir, current.Snapshot.RecordDir, humanapproval.OpenOptions{
+		IntentID: current.Snapshot.State.IntentID, Scope: string(contract.Stage07),
+		SubjectRef: manifestRef, ReviewRef: reviewRef, GateRequirementRef: &gateSet.Reference,
+		GraphVersion: current.Snapshot.State.GraphVersion, PlanRevision: current.Snapshot.State.PlanRevision,
+		AllowedActions: []string{"approve-runnable-candidate", "request-changes"}, OpenedAt: at,
+	})
+	if err != nil {
+		return PrepareResult{}, err
+	}
 	parked, err := stageruntime.Park(ctx, current, "ST-07 is awaiting human approval or classified feedback for the exact Review Manifest SHA-256.", at)
 	if err != nil {
 		return PrepareResult{}, err
 	}
 	_, _ = audit.Append(ctx, current.ProjectDir, current.Snapshot.RecordDir, audit.StageAwaitingApproval, []audit.Field{{Name: "Stage", Value: "ST-07"}, {Name: "Review Manifest SHA-256", Value: manifestRef.SHA256}, {Name: "Review", Value: reviewRef.SourceOfTruth}, {Name: "Decision Authority", Value: "human"}}, nil)
 	pending := Pending{Manifest: manifest, ManifestReference: manifestRef, ReviewReference: reviewRef}
-	return PrepareResult{Execution: "prepared", Pending: &pending, State: parked}, nil
+	return PrepareResult{Execution: "prepared", Pending: &pending, HumanGate: &humanGate, State: parked}, nil
 }
 
-func Approve(ctx context.Context, projectDir, coreDir, manifestSHA, reason string, checks []HumanCheckResult, acknowledgements []gate.Acknowledgement, at string) (DecisionResult, error) {
+type DecisionParameters struct {
+	PolicyAcknowledgements []gate.Acknowledgement `json:"policy_acknowledgements"`
+	HumanCheckResults      []HumanCheckResult     `json:"human_check_results"`
+	FeedbackItems          []FeedbackItem         `json:"feedback_items"`
+}
+
+func Approve(ctx context.Context, projectDir, coreDir string, proof humanapproval.Proof) (DecisionResult, error) {
 	current, err := stageruntime.Load(projectDir, coreDir, contract.Stage07)
 	if err != nil {
 		return DecisionResult{}, err
@@ -324,17 +344,25 @@ func Approve(ctx context.Context, projectDir, coreDir, manifestSHA, reason strin
 	if err != nil {
 		return DecisionResult{}, err
 	}
-	if pending.ManifestReference.SHA256 != manifestSHA {
-		return DecisionResult{}, fmt.Errorf("ST-07 Human Review: approval SHA-256 does not match pending Manifest")
+	if err := proof.Require(string(contract.Stage07), "approve-runnable-candidate", pending.ManifestReference.SHA256); err != nil {
+		return DecisionResult{}, fmt.Errorf("ST-07 Human Review: %w", err)
 	}
+	var parameters DecisionParameters
+	if err := proof.Parameters(&parameters); err != nil {
+		return DecisionResult{}, fmt.Errorf("ST-07 approval parameters: %w", err)
+	}
+	checks := parameters.HumanCheckResults
+	acknowledgements := parameters.PolicyAcknowledgements
+	if len(parameters.FeedbackItems) != 0 {
+		return DecisionResult{}, fmt.Errorf("ST-07 approval parameters cannot contain feedback_items")
+	}
+	reason := proof.Reason()
+	at := proof.Receipt().ObservedAt
 	if err := validateChecks(pending.Manifest, checks, true); err != nil {
 		return DecisionResult{}, err
 	}
 	if err := stageruntime.OneLine(reason, "ST-07 approval reason"); err != nil {
 		return DecisionResult{}, err
-	}
-	if at == "" {
-		at = stageruntime.Now()
 	}
 	gateSet, err := gate.Resolve(current.ProjectDir, current.Snapshot.RecordDir, contract.Stage07, pending.Manifest.EffectivePolicyRef, at)
 	if err != nil {
@@ -349,7 +377,7 @@ func Approve(ctx context.Context, projectDir, coreDir, manifestSHA, reason strin
 	if checks == nil {
 		checks = []HumanCheckResult{}
 	}
-	decision := Decision{SchemaVersion: 1, Artifact: "human-decision", Version: 1, DecisionID: "approve-" + manifestSHA[7:19], DecisionKind: "candidate-review", IntentID: current.Snapshot.State.IntentID, ReviewManifestRef: pending.ManifestReference, RunnableCandidateRef: pending.Manifest.RunnableCandidateRef, GateRequirementSetRef: gateSet.Reference, PolicyAcknowledgements: acknowledgements, Decision: "approve-runnable-candidate", HumanCheckResults: checks, FeedbackItems: []FeedbackItem{}, Reason: reason, DecidedBy: "human", DecidedAt: at}
+	decision := Decision{SchemaVersion: 1, Artifact: "human-decision", Version: 1, DecisionID: "approve-" + pending.ManifestReference.SHA256[7:19], DecisionKind: "candidate-review", IntentID: current.Snapshot.State.IntentID, ReviewManifestRef: pending.ManifestReference, RunnableCandidateRef: pending.Manifest.RunnableCandidateRef, GateRequirementSetRef: gateSet.Reference, PolicyAcknowledgements: acknowledgements, HumanInputReceiptRef: proof.ReceiptReference(), Decision: "approve-runnable-candidate", HumanCheckResults: checks, FeedbackItems: []FeedbackItem{}, Reason: reason, DecidedBy: "human", DecidedAt: at}
 	decisionRef, decisionBytes, err := stageruntime.WriteCanonical(current.ProjectDir, DecisionRevisionPath(current.Snapshot.RecordDir, decision.DecisionID), decision.Artifact, 1, decision, true)
 	if err != nil {
 		return DecisionResult{}, err
@@ -371,7 +399,7 @@ func Approve(ctx context.Context, projectDir, coreDir, manifestSHA, reason strin
 	if err != nil {
 		return DecisionResult{}, err
 	}
-	revised, err := revise(current, pending.Manifest.Disposition, "st07-approved-"+manifestSHA[7:19], reason, []contract.ArtifactReference{decisionRef, acceptedRef, valueRef}, false)
+	revised, err := revise(current, pending.Manifest.Disposition, "st07-approved-"+pending.ManifestReference.SHA256[7:19], reason, []contract.ArtifactReference{decisionRef, acceptedRef, valueRef}, false)
 	if err != nil {
 		return DecisionResult{}, err
 	}
@@ -381,10 +409,14 @@ func Approve(ctx context.Context, projectDir, coreDir, manifestSHA, reason strin
 	if err != nil {
 		return DecisionResult{}, err
 	}
-	return DecisionResult{Decision: decision, DecisionReference: decisionRef, AcceptedCandidate: &accepted, AcceptedCandidateReference: &acceptedRef, Current: value, CurrentReference: valueRef, State: advanced}, nil
+	resolution, resolutionRef, err := humanapproval.Resolve(ctx, current.ProjectDir, current.Snapshot.RecordDir, proof, &decisionRef, "approved", at)
+	if err != nil {
+		return DecisionResult{}, err
+	}
+	return DecisionResult{Decision: decision, DecisionReference: decisionRef, AcceptedCandidate: &accepted, AcceptedCandidateReference: &acceptedRef, Current: value, CurrentReference: valueRef, HumanGateResolution: resolution, HumanGateResolutionRef: resolutionRef, State: advanced}, nil
 }
 
-func Feedback(ctx context.Context, projectDir, coreDir, manifestSHA, reason string, items []FeedbackItem, checks []HumanCheckResult, at string) (DecisionResult, error) {
+func Feedback(ctx context.Context, projectDir, coreDir string, proof humanapproval.Proof) (DecisionResult, error) {
 	current, err := stageruntime.Load(projectDir, coreDir, contract.Stage07)
 	if err != nil {
 		return DecisionResult{}, err
@@ -393,9 +425,20 @@ func Feedback(ctx context.Context, projectDir, coreDir, manifestSHA, reason stri
 	if err != nil {
 		return DecisionResult{}, err
 	}
-	if pending.ManifestReference.SHA256 != manifestSHA {
-		return DecisionResult{}, fmt.Errorf("ST-07 Human Review: feedback SHA-256 does not match pending Manifest")
+	if err := proof.Require(string(contract.Stage07), "request-changes", pending.ManifestReference.SHA256); err != nil {
+		return DecisionResult{}, fmt.Errorf("ST-07 Human Review: %w", err)
 	}
+	var parameters DecisionParameters
+	if err := proof.Parameters(&parameters); err != nil {
+		return DecisionResult{}, fmt.Errorf("ST-07 feedback parameters: %w", err)
+	}
+	if len(parameters.PolicyAcknowledgements) != 0 {
+		return DecisionResult{}, fmt.Errorf("ST-07 feedback parameters cannot contain policy_acknowledgements")
+	}
+	items := parameters.FeedbackItems
+	checks := parameters.HumanCheckResults
+	reason := proof.Reason()
+	at := proof.Receipt().ObservedAt
 	if err := validateChecks(pending.Manifest, checks, false); err != nil {
 		return DecisionResult{}, err
 	}
@@ -405,9 +448,6 @@ func Feedback(ctx context.Context, projectDir, coreDir, manifestSHA, reason stri
 	}
 	if err := stageruntime.OneLine(reason, "ST-07 feedback reason"); err != nil {
 		return DecisionResult{}, err
-	}
-	if at == "" {
-		at = stageruntime.Now()
 	}
 	gateSet, err := gate.Resolve(current.ProjectDir, current.Snapshot.RecordDir, contract.Stage07, pending.Manifest.EffectivePolicyRef, at)
 	if err != nil {
@@ -419,7 +459,7 @@ func Feedback(ctx context.Context, projectDir, coreDir, manifestSHA, reason stri
 	if items == nil {
 		items = []FeedbackItem{}
 	}
-	decision := Decision{SchemaVersion: 1, Artifact: "human-decision", Version: 1, DecisionID: "feedback-" + manifestSHA[7:19], DecisionKind: "candidate-review", IntentID: current.Snapshot.State.IntentID, ReviewManifestRef: pending.ManifestReference, RunnableCandidateRef: pending.Manifest.RunnableCandidateRef, GateRequirementSetRef: gateSet.Reference, PolicyAcknowledgements: []gate.Acknowledgement{}, Decision: "request-changes", HumanCheckResults: checks, FeedbackItems: items, Reason: reason, DecidedBy: "human", DecidedAt: at}
+	decision := Decision{SchemaVersion: 1, Artifact: "human-decision", Version: 1, DecisionID: "feedback-" + pending.ManifestReference.SHA256[7:19], DecisionKind: "candidate-review", IntentID: current.Snapshot.State.IntentID, ReviewManifestRef: pending.ManifestReference, RunnableCandidateRef: pending.Manifest.RunnableCandidateRef, GateRequirementSetRef: gateSet.Reference, PolicyAcknowledgements: []gate.Acknowledgement{}, HumanInputReceiptRef: proof.ReceiptReference(), Decision: "request-changes", HumanCheckResults: checks, FeedbackItems: items, Reason: reason, DecidedBy: "human", DecidedAt: at}
 	decisionRef, decisionBytes, err := stageruntime.WriteCanonical(current.ProjectDir, DecisionRevisionPath(current.Snapshot.RecordDir, decision.DecisionID), decision.Artifact, 1, decision, true)
 	if err != nil {
 		return DecisionResult{}, err
@@ -455,7 +495,11 @@ func Feedback(ctx context.Context, projectDir, coreDir, manifestSHA, reason stri
 	if err != nil {
 		return DecisionResult{}, err
 	}
-	return DecisionResult{Decision: decision, DecisionReference: decisionRef, Feedback: &feedback, FeedbackReference: &feedbackRef, Current: value, CurrentReference: valueRef, State: returned}, nil
+	resolution, resolutionRef, err := humanapproval.Resolve(ctx, current.ProjectDir, current.Snapshot.RecordDir, proof, &decisionRef, "changes-requested", at)
+	if err != nil {
+		return DecisionResult{}, err
+	}
+	return DecisionResult{Decision: decision, DecisionReference: decisionRef, Feedback: &feedback, FeedbackReference: &feedbackRef, Current: value, CurrentReference: valueRef, HumanGateResolution: resolution, HumanGateResolutionRef: resolutionRef, State: returned}, nil
 }
 
 type Handler struct{ CoreDir string }

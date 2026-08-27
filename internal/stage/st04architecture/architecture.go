@@ -18,6 +18,7 @@ import (
 	"github.com/sori883/aidlc/internal/stage/st03requirements"
 	"github.com/sori883/aidlc/internal/workflow/directive"
 	"github.com/sori883/aidlc/internal/workflow/gate"
+	"github.com/sori883/aidlc/internal/workflow/humanapproval"
 	workflowplan "github.com/sori883/aidlc/internal/workflow/plan"
 	"github.com/sori883/aidlc/internal/workflow/state"
 )
@@ -126,6 +127,7 @@ type PolicyApproval struct {
 	ProposalRef            contract.ArtifactReference `json:"proposal_ref"`
 	GateRequirementSetRef  contract.ArtifactReference `json:"gate_requirement_set_ref"`
 	PolicyAcknowledgements []gate.Acknowledgement     `json:"policy_acknowledgements"`
+	HumanInputReceiptRef   contract.ArtifactReference `json:"human_input_receipt_ref"`
 	Decision               string                     `json:"decision"`
 	Reason                 string                     `json:"reason"`
 	DecidedBy              string                     `json:"decided_by"`
@@ -152,12 +154,15 @@ type PolicyReviewResult struct {
 	Gate              gate.RequirementSet        `json:"gate"`
 	GateReference     contract.ArtifactReference `json:"gateReference"`
 	ReviewReference   contract.ArtifactReference `json:"reviewReference"`
+	HumanGate         humanapproval.OpenResult   `json:"humanGate"`
 	State             state.IntentState          `json:"state"`
 }
 type PolicyApproveResult struct {
 	CompleteResult
-	Approval          PolicyApproval             `json:"approval"`
-	ApprovalReference contract.ArtifactReference `json:"approvalReference"`
+	Approval               PolicyApproval             `json:"approval"`
+	ApprovalReference      contract.ArtifactReference `json:"approvalReference"`
+	HumanGateResolution    humanapproval.Resolution   `json:"humanGateResolution"`
+	HumanGateResolutionRef contract.ArtifactReference `json:"humanGateResolutionReference"`
 }
 
 func RootDir(recordDir string) string { return filepath.Join(recordDir, "artifacts", "architecture") }
@@ -372,15 +377,28 @@ func ReviewPolicy(ctx context.Context, projectDir, coreDir string, proposalConte
 	if err != nil {
 		return PolicyReviewResult{}, err
 	}
+	humanGate, err := humanapproval.Open(ctx, current.ProjectDir, current.Snapshot.RecordDir, humanapproval.OpenOptions{
+		IntentID: current.Snapshot.State.IntentID, Scope: string(contract.Stage04),
+		SubjectRef: proposalRef, ReviewRef: reviewRef, GateRequirementRef: &resolved.Reference,
+		GraphVersion: current.Snapshot.State.GraphVersion, PlanRevision: current.Snapshot.State.PlanRevision,
+		AllowedActions: []string{"approve-architecture-policy", "request-revision"}, OpenedAt: reviewedAt,
+	})
+	if err != nil {
+		return PolicyReviewResult{}, err
+	}
 	parked, err := stageruntime.Park(ctx, current, "ST-04 Architecture Proposal is awaiting Policy approval.", reviewedAt)
 	if err != nil {
 		return PolicyReviewResult{}, err
 	}
 	_, _ = audit.Append(ctx, current.ProjectDir, current.Snapshot.RecordDir, audit.StageAwaitingApproval, []audit.Field{{Name: "Stage", Value: "ST-04"}, {Name: "Proposal SHA-256", Value: proposalRef.SHA256}, {Name: "Gate Requirement Set", Value: resolved.Reference.SourceOfTruth}, {Name: "Decision Authority", Value: "human"}}, nil)
-	return PolicyReviewResult{RecordDir: current.Snapshot.RecordDir, Proposal: proposal, ProposalReference: proposalRef, Gate: resolved.Set, GateReference: resolved.Reference, ReviewReference: reviewRef, State: parked}, nil
+	return PolicyReviewResult{RecordDir: current.Snapshot.RecordDir, Proposal: proposal, ProposalReference: proposalRef, Gate: resolved.Set, GateReference: resolved.Reference, ReviewReference: reviewRef, HumanGate: humanGate, State: parked}, nil
 }
 
-func ApprovePolicy(ctx context.Context, projectDir, coreDir, proposalSHA, reason string, acks []gate.Acknowledgement, decidedAt string) (PolicyApproveResult, error) {
+type ApprovalParameters struct {
+	PolicyAcknowledgements []gate.Acknowledgement `json:"policy_acknowledgements"`
+}
+
+func ApprovePolicy(ctx context.Context, projectDir, coreDir string, proof humanapproval.Proof) (PolicyApproveResult, error) {
 	current, err := stageruntime.Load(projectDir, coreDir, contract.Stage04)
 	if err != nil {
 		return PolicyApproveResult{}, err
@@ -389,9 +407,16 @@ func ApprovePolicy(ctx context.Context, projectDir, coreDir, proposalSHA, reason
 	if err != nil {
 		return PolicyApproveResult{}, fmt.Errorf("ST-04 Architecture: Policy review Proposal is missing")
 	}
-	if proposalRef.SHA256 != proposalSHA {
-		return PolicyApproveResult{}, fmt.Errorf("ST-04 Architecture: human approval does not match the reviewed Proposal SHA-256")
+	if err := proof.Require(string(contract.Stage04), "approve-architecture-policy", proposalRef.SHA256); err != nil {
+		return PolicyApproveResult{}, fmt.Errorf("ST-04 Architecture: %w", err)
 	}
+	var parameters ApprovalParameters
+	if err := proof.Parameters(&parameters); err != nil {
+		return PolicyApproveResult{}, fmt.Errorf("ST-04 Architecture approval parameters: %w", err)
+	}
+	acks := parameters.PolicyAcknowledgements
+	reason := proof.Reason()
+	decidedAt := proof.Receipt().ObservedAt
 	gateRef, _, _, err := stageruntime.ReadCanonical[contract.ArtifactReference](current.ProjectDir, PolicyGateRefPath(current.Snapshot.RecordDir), "human-gate-requirements", 1)
 	if err != nil {
 		return PolicyApproveResult{}, err
@@ -407,13 +432,10 @@ func ApprovePolicy(ctx context.Context, projectDir, coreDir, proposalSHA, reason
 	if err := gate.ValidateAcknowledgements(current.ProjectDir, current.Snapshot.RecordDir, set, acks, true); err != nil {
 		return PolicyApproveResult{}, err
 	}
-	if decidedAt == "" {
-		decidedAt = stageruntime.Now()
-	}
 	if acks == nil {
 		acks = []gate.Acknowledgement{}
 	}
-	approval := PolicyApproval{SchemaVersion: 1, Artifact: "architecture-policy-approval", Version: 1, DecisionID: "architecture-policy-" + proposalRef.SHA256[7:19], IntentID: current.Snapshot.State.IntentID, ProposalRef: proposalRef, GateRequirementSetRef: gateRef, PolicyAcknowledgements: acks, Decision: "approve-architecture-policy", Reason: reason, DecidedBy: "human", DecidedAt: decidedAt}
+	approval := PolicyApproval{SchemaVersion: 1, Artifact: "architecture-policy-approval", Version: 1, DecisionID: "architecture-policy-" + proposalRef.SHA256[7:19], IntentID: current.Snapshot.State.IntentID, ProposalRef: proposalRef, GateRequirementSetRef: gateRef, PolicyAcknowledgements: acks, HumanInputReceiptRef: proof.ReceiptReference(), Decision: "approve-architecture-policy", Reason: reason, DecidedBy: "human", DecidedAt: decidedAt}
 	approvalRef, _, err := stageruntime.WriteCanonical(current.ProjectDir, PolicyApprovalPath(current.Snapshot.RecordDir), approval.Artifact, 1, approval, true)
 	if err != nil {
 		return PolicyApproveResult{}, err
@@ -424,8 +446,11 @@ func ApprovePolicy(ctx context.Context, projectDir, coreDir, proposalSHA, reason
 	if err != nil {
 		return PolicyApproveResult{}, err
 	}
-	_, _ = audit.Append(ctx, current.ProjectDir, current.Snapshot.RecordDir, audit.GateApproved, []audit.Field{{Name: "Stage", Value: "ST-04"}, {Name: "Decision Authority", Value: "human"}}, nil)
-	return PolicyApproveResult{CompleteResult: completed, Approval: approval, ApprovalReference: approvalRef}, nil
+	resolution, resolutionRef, err := humanapproval.Resolve(ctx, current.ProjectDir, current.Snapshot.RecordDir, proof, &approvalRef, "approved", decidedAt)
+	if err != nil {
+		return PolicyApproveResult{}, err
+	}
+	return PolicyApproveResult{CompleteResult: completed, Approval: approval, ApprovalReference: approvalRef, HumanGateResolution: resolution, HumanGateResolutionRef: resolutionRef}, nil
 }
 
 type Handler struct{ CoreDir string }

@@ -16,6 +16,7 @@ import (
 	"github.com/sori883/aidlc/internal/platform/fsx"
 	"github.com/sori883/aidlc/internal/platform/jsonx"
 	"github.com/sori883/aidlc/internal/platform/lock"
+	"github.com/sori883/aidlc/internal/workflow/humanapproval"
 	"github.com/sori883/aidlc/internal/workflow/policy"
 )
 
@@ -96,18 +97,19 @@ type Proposal struct {
 
 // Decision is a human-only Risk reduction, resolution, or dismissal.
 type Decision struct {
-	SchemaVersion int                          `json:"schema_version"`
-	Artifact      string                       `json:"artifact"`
-	Version       int                          `json:"version"`
-	DecisionID    string                       `json:"decision_id"`
-	IntentID      string                       `json:"intent_id"`
-	RiskID        string                       `json:"risk_id"`
-	Action        DecisionAction               `json:"action"`
-	Severity      *policy.Severity             `json:"severity"`
-	EvidenceRefs  []contract.ArtifactReference `json:"evidence_refs"`
-	Reason        string                       `json:"reason"`
-	DecidedBy     string                       `json:"decided_by"`
-	DecidedAt     string                       `json:"decided_at"`
+	SchemaVersion        int                          `json:"schema_version"`
+	Artifact             string                       `json:"artifact"`
+	Version              int                          `json:"version"`
+	DecisionID           string                       `json:"decision_id"`
+	IntentID             string                       `json:"intent_id"`
+	RiskID               string                       `json:"risk_id"`
+	Action               DecisionAction               `json:"action"`
+	Severity             *policy.Severity             `json:"severity"`
+	EvidenceRefs         []contract.ArtifactReference `json:"evidence_refs"`
+	HumanInputReceiptRef contract.ArtifactReference   `json:"human_input_receipt_ref"`
+	Reason               string                       `json:"reason"`
+	DecidedBy            string                       `json:"decided_by"`
+	DecidedAt            string                       `json:"decided_at"`
 }
 
 // Written contains both immutable and Current references.
@@ -116,6 +118,21 @@ type Written struct {
 	RegisterReference contract.ArtifactReference
 	Current           Current
 	CurrentReference  contract.ArtifactReference
+}
+
+type DecisionParameters struct {
+	DecisionID   string                       `json:"decision_id"`
+	RiskID       string                       `json:"risk_id"`
+	Severity     *policy.Severity             `json:"severity"`
+	EvidenceRefs []contract.ArtifactReference `json:"evidence_refs"`
+}
+
+type DecideResult struct {
+	Register               Register                   `json:"register"`
+	Decision               Decision                   `json:"decision"`
+	DecisionReference      contract.ArtifactReference `json:"decisionReference"`
+	HumanGateResolution    humanapproval.Resolution   `json:"humanGateResolution"`
+	HumanGateResolutionRef contract.ArtifactReference `json:"humanGateResolutionReference"`
 }
 
 // Options controls deterministic timestamps and initial Risks.
@@ -313,6 +330,9 @@ func (value Decision) Validate() error {
 	if err := validateReferences(value.EvidenceRefs); err != nil {
 		return err
 	}
+	if err := value.HumanInputReceiptRef.Validate(); err != nil {
+		return fmt.Errorf("human_input_receipt_ref: %w", err)
+	}
 	if value.Action == Resolve && len(value.EvidenceRefs) == 0 {
 		return fmt.Errorf("evidence_refs resolve requires Evidence")
 	}
@@ -487,14 +507,28 @@ func Propose(ctx context.Context, projectDir, recordDir string, proposal Proposa
 }
 
 // Decide applies one human-only mutation.
-func Decide(ctx context.Context, projectDir, recordDir string, decision Decision, createdAt string) (Register, error) {
-	var result Register
+func Decide(ctx context.Context, projectDir, recordDir string, proof humanapproval.Proof) (DecideResult, error) {
+	var result DecideResult
 	err := lock.With(ctx, projectDir, lock.Options{}, func(lockContext context.Context) error {
-		if err := decision.Validate(); err != nil {
+		current, currentRef, _, err := ReadCurrent(projectDir, recordDir)
+		if err != nil {
 			return err
 		}
-		current, _, _, err := ReadCurrent(projectDir, recordDir)
-		if err != nil {
+		if err := proof.Require(humanapproval.ScopeRisk, proof.Action(), currentRef.SHA256); err != nil {
+			return fmt.Errorf("Intent Risk Decision: %w", err)
+		}
+		var parameters DecisionParameters
+		if err := proof.Parameters(&parameters); err != nil {
+			return fmt.Errorf("Intent Risk Decision parameters: %w", err)
+		}
+		decision := Decision{
+			SchemaVersion: 1, Artifact: "intent-risk-decision", Version: 1,
+			DecisionID: parameters.DecisionID, IntentID: current.IntentID,
+			RiskID: parameters.RiskID, Action: DecisionAction(proof.Action()), Severity: parameters.Severity,
+			EvidenceRefs: parameters.EvidenceRefs, HumanInputReceiptRef: proof.ReceiptReference(),
+			Reason: proof.Reason(), DecidedBy: "human", DecidedAt: proof.Receipt().ObservedAt,
+		}
+		if err := decision.Validate(); err != nil {
 			return err
 		}
 		if decision.IntentID != current.IntentID {
@@ -532,16 +566,17 @@ func Decide(ctx context.Context, projectDir, recordDir string, decision Decision
 		entry.LastDecisionRef = &decisionRef
 		risks[index] = entry
 		base := current.Revision
-		timestamp := createdAt
-		if timestamp == "" {
-			timestamp = decision.DecidedAt
-		}
+		timestamp := decision.DecidedAt
 		next := Register{SchemaVersion: 1, Artifact: "intent-risk-register", Version: 1, IntentID: current.IntentID, Revision: base + 1, BaseRevision: &base, Risks: risks, CreatedAt: timestamp}
 		written, err := writeRevision(projectDir, recordDir, next)
 		if err != nil {
 			return err
 		}
-		result = written.Register
+		resolution, resolutionRef, err := humanapproval.Resolve(lockContext, projectDir, recordDir, proof, &decisionRef, "recorded", timestamp)
+		if err != nil {
+			return err
+		}
+		result = DecideResult{Register: written.Register, Decision: decision, DecisionReference: decisionRef, HumanGateResolution: resolution, HumanGateResolutionRef: resolutionRef}
 		return nil
 	})
 	return result, err
@@ -609,6 +644,9 @@ func ValidateArtifacts(projectDir, recordDir, expectedIntentID string) error {
 			return fmt.Errorf("Intent Risk Register revision %d has an invalid Intent or revision binding", revision)
 		}
 		if err := verifyReferences(projectDir, flattenEntryReferences(register.Risks)); err != nil {
+			return err
+		}
+		if err := verifyDecisionReceipts(projectDir, register.Risks); err != nil {
 			return err
 		}
 		if revision == current.CurrentRevision {
@@ -717,6 +755,37 @@ func verifyReferences(projectDir string, references []contract.ArtifactReference
 	for _, reference := range references {
 		if _, err := policy.VerifyProjectArtifactReference(projectDir, reference); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func verifyDecisionReceipts(projectDir string, entries []Entry) error {
+	for _, entry := range entries {
+		if entry.LastDecisionRef == nil {
+			continue
+		}
+		path, err := policy.VerifyProjectArtifactReference(projectDir, *entry.LastDecisionRef)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		decision, err := DecodeDecision(content)
+		if err != nil {
+			return err
+		}
+		if decision.IntentID == "" || decision.RiskID != entry.RiskID || string(decision.Action) == "" {
+			return fmt.Errorf("Intent Risk Decision does not bind its Register entry")
+		}
+		receipt, err := humanapproval.VerifyReceipt(projectDir, decision.HumanInputReceiptRef)
+		if err != nil {
+			return fmt.Errorf("Intent Risk Decision Human Input Receipt: %w", err)
+		}
+		if receipt.IntentID != decision.IntentID || receipt.Scope != humanapproval.ScopeRisk || receipt.Action != string(decision.Action) {
+			return fmt.Errorf("Intent Risk Decision does not bind the same Human action as its Receipt")
 		}
 	}
 	return nil

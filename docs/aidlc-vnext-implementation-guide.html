@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-DLC vNext for Codex — 実装したものがわかる1枚ガイド</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #14213d;
+      --muted: #526079;
+      --paper: #f6f8fc;
+      --surface: #ffffff;
+      --line: #d9e0ec;
+      --blue: #1d4ed8;
+      --blue-soft: #eaf0ff;
+      --cyan: #0f7490;
+      --cyan-soft: #e8f7fb;
+      --green: #147d55;
+      --green-soft: #e9f8f1;
+      --amber: #9a5b06;
+      --amber-soft: #fff5dc;
+      --red: #a33a2b;
+      --red-soft: #fff0ed;
+      --shadow: 0 16px 40px rgba(20, 33, 61, 0.08);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-width: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 92% 2%, rgba(29, 78, 216, 0.12), transparent 28rem),
+        var(--paper);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+      line-height: 1.75;
+      overflow-wrap: anywhere;
+    }
+
+    a {
+      color: var(--blue);
+      text-underline-offset: 0.18em;
+    }
+
+    a:focus-visible,
+    summary:focus-visible {
+      outline: 3px solid #f59e0b;
+      outline-offset: 3px;
+      border-radius: 4px;
+    }
+
+    code,
+    pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    code {
+      font-size: 0.92em;
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .hero {
+      padding: 72px 0 40px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 14px;
+      padding: 7px 12px;
+      border: 1px solid #bfd0ff;
+      border-radius: 999px;
+      color: var(--blue);
+      background: rgba(255, 255, 255, 0.8);
+      font-size: 0.84rem;
+      font-weight: 750;
+      letter-spacing: 0.04em;
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: 1.28;
+      letter-spacing: -0.025em;
+    }
+
+    h1 {
+      max-width: 850px;
+      margin: 0;
+      font-size: clamp(2.25rem, 6vw, 4.6rem);
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: clamp(1.7rem, 3.4vw, 2.55rem);
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 1.12rem;
+    }
+
+    p {
+      margin: 0 0 1em;
+    }
+
+    .lead {
+      max-width: 760px;
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: clamp(1.05rem, 2vw, 1.27rem);
+    }
+
+    .hero-note {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 28px;
+    }
+
+    .tag {
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .quick-nav {
+      position: sticky;
+      top: 10px;
+      z-index: 5;
+      display: flex;
+      gap: 6px;
+      margin-bottom: 54px;
+      padding: 8px;
+      border: 1px solid rgba(217, 224, 236, 0.9);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 8px 24px rgba(20, 33, 61, 0.08);
+      overflow-x: auto;
+      backdrop-filter: blur(10px);
+    }
+
+    .quick-nav a {
+      flex: 0 0 auto;
+      padding: 8px 11px;
+      border-radius: 9px;
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 700;
+    }
+
+    .quick-nav a:hover {
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    main {
+      padding-bottom: 80px;
+    }
+
+    section {
+      margin: 0 0 72px;
+      scroll-margin-top: 90px;
+    }
+
+    .section-intro {
+      max-width: 760px;
+      color: var(--muted);
+    }
+
+    .summary-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.6fr);
+      gap: 24px;
+      padding: clamp(24px, 5vw, 44px);
+      border: 1px solid #bfd0ff;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, #ffffff, #eef3ff);
+      box-shadow: var(--shadow);
+    }
+
+    .summary-panel p:last-child {
+      margin-bottom: 0;
+    }
+
+    .summary-list {
+      display: grid;
+      align-content: center;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .summary-list li {
+      padding: 10px 12px;
+      border: 1px solid #d5def5;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.78);
+      font-weight: 700;
+    }
+
+    .summary-list span {
+      display: block;
+      color: var(--blue);
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .concept-grid,
+    .hook-grid,
+    .boundary-grid,
+    .test-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 28px;
+    }
+
+    .card {
+      min-width: 0;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--surface);
+      box-shadow: 0 8px 24px rgba(20, 33, 61, 0.045);
+    }
+
+    .card p:last-child,
+    .card ul:last-child {
+      margin-bottom: 0;
+    }
+
+    .card-kicker {
+      margin-bottom: 7px;
+      color: var(--blue);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+    }
+
+    .plain-list {
+      margin: 12px 0 0;
+      padding-left: 1.2rem;
+    }
+
+    .plain-list li + li {
+      margin-top: 7px;
+    }
+
+    .stage-strip {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 28px;
+    }
+
+    .stage {
+      min-width: 0;
+      padding: 14px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+
+    .stage b {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--blue);
+      font-size: 0.8rem;
+    }
+
+    .stage span {
+      font-size: 0.88rem;
+      font-weight: 700;
+    }
+
+    .process {
+      margin: 28px 0 0;
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .process-track {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .process-step {
+      flex: 1 1 0;
+      min-width: 0;
+      padding: 16px;
+      border-radius: 13px;
+      background: var(--blue-soft);
+    }
+
+    .process-step b {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--blue);
+      font-size: 0.78rem;
+    }
+
+    .process-step span {
+      display: block;
+      font-weight: 750;
+    }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      flex: 0 0 22px;
+      color: var(--muted);
+      font-weight: 900;
+    }
+
+    figcaption {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .hook-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .hook-card {
+      position: relative;
+      padding-left: 82px;
+    }
+
+    .hook-number {
+      position: absolute;
+      top: 22px;
+      left: 22px;
+      display: grid;
+      width: 42px;
+      height: 42px;
+      place-items: center;
+      border-radius: 12px;
+      color: #ffffff;
+      background: var(--blue);
+      font-weight: 850;
+    }
+
+    .hook-card:nth-child(2n) .hook-number {
+      background: var(--cyan);
+    }
+
+    .hook-card.wide {
+      grid-column: 1 / -1;
+    }
+
+    .hook-meta {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .hook-meta code {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .callout {
+      margin-top: 24px;
+      padding: 19px 21px;
+      border-left: 5px solid var(--amber);
+      border-radius: 8px 14px 14px 8px;
+      background: var(--amber-soft);
+    }
+
+    .callout strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #6d4107;
+    }
+
+    .callout p:last-child {
+      margin-bottom: 0;
+    }
+
+    .boundary-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .positive {
+      border-top: 5px solid var(--green);
+      background: linear-gradient(#ffffff, var(--green-soft));
+    }
+
+    .negative {
+      border-top: 5px solid var(--red);
+      background: linear-gradient(#ffffff, var(--red-soft));
+    }
+
+    .table-wrap,
+    .code-wrap {
+      max-width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--surface);
+    }
+
+    table {
+      width: 100%;
+      min-width: 700px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      background: #f1f4f9;
+      font-size: 0.82rem;
+      letter-spacing: 0.03em;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    pre {
+      margin: 0;
+      padding: 19px;
+      color: #f3f7ff;
+      background: #14213d;
+      font-size: 0.88rem;
+      line-height: 1.65;
+    }
+
+    .steps {
+      display: grid;
+      gap: 14px;
+      margin: 28px 0 0;
+      padding: 0;
+      counter-reset: step;
+      list-style: none;
+    }
+
+    .steps li {
+      position: relative;
+      min-width: 0;
+      padding: 18px 20px 18px 66px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--surface);
+    }
+
+    .steps li::before {
+      position: absolute;
+      top: 17px;
+      left: 18px;
+      display: grid;
+      width: 32px;
+      height: 32px;
+      place-items: center;
+      border-radius: 10px;
+      color: #ffffff;
+      background: var(--blue);
+      content: counter(step);
+      counter-increment: step;
+      font-weight: 800;
+    }
+
+    .test-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    details {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--surface);
+    }
+
+    summary {
+      padding: 15px 17px;
+      cursor: pointer;
+      font-weight: 750;
+    }
+
+    details > div {
+      padding: 0 17px 17px;
+      color: var(--muted);
+    }
+
+    .sources {
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #eef2f8;
+    }
+
+    .sources ul {
+      columns: 2;
+      column-gap: 32px;
+      margin-bottom: 0;
+      padding-left: 1.2rem;
+    }
+
+    footer {
+      padding: 30px 0 54px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 820px) {
+      .summary-panel,
+      .concept-grid,
+      .boundary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stage-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .process-track {
+        flex-direction: column;
+      }
+
+      .arrow {
+        flex-basis: 20px;
+        transform: rotate(90deg);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .page {
+        width: min(100% - 24px, 1120px);
+      }
+
+      .hero {
+        padding-top: 44px;
+      }
+
+      .quick-nav {
+        margin-bottom: 42px;
+      }
+
+      section {
+        margin-bottom: 56px;
+      }
+
+      .hook-grid,
+      .test-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hook-card.wide {
+        grid-column: auto;
+      }
+
+      .hook-card {
+        padding: 76px 18px 20px;
+      }
+
+      .hook-number {
+        top: 19px;
+        left: 18px;
+      }
+
+      .process {
+        padding: 18px;
+      }
+
+      .sources ul {
+        columns: 1;
+      }
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+
+      .page {
+        width: 100%;
+      }
+
+      .quick-nav {
+        display: none;
+      }
+
+      .card,
+      .process,
+      .summary-panel {
+        box-shadow: none;
+        break-inside: avoid;
+      }
+
+      section {
+        break-inside: auto;
+      }
+
+      a {
+        color: inherit;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="page hero">
+    <p class="eyebrow">AI-DLC vNext 1.0.0 ・ Codex向け</p>
+    <h1>これまで何を実装したのかがわかる、1枚ガイド</h1>
+    <p class="lead">
+      AIに開発を任せながらも、進め方・人間の承認・変更範囲・証拠を仕組みで管理する基盤です。
+      このページだけで、AI-DLC本体とCodex Hookの役割を最初から理解できます。
+    </p>
+    <div class="hero-note" aria-label="実装の要点">
+      <span class="tag">Go 1.26.4</span>
+      <span class="tag">固定10 Stage</span>
+      <span class="tag">7つのHook機能</span>
+      <span class="tag">5 OS・CPU向けCLI</span>
+      <span class="tag">外部Go moduleなし</span>
+    </div>
+  </header>
+
+  <div class="page">
+    <nav class="quick-nav" aria-label="ページ内の目次">
+      <a href="#summary">30秒で理解</a>
+      <a href="#core">AI-DLC本体</a>
+      <a href="#hooks">7つのHook</a>
+      <a href="#boundaries">権限の境界</a>
+      <a href="#distribution">配布</a>
+      <a href="#tests">テスト概要</a>
+    </nav>
+  </div>
+
+  <main class="page">
+    <section id="summary" aria-labelledby="summary-title">
+      <div class="summary-panel">
+        <div>
+          <h2 id="summary-title">30秒で理解する</h2>
+          <p>
+            AI-DLCは、AIが自由な順番で開発するのを防ぎ、固定された10個の工程に沿って作業させる仕組みです。
+            「Stage（ステージ）」は、目的整理、設計、実装、レビュー、リリースなどの工程を表します。
+          </p>
+          <p>
+            Codex Hookは、その仕組みを会話やTool実行の境界でも支える追加機能です。
+            「Hook（フック）」とは、セッション開始、Tool実行前後、Agent終了などの決まったタイミングで自動実行される小さな処理です。
+          </p>
+        </div>
+        <ul class="summary-list">
+          <li><span>Core</span>開発の正しい順番と状態を管理</li>
+          <li><span>Agent</span>決められた役割で成果物を提案</li>
+          <li><span>Hook</span>境界を観測・検査・保護</li>
+          <li><span>Human</span>重要な判断を最終決定</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="core" aria-labelledby="core-title">
+      <h2 id="core-title">1. AI-DLC本体として実装したもの</h2>
+      <p class="section-intro">
+        会話だけに頼らず、同じProjectを再開しても「現在どこまで進んだか」を機械的に確認できるCoreをGoで実装しました。
+      </p>
+
+      <div class="concept-grid">
+        <article class="card">
+          <p class="card-kicker">FIXED WORKFLOW</p>
+          <h3>固定された10 Stage</h3>
+          <p>工程の追加・削除・並べ替えはAIに任せません。CoreがCatalogとGraphを正本として管理します。</p>
+        </article>
+        <article class="card">
+          <p class="card-kicker">PERSISTED STATE</p>
+          <h3>永続化された状態と計画</h3>
+          <p>現在のStage、Plan revision、成果物参照、監査記録をProject内へ保存します。会話が圧縮されても再開できます。</p>
+        </article>
+        <article class="card">
+          <p class="card-kicker">HUMAN AUTHORITY</p>
+          <h3>人間が握る重要判断</h3>
+          <p>設計、Build Contract、レビュー、リリース、成果判定などは、人間の明示的な確認を通して適用します。</p>
+        </article>
+      </div>
+
+      <div class="stage-strip" aria-label="固定10 Stageの流れ">
+        <div class="stage"><b>ST-00</b><span>開始準備</span></div>
+        <div class="stage"><b>ST-01</b><span>現状把握</span></div>
+        <div class="stage"><b>ST-02</b><span>目的定義</span></div>
+        <div class="stage"><b>ST-03</b><span>要件整理</span></div>
+        <div class="stage"><b>ST-04</b><span>設計判断</span></div>
+        <div class="stage"><b>ST-05</b><span>実装契約</span></div>
+        <div class="stage"><b>ST-06</b><span>実装</span></div>
+        <div class="stage"><b>ST-07</b><span>人間レビュー</span></div>
+        <div class="stage"><b>ST-08</b><span>リリース</span></div>
+        <div class="stage"><b>ST-09</b><span>成果確認</span></div>
+      </div>
+
+      <figure class="process" aria-labelledby="handoff-caption">
+        <div class="process-track">
+          <div class="process-step"><b>1 ・ CORE</b><span>現在のStageと作業指示を決める</span></div>
+          <div class="arrow" aria-hidden="true">→</div>
+          <div class="process-step"><b>2 ・ CONDUCTOR</b><span>固定の役割へ作業を委譲する</span></div>
+          <div class="arrow" aria-hidden="true">→</div>
+          <div class="process-step"><b>3 ・ STAGE AGENT</b><span>指定範囲の成果物を提案する</span></div>
+          <div class="arrow" aria-hidden="true">→</div>
+          <div class="process-step"><b>4 ・ CORE / HUMAN</b><span>検証し、受入れまたは差戻しする</span></div>
+        </div>
+        <figcaption id="handoff-caption">
+          Agent委譲も実装済みです。Agentは提案を作れますが、State変更、Stage遷移、承認はCoreまたは人間の役割です。
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="hooks" aria-labelledby="hooks-title">
+      <h2 id="hooks-title">2. Codex向けに実装した7つのHook機能</h2>
+      <p class="section-intro">
+        Auditだけではありません。観測から始め、再開、変更保護、人間承認、機械検査、Agent返却、稼働診断までを段階的に実装しました。
+      </p>
+
+      <div class="hook-grid">
+        <article class="card hook-card">
+          <div class="hook-number" aria-hidden="true">01</div>
+          <p class="card-kicker">ST-HK-01</p>
+          <h3>Hook Audit</h3>
+          <p>セッション、Tool前後、サブエージェント、会話圧縮、Stopなど10種類のイベントをメタデータとして記録します。普通の質問は監査へ記録しません。</p>
+          <p class="hook-meta">主な入口: <code>hook record</code> / <code>hook turn</code> / <code>hook status</code></p>
+        </article>
+
+        <article class="card hook-card">
+          <div class="hook-number" aria-hidden="true">02</div>
+          <p class="card-kicker">ST-HK-02</p>
+          <h3>Context Injection</h3>
+          <p>セッション開始やAgent開始時に、永続化された現在地、Stage Contract、担当候補、再開コマンドを追加コンテキストとして渡します。</p>
+          <p class="hook-meta">主な入口: <code>hook inject</code></p>
+        </article>
+
+        <article class="card hook-card">
+          <div class="hook-number" aria-hidden="true">03</div>
+          <p class="card-kicker">ST-HK-03</p>
+          <h3>PreToolUse Guard</h3>
+          <p>Tool実行前に変更先を検査します。Core管理領域への直接変更や、ST-06で合意された対象外への変更を実行前に拒否します。</p>
+          <p class="hook-meta">主な入口: <code>hook guard</code></p>
+        </article>
+
+        <article class="card hook-card">
+          <div class="hook-number" aria-hidden="true">04</div>
+          <p class="card-kicker">ST-HK-04</p>
+          <h3>Human Input Receipt</h3>
+          <p>レビュー対象を固定し、生成済みの確認行を人間が送った事実をReceiptとして結び付けます。未解決の判断がある間はStopで待機させます。</p>
+          <p class="hook-meta">主な入口: <code>human-gate</code> / <code>hook receipt</code> / <code>hook freeze</code></p>
+        </article>
+
+        <article class="card hook-card">
+          <div class="hook-number" aria-hidden="true">05</div>
+          <p class="card-kicker">ST-HK-05</p>
+          <h3>Deterministic Sensors</h3>
+          <p>Go整形、JSON構文、承認対象ファイルのSHA-256一致を、AIの主観ではなく決定的なGo処理で確認します。</p>
+          <p class="hook-meta">主な入口: <code>hook sensor</code> / <code>sensor</code></p>
+        </article>
+
+        <article class="card hook-card">
+          <div class="hook-number" aria-hidden="true">06</div>
+          <p class="card-kicker">ST-HK-06</p>
+          <h3>SubagentStop Result Control</h3>
+          <p>Stage Agentの最終結果、役割、Skill、変更範囲、ファイルSHA-256を検証します。不正な返却は1回だけ訂正を求めます。</p>
+          <p class="hook-meta">主な入口: <code>hook subagent</code> / <code>delegation receipt</code></p>
+        </article>
+
+        <article class="card hook-card wide">
+          <div class="hook-number" aria-hidden="true">07</div>
+          <p class="card-kicker">ST-HK-07</p>
+          <h3>Hook Health &amp; Doctor</h3>
+          <p>イベントが届いたか、各handlerが動いたか、Sensorが対象に一致して実行されたか、Agent Receiptが有効かを分けて診断します。設定欠落・重複・改ざんはerror、未観測はwarningまたはinfoとして扱います。</p>
+          <p class="hook-meta">主な入口: <code>hook status</code> / <code>sensor status</code> / <code>doctor check</code></p>
+        </article>
+      </div>
+
+      <div class="callout">
+        <strong>普通の質問は、Hook Journalへ記録しません。</strong>
+        <p><code>UserPromptSubmit</code>では、OSの一時領域にある空のセッションマーカーだけを上書きします。質問本文、Session ID、Turn ID、質問回数は永続化しません。生成済みの<code>/aidlc-confirm</code>が完全一致した場合だけ、別のReceiptとして残します。</p>
+      </div>
+    </section>
+
+    <section id="boundaries" aria-labelledby="boundaries-title">
+      <h2 id="boundaries-title">3. できることと、できないこと</h2>
+      <p class="section-intro">
+        Hookは強力ですが、AI-DLC全体の決定権を持ちません。この線引きを実装と設計文書の両方で固定しました。
+      </p>
+
+      <div class="boundary-grid">
+        <article class="card positive">
+          <h3>Hookが行うこと</h3>
+          <ul class="plain-list">
+            <li>Codex lifecycleのメタデータを観測する</li>
+            <li>永続化済みの正しい現在地を再提示する</li>
+            <li>危険な変更をTool実行前に拒否する</li>
+            <li>人間入力と固定済みレビュー対象を結び付ける</li>
+            <li>決定的な検査結果と稼働状況を記録する</li>
+          </ul>
+        </article>
+        <article class="card negative">
+          <h3>Hookに任せていないこと</h3>
+          <ul class="plain-list">
+            <li>Stageの追加、並べ替え、勝手な遷移</li>
+            <li>人間に代わる承認やリリース判断</li>
+            <li>会話内容や秘密情報の保存</li>
+            <li>Agentの役割を推測して権限を増やすこと</li>
+            <li>ReceiptをCore受入れや法的本人署名とみなすこと</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="table-wrap" role="region" aria-label="記録の違い" tabindex="0" style="margin-top: 24px;">
+        <table>
+          <thead>
+            <tr>
+              <th>記録</th>
+              <th>主な場所</th>
+              <th>意味</th>
+              <th>権限</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Core Audit</td>
+              <td><code>audit/*.md</code></td>
+              <td>Stage処理やCore判断の正式な履歴</td>
+              <td>正本</td>
+            </tr>
+            <tr>
+              <td>Hook Journal</td>
+              <td><code>hook-audit/*.jsonl</code></td>
+              <td>通常質問を除くCodex境界イベントの観測証拠</td>
+              <td>非権威の観測記録</td>
+            </tr>
+            <tr>
+              <td>Human Turn Marker</td>
+              <td>OSの一時領域</td>
+              <td>最新の人間ターンがあったことだけを示す空ファイル</td>
+              <td>一時的な制御情報</td>
+            </tr>
+            <tr>
+              <td>Receipt / Health</td>
+              <td><code>artifacts/</code>配下</td>
+              <td>人間入力、Agent返却、handler稼働などの検証材料</td>
+              <td>用途を限定した証拠</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="distribution" aria-labelledby="distribution-title">
+      <h2 id="distribution-title">4. 配布と導入もGoで実装</h2>
+      <p class="section-intro">
+        利用先にGo、Node.js、Bunを要求しないよう、5種類のネイティブCLI、Installer、Manifest、Checksumをまとめて生成します。
+      </p>
+
+      <ol class="steps">
+        <li><strong>Release candidateを生成</strong><br>macOS、Linux、Windows向けのCLIとInstallerをローカル出力します。</li>
+        <li><strong>配布物を検証</strong><br>ファイルサイズ、SHA-256、実行形式、Go build情報、native smokeを検査します。</li>
+        <li><strong>安全にProjectへ導入</strong><br>競合、改ざん、危険なpath、symlinkを拒否してからCodex用ファイルを配置します。</li>
+        <li><strong>CodexでHookを信頼</strong><br>導入後はCodexの<code>/hooks</code>で内容を確認し、新しいSessionで実発火を確認します。</li>
+      </ol>
+
+      <div class="code-wrap" style="margin-top: 24px;">
+        <pre><code># 導入後の基本確認
+./.codex/tools/aidlc --version
+./.codex/tools/aidlc graph validate
+./.codex/tools/aidlc workspace init .
+./.codex/tools/aidlc intent birth . "最初のIntent"
+./.codex/tools/aidlc next .
+
+# Hookと全体の診断
+./.codex/tools/aidlc hook status .
+./.codex/tools/aidlc doctor check .</code></pre>
+      </div>
+    </section>
+
+    <section id="tests" aria-labelledby="tests-title">
+      <h2 id="tests-title">5. テスト内容の概要</h2>
+      <p class="section-intro">
+        詳細なテストケース一覧ではなく、「どの範囲を確認しているか」だけをまとめます。
+      </p>
+
+      <div class="test-grid">
+        <article class="card">
+          <h3>機能と境界</h3>
+          <p>各Hook、Core、Installerが正常系と拒否系で契約どおり動くこと、秘密になり得る本文を記録しないことを確認します。</p>
+        </article>
+        <article class="card">
+          <h3>並行処理と耐障害性</h3>
+          <p>複数handlerや記録処理が重なってもStateやEvidenceを壊さないことを、race testを含めて確認します。</p>
+        </article>
+        <article class="card">
+          <h3>Go Quality Gate</h3>
+          <p><code>gofmt</code>、<code>go vet</code>、<code>go test</code>、native buildを実行し、Go 1.26.4で検証します。</p>
+        </article>
+        <article class="card">
+          <h3>配布経路</h3>
+          <p>5 TargetのRelease candidate、ZIPの完全性、一時ProjectへのInstaller導入、導入後CLIとHook診断までを通して確認します。</p>
+        </article>
+      </div>
+
+      <details>
+        <summary>テスト結果を読むときの注意</summary>
+        <div>
+          Unit testが成功しても、CodexがProject-local Hookを信頼して実際に読み込んだ証明にはなりません。
+          導入先では<code>/hooks</code>の確認、新しいSessionでの実発火、<code>hook status</code>と<code>doctor check</code>の確認が必要です。
+        </div>
+      </details>
+    </section>
+
+    <section aria-labelledby="sources-title">
+      <div class="sources">
+        <h2 id="sources-title">このページの正本</h2>
+        <p>会話の記憶ではなく、現在のProjectにある次の資料と実装を基に作成しました。</p>
+        <ul>
+          <li><a href="../README.md">README.md</a></li>
+          <li><a href="codex-hook-audit-design.md">codex-hook-audit-design.md</a></li>
+          <li><a href="codex-hook-context-design.md">codex-hook-context-design.md</a></li>
+          <li><a href="codex-hook-guard-design.md">codex-hook-guard-design.md</a></li>
+          <li><a href="codex-hook-human-approval-design.md">codex-hook-human-approval-design.md</a></li>
+          <li><a href="codex-hook-sensor-design.md">codex-hook-sensor-design.md</a></li>
+          <li><a href="codex-hook-subagent-design.md">codex-hook-subagent-design.md</a></li>
+          <li><a href="codex-hook-health-design.md">codex-hook-health-design.md</a></li>
+          <li><a href="release-packaging.md">release-packaging.md</a></li>
+          <li><code>harness/codex/hooks.json</code>とGo実装</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="page">
+      <strong>AI-DLC vNext for Codex</strong><br>
+      実装説明資料 ・ 2026-08-28 ・ 単体で読める自己完結型HTML
+    </div>
+  </footer>
+</body>
+</html>

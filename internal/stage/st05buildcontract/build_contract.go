@@ -21,6 +21,7 @@ import (
 	"github.com/sori883/aidlc/internal/stage/st04architecture"
 	"github.com/sori883/aidlc/internal/workflow/directive"
 	"github.com/sori883/aidlc/internal/workflow/gate"
+	"github.com/sori883/aidlc/internal/workflow/humanapproval"
 	workflowplan "github.com/sori883/aidlc/internal/workflow/plan"
 	"github.com/sori883/aidlc/internal/workflow/state"
 )
@@ -174,6 +175,7 @@ type Approval struct {
 	CandidateRef           contract.ArtifactReference `json:"candidate_ref"`
 	GateRequirementSetRef  contract.ArtifactReference `json:"gate_requirement_set_ref"`
 	PolicyAcknowledgements []gate.Acknowledgement     `json:"policy_acknowledgements"`
+	HumanInputReceiptRef   contract.ArtifactReference `json:"human_input_receipt_ref"`
 	Decision               string                     `json:"decision"`
 	Reason                 string                     `json:"reason"`
 	DecidedBy              string                     `json:"decided_by"`
@@ -214,17 +216,20 @@ type ReviewResult struct {
 	Gate               gate.RequirementSet        `json:"gate"`
 	GateReference      contract.ArtifactReference `json:"gateReference"`
 	ReviewReference    contract.ArtifactReference `json:"reviewReference"`
+	HumanGate          humanapproval.OpenResult   `json:"humanGate"`
 	State              state.IntentState          `json:"state"`
 }
 type ApproveResult struct {
-	Contract          *BuildContract              `json:"contract"`
-	Reference         *contract.ArtifactReference `json:"reference"`
-	Current           Current                     `json:"current"`
-	CurrentReference  contract.ArtifactReference  `json:"currentReference"`
-	Approval          Approval                    `json:"approval"`
-	ApprovalReference contract.ArtifactReference  `json:"approvalReference"`
-	Plan              contract.StageExecutionPlan `json:"plan"`
-	State             state.IntentState           `json:"state"`
+	Contract               *BuildContract              `json:"contract"`
+	Reference              *contract.ArtifactReference `json:"reference"`
+	Current                Current                     `json:"current"`
+	CurrentReference       contract.ArtifactReference  `json:"currentReference"`
+	Approval               Approval                    `json:"approval"`
+	ApprovalReference      contract.ArtifactReference  `json:"approvalReference"`
+	HumanGateResolution    humanapproval.Resolution    `json:"humanGateResolution"`
+	HumanGateResolutionRef contract.ArtifactReference  `json:"humanGateResolutionReference"`
+	Plan                   contract.StageExecutionPlan `json:"plan"`
+	State                  state.IntentState           `json:"state"`
 }
 type Pending struct {
 	Candidate contract.ArtifactReference
@@ -379,12 +384,21 @@ func Review(ctx context.Context, projectDir, coreDir string, proposalContent []b
 	if err != nil {
 		return ReviewResult{}, err
 	}
+	humanGate, err := humanapproval.Open(ctx, current.ProjectDir, current.Snapshot.RecordDir, humanapproval.OpenOptions{
+		IntentID: current.Snapshot.State.IntentID, Scope: string(contract.Stage05),
+		SubjectRef: candidateRef, ReviewRef: reviewRef, GateRequirementRef: &resolved.Reference,
+		GraphVersion: current.Snapshot.State.GraphVersion, PlanRevision: current.Snapshot.State.PlanRevision,
+		AllowedActions: []string{"approve-build-contract", "request-revision"}, OpenedAt: reviewedAt,
+	})
+	if err != nil {
+		return ReviewResult{}, err
+	}
 	parked, err := stageruntime.Park(ctx, current, "ST-05 Build Contract candidate is awaiting human approval.", reviewedAt)
 	if err != nil {
 		return ReviewResult{}, err
 	}
 	_, _ = audit.Append(ctx, current.ProjectDir, current.Snapshot.RecordDir, audit.StageAwaitingApproval, []audit.Field{{Name: "Stage", Value: "ST-05"}, {Name: "Candidate SHA-256", Value: candidateRef.SHA256}, {Name: "Decision Authority", Value: "human"}}, nil)
-	return ReviewResult{Candidate: candidate, CandidateReference: candidateRef, Gate: resolved.Set, GateReference: resolved.Reference, ReviewReference: reviewRef, State: parked}, nil
+	return ReviewResult{Candidate: candidate, CandidateReference: candidateRef, Gate: resolved.Set, GateReference: resolved.Reference, ReviewReference: reviewRef, HumanGate: humanGate, State: parked}, nil
 }
 
 func PendingReview(projectDir, recordDir string) (Pending, *Candidate, error) {
@@ -419,7 +433,11 @@ func PendingReview(projectDir, recordDir string) (Pending, *Candidate, error) {
 	return Pending{Candidate: candidateRef, Review: reviewRef}, &candidate, nil
 }
 
-func Approve(ctx context.Context, projectDir, coreDir, candidateSHA, reason string, acks []gate.Acknowledgement, decidedAt string) (ApproveResult, error) {
+type ApprovalParameters struct {
+	PolicyAcknowledgements []gate.Acknowledgement `json:"policy_acknowledgements"`
+}
+
+func Approve(ctx context.Context, projectDir, coreDir string, proof humanapproval.Proof) (ApproveResult, error) {
 	current, err := stageruntime.Load(projectDir, coreDir, contract.Stage05)
 	if err != nil {
 		return ApproveResult{}, err
@@ -428,9 +446,16 @@ func Approve(ctx context.Context, projectDir, coreDir, candidateSHA, reason stri
 	if err != nil || candidate == nil {
 		return ApproveResult{}, fmt.Errorf("ST-05 Build Contract: pending Candidate is missing: %w", err)
 	}
-	if pending.Candidate.SHA256 != candidateSHA {
-		return ApproveResult{}, fmt.Errorf("ST-05 Build Contract: Candidate SHA-256 does not match")
+	if err := proof.Require(string(contract.Stage05), "approve-build-contract", pending.Candidate.SHA256); err != nil {
+		return ApproveResult{}, fmt.Errorf("ST-05 Build Contract: %w", err)
 	}
+	var parameters ApprovalParameters
+	if err := proof.Parameters(&parameters); err != nil {
+		return ApproveResult{}, fmt.Errorf("ST-05 Build Contract approval parameters: %w", err)
+	}
+	acks := parameters.PolicyAcknowledgements
+	reason := proof.Reason()
+	decidedAt := proof.Receipt().ObservedAt
 	gateRef, _, _, err := stageruntime.ReadCanonical[contract.ArtifactReference](current.ProjectDir, GateRefPath(current.Snapshot.RecordDir), "human-gate-requirements", 1)
 	if err != nil {
 		return ApproveResult{}, err
@@ -446,13 +471,10 @@ func Approve(ctx context.Context, projectDir, coreDir, candidateSHA, reason stri
 	if err := gate.ValidateAcknowledgements(current.ProjectDir, current.Snapshot.RecordDir, set, acks, true); err != nil {
 		return ApproveResult{}, err
 	}
-	if decidedAt == "" {
-		decidedAt = stageruntime.Now()
-	}
 	if acks == nil {
 		acks = []gate.Acknowledgement{}
 	}
-	approval := Approval{SchemaVersion: 1, Artifact: "human-decision", Version: 1, DecisionID: "approve-build-contract-" + pending.Candidate.SHA256[7:19], DecisionKind: "approval", IntentID: current.Snapshot.State.IntentID, CandidateRef: pending.Candidate, GateRequirementSetRef: gateRef, PolicyAcknowledgements: acks, Decision: "approve-build-contract", Reason: reason, DecidedBy: "human", DecidedAt: decidedAt}
+	approval := Approval{SchemaVersion: 1, Artifact: "human-decision", Version: 1, DecisionID: "approve-build-contract-" + pending.Candidate.SHA256[7:19], DecisionKind: "approval", IntentID: current.Snapshot.State.IntentID, CandidateRef: pending.Candidate, GateRequirementSetRef: gateRef, PolicyAcknowledgements: acks, HumanInputReceiptRef: proof.ReceiptReference(), Decision: "approve-build-contract", Reason: reason, DecidedBy: "human", DecidedAt: decidedAt}
 	approvalRef, _, err := stageruntime.WriteCanonical(current.ProjectDir, ApprovalPath(current.Snapshot.RecordDir), approval.Artifact, 1, approval, true)
 	if err != nil {
 		return ApproveResult{}, err
@@ -502,12 +524,15 @@ func Approve(ctx context.Context, projectDir, coreDir, candidateSHA, reason stri
 	}
 	current.Snapshot.Plan = revised
 	current.Snapshot.State.PlanRevision = revised.Revision
-	_, _ = audit.Append(ctx, current.ProjectDir, current.Snapshot.RecordDir, audit.GateApproved, []audit.Field{{Name: "Stage", Value: "ST-05"}, {Name: "Candidate SHA-256", Value: candidateSHA}, {Name: "Decision Authority", Value: "human"}}, nil)
 	advanced, err := stageruntime.Advance(ctx, current, currentRef, "build-contract-approval-validator", "ST-06 Build & Converge is ready for Core preparation.", decidedAt)
 	if err != nil {
 		return ApproveResult{}, err
 	}
-	return ApproveResult{Contract: build, Reference: buildRef, Current: pointer, CurrentReference: currentRef, Approval: approval, ApprovalReference: approvalRef, Plan: revised, State: advanced}, nil
+	resolution, resolutionRef, err := humanapproval.Resolve(ctx, current.ProjectDir, current.Snapshot.RecordDir, proof, &approvalRef, "approved", decidedAt)
+	if err != nil {
+		return ApproveResult{}, err
+	}
+	return ApproveResult{Contract: build, Reference: buildRef, Current: pointer, CurrentReference: currentRef, Approval: approval, ApprovalReference: approvalRef, HumanGateResolution: resolution, HumanGateResolutionRef: resolutionRef, Plan: revised, State: advanced}, nil
 }
 
 type Handler struct{ CoreDir string }

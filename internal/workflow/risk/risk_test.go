@@ -2,12 +2,14 @@ package risk
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/sori883/aidlc/internal/contract"
 	"github.com/sori883/aidlc/internal/platform/jsonx"
+	"github.com/sori883/aidlc/internal/workflow/humanapproval"
 	"github.com/sori883/aidlc/internal/workflow/policy"
 )
 
@@ -42,11 +44,32 @@ func TestOnlyHumanDecisionReducesRisk(t *testing.T) {
 		t.Fatal(err)
 	}
 	medium := policy.Medium
-	decision := Decision{SchemaVersion: 1, Artifact: "intent-risk-decision", Version: 1, DecisionID: "risk-decision-1", IntentID: "intent-1", RiskID: "account-lockout", Action: SetSeverity, Severity: &medium, EvidenceRefs: []contract.ArtifactReference{}, Reason: "The impact is constrained.", DecidedBy: "human", DecidedAt: "2026-08-25T00:01:00.000Z"}
-	register, err := Decide(context.Background(), projectDir, recordDir, decision, "")
+	_, subjectRef, _, err := ReadCurrent(projectDir, recordDir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	opened, err := humanapproval.Open(context.Background(), projectDir, recordDir, humanapproval.OpenOptions{IntentID: "intent-1", Scope: humanapproval.ScopeRisk, SubjectRef: subjectRef, ReviewRef: subjectRef, GraphVersion: "test-graph", PlanRevision: 1, AllowedActions: []string{string(Dismiss), string(Resolve), string(SetSeverity)}, OpenedAt: "2026-08-25T00:00:30.000Z"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parameters, _ := json.Marshal(DecisionParameters{DecisionID: "risk-decision-1", RiskID: "account-lockout", Severity: &medium, EvidenceRefs: []contract.ArtifactReference{}})
+	prepared, err := humanapproval.Prepare(context.Background(), projectDir, recordDir, humanapproval.ActionProposal{SchemaVersion: 1, Artifact: "human-action-proposal", Version: 1, IntentID: "intent-1", Scope: humanapproval.ScopeRisk, SubjectSHA256: subjectRef.SHA256, Action: string(SetSeverity), Reason: "The impact is constrained.", Parameters: parameters, ProposedBy: "ai"}, "2026-08-25T00:00:40.000Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	captured, err := humanapproval.Capture(context.Background(), projectDir, recordDir, "codex", "session-risk", "turn-risk", prepared.Confirmation, "2026-08-25T00:01:00.000Z")
+	if err != nil || captured.ReceiptReference == nil {
+		t.Fatalf("capture = %+v, %v", captured, err)
+	}
+	proof, err := humanapproval.ValidateProof(projectDir, recordDir, captured.ReceiptReference.SHA256, "intent-1", humanapproval.ScopeRisk, opened.Freeze.GraphVersion, opened.Freeze.PlanRevision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := Decide(context.Background(), projectDir, recordDir, proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	register := result.Register
 	if register.Risks[0].Severity != policy.Medium || register.Risks[0].Status != Active {
 		t.Fatalf("register = %+v", register)
 	}
