@@ -42,4 +42,27 @@ You operate as a leaf participant and must not spawn or delegate to another agen
 
 ## Return contract
 
-Return your agent name, Stage ID, assignment kind, result, changed or reviewed paths, checks performed, Skill names used, and unresolved questions. Do not address the human as though you were the Conductor and do not claim that Core accepted your work.
+Return concise findings for the Conductor, then end with exactly one single-line
+marker. Do not put the marker in a code fence and do not emit a second marker.
+
+```text
+AIDLC_STAGE_RESULT: {"schema_version":1,"agent_name":"aidlc-...-agent","stage_id":"ST-00","assignment_kind":"work","role":"lead","status":"completed","mutation_scope":"proposal-only","outputs":[],"reviewed_paths":[],"checks":[],"skills":["aidlc-stage-work"],"unresolved_questions":[]}
+```
+
+Use the exact active Stage, assignment kind, role, and mutation scope supplied
+by the Conductor and fixed catalog. Work status is `completed` or `blocked`.
+Review assignment and `reviewer` role status is `ready`, `not-ready`, or
+`blocked`; a `reviewer` role is always `read-only`. A blocked result must have
+at least one unresolved question; every other result must list a performed
+check.
+
+For each changed file, `outputs` contains its Project-relative portable `path`,
+`status` (`added`, `modified`, `renamed`, or `deleted`), and current canonical
+`sha256`. A deleted ST-06 output uses `"sha256":null`. A read-only result has no
+outputs and instead lists every reviewed Project-relative path and SHA-256 in
+`reviewed_paths`. Always emit all five arrays, including empty arrays.
+
+The SubagentStop Hook validates this marker and may ask once for a corrected
+one. A validated Receipt means only that the return contract and file bindings
+matched; it does not mean Core accepted the work. Do not address the human as
+though you were the Conductor and do not claim Core acceptance.

@@ -22,6 +22,7 @@ import (
 	"github.com/sori883/aidlc/internal/stage/st08release"
 	"github.com/sori883/aidlc/internal/stage/st09outcome"
 	"github.com/sori883/aidlc/internal/workflow/directive"
+	"github.com/sori883/aidlc/internal/workflow/gate"
 	"github.com/sori883/aidlc/internal/workflow/orchestrator"
 	"github.com/sori883/aidlc/internal/workflow/state"
 )
@@ -47,7 +48,8 @@ func TestBuildReviewAndAuthorizedGitRelease(t *testing.T) {
 	if err != nil || reviewDirective.Kind != directive.Approval {
 		t.Fatalf("review directive = %+v, %v", reviewDirective, err)
 	}
-	accepted, err := st07review.Approve(ctx, projectDir, coreDir, pending.Pending.ManifestReference.SHA256, "The exact Candidate is acceptable.", nil, nil, t7)
+	reviewProof := humanProof(t, projectDir, "approve-runnable-candidate", "The exact Candidate is acceptable.", st07review.DecisionParameters{PolicyAcknowledgements: []gate.Acknowledgement{}, HumanCheckResults: []st07review.HumanCheckResult{}, FeedbackItems: []st07review.FeedbackItem{}}, t7)
+	accepted, err := st07review.Approve(ctx, projectDir, coreDir, reviewProof)
 	if err != nil || accepted.State.CurrentStage != contract.Stage08 {
 		t.Fatalf("review approve = %+v, %v", accepted, err)
 	}
@@ -65,14 +67,14 @@ func TestBuildReviewAndAuthorizedGitRelease(t *testing.T) {
 	if _, err := st08release.Review(ctx, projectDir, coreDir, []byte("{}"), t8); err == nil {
 		t.Fatal("ST-08 accepted an invalid proposal")
 	}
-	releaseReview, err := st08release.Review(ctx, projectDir, coreDir, encode(t, releaseProposal), t8)
-	if err != nil {
+	if _, err := st08release.Review(ctx, projectDir, coreDir, encode(t, releaseProposal), t8); err != nil {
 		t.Fatal(err)
 	}
 	releaseDirective, err := orchestrator.Resolve(ctx, projectDir, coreDir, orchestrator.Registry{contract.Stage08: st08release.Handler{CoreDir: coreDir}})
 	if err != nil || releaseDirective.Kind != directive.Approval {
 		t.Fatalf("release directive = %+v, %v", releaseDirective, err)
 	}
+	authorityProof := humanProof(t, projectDir, "authorize-release", "Authorize the exact Git promotion.", st08release.AuthorizationParameters{PolicyAcknowledgements: []gate.Acknowledgement{}}, t8)
 	planPath := st08release.PlanPath(stateRecordDir(t, projectDir))
 	planBytes, err := os.ReadFile(planPath)
 	if err != nil {
@@ -81,13 +83,13 @@ func TestBuildReviewAndAuthorizedGitRelease(t *testing.T) {
 	if err := os.WriteFile(planPath, append(planBytes, ' '), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st08release.Authorize(ctx, projectDir, coreDir, releaseReview.PlanReference.SHA256, "Reject tampered mutable plan.", nil, t8); err == nil {
+	if _, err := st08release.Authorize(ctx, projectDir, coreDir, authorityProof); err == nil {
 		t.Fatal("ST-08 accepted a tampered mutable Plan")
 	}
 	if err := os.WriteFile(planPath, planBytes, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	authorized, err := st08release.Authorize(ctx, projectDir, coreDir, releaseReview.PlanReference.SHA256, "Authorize the exact Git promotion.", nil, t8)
+	authorized, err := st08release.Authorize(ctx, projectDir, coreDir, authorityProof)
 	if err != nil || authorized.Attempt.Status != "active" {
 		t.Fatalf("authorize = %+v, %v", authorized, err)
 	}
@@ -125,7 +127,8 @@ func TestBuildReviewAndAuthorizedGitRelease(t *testing.T) {
 		t.Fatalf("outcome directive = %+v, %v", outcomeDirective, err)
 	}
 	notBefore := t10
-	continued, err := st09outcome.Decide(ctx, projectDir, coreDir, st09outcome.DecideOptions{EvaluationSHA256: evaluated.EvaluationReference.SHA256, Decision: "continue-observation", Reason: "Collect one more bounded observation cycle.", NotBefore: &notBefore, DecidedAt: t9})
+	continueProof := humanProof(t, projectDir, "continue-observation", "Collect one more bounded observation cycle.", st09outcome.DecisionParameters{PolicyAcknowledgements: []gate.Acknowledgement{}, NotBefore: &notBefore}, t9)
+	continued, err := st09outcome.Decide(ctx, projectDir, coreDir, continueProof)
 	if err != nil || continued.Outcome != "continued" {
 		t.Fatalf("outcome continue = %+v, %v", continued, err)
 	}
@@ -143,7 +146,8 @@ func TestBuildReviewAndAuthorizedGitRelease(t *testing.T) {
 	if err != nil || evaluated.Evaluation.Revision != 2 || evaluated.Outcome != "awaiting_decision" {
 		t.Fatalf("outcome second evaluate = %+v, %v", evaluated, err)
 	}
-	completed, err := st09outcome.Decide(ctx, projectDir, coreDir, st09outcome.DecideOptions{EvaluationSHA256: evaluated.EvaluationReference.SHA256, Decision: "complete-with-outcome", Reason: "Accept the inconclusive observation as the recorded terminal outcome.", DecidedAt: t10})
+	completeProof := humanProof(t, projectDir, "complete-with-outcome", "Accept the inconclusive observation as the recorded terminal outcome.", st09outcome.DecisionParameters{PolicyAcknowledgements: []gate.Acknowledgement{}}, t10)
+	completed, err := st09outcome.Decide(ctx, projectDir, coreDir, completeProof)
 	if err != nil || completed.State.Status != state.Completed {
 		t.Fatalf("outcome decide = %+v, %v", completed, err)
 	}
@@ -165,7 +169,8 @@ func TestReleaseRecoversPromotionCompletedBeforeReceipt(t *testing.T) {
 	if err != nil || pending.Pending == nil {
 		t.Fatalf("review prepare = %+v, %v", pending, err)
 	}
-	if _, err := st07review.Approve(ctx, projectDir, coreDir, pending.Pending.ManifestReference.SHA256, "Approve the recovery fixture.", nil, nil, t7); err != nil {
+	proof := humanProof(t, projectDir, "approve-runnable-candidate", "Approve the recovery fixture.", st07review.DecisionParameters{PolicyAcknowledgements: []gate.Acknowledgement{}, HumanCheckResults: []st07review.HumanCheckResult{}, FeedbackItems: []st07review.FeedbackItem{}}, t7)
+	if _, err := st07review.Approve(ctx, projectDir, coreDir, proof); err != nil {
 		t.Fatal(err)
 	}
 	releaseRequest, err := st08release.Prepare(ctx, projectDir, coreDir, t8)
@@ -180,11 +185,11 @@ func TestReleaseRecoversPromotionCompletedBeforeReceipt(t *testing.T) {
 		Steps:        []st08release.Step{{StepID: "STEP-001", TargetID: "TARGET-001", Operation: "source-promote", CapabilityID: st08release.GitCapabilityID, DependsOn: []string{}, DesiredState: source.CandidateRevision, PostReleaseCheck: "target-matches-desired", RollbackMode: "automatic"}},
 		ReleaseNotes: []string{"Verify crash-safe Release resume."}, Reason: "Recover a completed promotion without replaying it.", ProposedBy: "ai",
 	}
-	reviewed, err := st08release.Review(ctx, projectDir, coreDir, encode(t, proposal), t8)
-	if err != nil {
+	if _, err := st08release.Review(ctx, projectDir, coreDir, encode(t, proposal), t8); err != nil {
 		t.Fatal(err)
 	}
-	authorized, err := st08release.Authorize(ctx, projectDir, coreDir, reviewed.PlanReference.SHA256, "Authorize the recovery fixture.", nil, t8)
+	authorityProof := humanProof(t, projectDir, "authorize-release", "Authorize the recovery fixture.", st08release.AuthorizationParameters{PolicyAcknowledgements: []gate.Acknowledgement{}}, t8)
+	authorized, err := st08release.Authorize(ctx, projectDir, coreDir, authorityProof)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,11 +236,11 @@ func advanceToST07Candidate(t *testing.T, ctx context.Context, projectDir, coreD
 	t.Helper()
 	buildRequest := advanceToST05(t, ctx, projectDir, coreDir, born)
 	proposal := executableBuildProposal(born, buildRequest)
-	reviewed, err := st05buildcontract.Review(ctx, projectDir, coreDir, encode(t, proposal), t5)
-	if err != nil {
+	if _, err := st05buildcontract.Review(ctx, projectDir, coreDir, encode(t, proposal), t5); err != nil {
 		t.Fatal(err)
 	}
-	approved, err := st05buildcontract.Approve(ctx, projectDir, coreDir, reviewed.CandidateReference.SHA256, "Approve the executable Build Contract.", nil, t5)
+	proof := humanProof(t, projectDir, "approve-build-contract", "Approve the executable Build Contract.", st05buildcontract.ApprovalParameters{PolicyAcknowledgements: []gate.Acknowledgement{}}, t5)
+	approved, err := st05buildcontract.Approve(ctx, projectDir, coreDir, proof)
 	if err != nil || approved.State.CurrentStage != contract.Stage06 {
 		t.Fatalf("approve = %+v, %v", approved, err)
 	}
@@ -276,11 +281,11 @@ func TestBuildBlocksAfterThreeIdenticalContractFailures(t *testing.T) {
 	projectDir, coreDir, born := fixture(t)
 	request := advanceToST05(t, ctx, projectDir, coreDir, born)
 	proposal := executableBuildProposal(born, request)
-	reviewed, err := st05buildcontract.Review(ctx, projectDir, coreDir, encode(t, proposal), t5)
-	if err != nil {
+	if _, err := st05buildcontract.Review(ctx, projectDir, coreDir, encode(t, proposal), t5); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st05buildcontract.Approve(ctx, projectDir, coreDir, reviewed.CandidateReference.SHA256, "Approve failure-boundary fixture.", nil, t5); err != nil {
+	proof := humanProof(t, projectDir, "approve-build-contract", "Approve failure-boundary fixture.", st05buildcontract.ApprovalParameters{PolicyAcknowledgements: []gate.Acknowledgement{}}, t5)
+	if _, err := st05buildcontract.Approve(ctx, projectDir, coreDir, proof); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err := st06build.Prepare(ctx, projectDir, coreDir, t6)

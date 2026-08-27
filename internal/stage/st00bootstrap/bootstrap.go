@@ -517,7 +517,23 @@ func receiptMatches(receipt Receipt, expected inputs) error {
 }
 
 func artifactReference(projectDir, filePath, artifact string, content []byte) (contract.ArtifactReference, error) {
-	relative, err := filepath.Rel(projectDir, filePath)
+	projectRoot, err := filepath.Abs(projectDir)
+	if err != nil {
+		return contract.ArtifactReference{}, fmt.Errorf("Bootstrap Receipt: resolve Project root: %w", err)
+	}
+	projectRoot, err = filepath.EvalSymlinks(projectRoot)
+	if err != nil {
+		return contract.ArtifactReference{}, fmt.Errorf("Bootstrap Receipt: resolve Project root aliases: %w", err)
+	}
+	absoluteFile, err := filepath.Abs(filePath)
+	if err != nil {
+		return contract.ArtifactReference{}, fmt.Errorf("Bootstrap Receipt: resolve source_of_truth: %w", err)
+	}
+	absoluteFile, err = filepath.EvalSymlinks(absoluteFile)
+	if err != nil {
+		return contract.ArtifactReference{}, fmt.Errorf("Bootstrap Receipt: resolve source_of_truth aliases: %w", err)
+	}
+	relative, err := filepath.Rel(filepath.Clean(projectRoot), filepath.Clean(absoluteFile))
 	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return contract.ArtifactReference{}, fmt.Errorf("Bootstrap Receipt: source_of_truth must remain inside the project")
 	}

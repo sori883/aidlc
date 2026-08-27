@@ -23,6 +23,7 @@ import (
 	"github.com/sori883/aidlc/internal/stage/st08release"
 	"github.com/sori883/aidlc/internal/workflow/directive"
 	"github.com/sori883/aidlc/internal/workflow/gate"
+	"github.com/sori883/aidlc/internal/workflow/humanapproval"
 	workflowplan "github.com/sori883/aidlc/internal/workflow/plan"
 	"github.com/sori883/aidlc/internal/workflow/state"
 )
@@ -111,6 +112,7 @@ type HumanDecision struct {
 	OutcomeEvaluationRef   contract.ArtifactReference `json:"outcome_evaluation_ref"`
 	GateRequirementSetRef  contract.ArtifactReference `json:"gate_requirement_set_ref"`
 	PolicyAcknowledgements []gate.Acknowledgement     `json:"policy_acknowledgements"`
+	HumanInputReceiptRef   contract.ArtifactReference `json:"human_input_receipt_ref"`
 	Decision               string                     `json:"decision"`
 	Reason                 string                     `json:"reason"`
 	DecidedBy              string                     `json:"decided_by"`
@@ -165,6 +167,7 @@ type EvaluateResult struct {
 	Evaluation          Evaluation                  `json:"evaluation"`
 	EvaluationReference contract.ArtifactReference  `json:"evaluationReference"`
 	HTMLReference       contract.ArtifactReference  `json:"htmlReference"`
+	HumanGate           *humanapproval.OpenResult   `json:"humanGate"`
 	Current             *Current                    `json:"current"`
 	CurrentReference    *contract.ArtifactReference `json:"currentReference"`
 	State               state.IntentState           `json:"state"`
@@ -178,15 +181,23 @@ type DecideOptions struct {
 	Deadline               *string
 	DecidedAt              string
 }
+
+type DecisionParameters struct {
+	PolicyAcknowledgements []gate.Acknowledgement `json:"policy_acknowledgements"`
+	NotBefore              *string                `json:"not_before"`
+	Deadline               *string                `json:"deadline"`
+}
 type DecideResult struct {
-	Outcome           string                      `json:"outcome"`
-	Decision          HumanDecision               `json:"decision"`
-	DecisionReference contract.ArtifactReference  `json:"decisionReference"`
-	FollowUp          *FollowUpBrief              `json:"followUp"`
-	FollowUpReference *contract.ArtifactReference `json:"followUpReference"`
-	Current           *Current                    `json:"current"`
-	CurrentReference  *contract.ArtifactReference `json:"currentReference"`
-	State             state.IntentState           `json:"state"`
+	Outcome                string                      `json:"outcome"`
+	Decision               HumanDecision               `json:"decision"`
+	DecisionReference      contract.ArtifactReference  `json:"decisionReference"`
+	FollowUp               *FollowUpBrief              `json:"followUp"`
+	FollowUpReference      *contract.ArtifactReference `json:"followUpReference"`
+	Current                *Current                    `json:"current"`
+	CurrentReference       *contract.ArtifactReference `json:"currentReference"`
+	HumanGateResolution    humanapproval.Resolution    `json:"humanGateResolution"`
+	HumanGateResolutionRef contract.ArtifactReference  `json:"humanGateResolutionReference"`
+	State                  state.IntentState           `json:"state"`
 }
 type ReuseResult struct {
 	Current                       Current                    `json:"current"`
@@ -409,11 +420,20 @@ func Evaluate(ctx context.Context, projectDir, coreDir string, proposalBytes []b
 		value, valueRef, completed, err := finalize(ctx, current, evaluation, requestRef, evidenceRef, evaluationRef, nil, nil, "auto-achieved", "Every fixed Outcome signal is achieved with verified Project Evidence.", at, contract.Execute)
 		return EvaluateResult{Outcome: "completed", Evidence: evidence, EvidenceReference: evidenceRef, Evaluation: evaluation, EvaluationReference: evaluationRef, HTMLReference: htmlRef, Current: &value, CurrentReference: &valueRef, State: completed}, err
 	}
+	humanGate, err := humanapproval.Open(ctx, current.ProjectDir, current.Snapshot.RecordDir, humanapproval.OpenOptions{
+		IntentID: current.Snapshot.State.IntentID, Scope: string(contract.Stage09),
+		SubjectRef: evaluationRef, ReviewRef: htmlRef, GateRequirementRef: &gateSet.Reference,
+		GraphVersion: current.Snapshot.State.GraphVersion, PlanRevision: current.Snapshot.State.PlanRevision,
+		AllowedActions: []string{"continue-observation", "complete-with-outcome", "complete-and-draft-follow-up"}, OpenedAt: at,
+	})
+	if err != nil {
+		return EvaluateResult{}, err
+	}
 	parked, err := stageruntime.Park(ctx, current, "ST-09 Outcome is "+overall+"; a human value judgment is required.", at)
-	return EvaluateResult{Outcome: "awaiting_decision", Evidence: evidence, EvidenceReference: evidenceRef, Evaluation: evaluation, EvaluationReference: evaluationRef, HTMLReference: htmlRef, State: parked}, err
+	return EvaluateResult{Outcome: "awaiting_decision", Evidence: evidence, EvidenceReference: evidenceRef, Evaluation: evaluation, EvaluationReference: evaluationRef, HTMLReference: htmlRef, HumanGate: &humanGate, State: parked}, err
 }
 
-func Decide(ctx context.Context, projectDir, coreDir string, options DecideOptions) (DecideResult, error) {
+func Decide(ctx context.Context, projectDir, coreDir string, proof humanapproval.Proof) (DecideResult, error) {
 	current, err := stageruntime.Load(projectDir, coreDir, contract.Stage09)
 	if err != nil {
 		return DecideResult{}, err
@@ -422,14 +442,20 @@ func Decide(ctx context.Context, projectDir, coreDir string, options DecideOptio
 	if err != nil {
 		return DecideResult{}, err
 	}
-	if evaluationRef.SHA256 != options.EvaluationSHA256 {
-		return DecideResult{}, fmt.Errorf("ST-09 Outcome Evaluation: decision does not bind current Evaluation")
+	if err := proof.Require(string(contract.Stage09), proof.Action(), evaluationRef.SHA256); err != nil {
+		return DecideResult{}, fmt.Errorf("ST-09 Outcome Evaluation: %w", err)
+	}
+	var parameters DecisionParameters
+	if err := proof.Parameters(&parameters); err != nil {
+		return DecideResult{}, fmt.Errorf("ST-09 Outcome decision parameters: %w", err)
+	}
+	options := DecideOptions{
+		EvaluationSHA256: evaluationRef.SHA256, Decision: proof.Action(), Reason: proof.Reason(),
+		PolicyAcknowledgements: parameters.PolicyAcknowledgements,
+		NotBefore:              parameters.NotBefore, Deadline: parameters.Deadline, DecidedAt: proof.Receipt().ObservedAt,
 	}
 	if !allowed(options.Decision, "continue-observation", "complete-with-outcome", "complete-and-draft-follow-up") {
 		return DecideResult{}, fmt.Errorf("ST-09 Outcome Evaluation: invalid human decision")
-	}
-	if options.DecidedAt == "" {
-		options.DecidedAt = stageruntime.Now()
 	}
 	requestPath, err := stageruntime.ReadReference(current.ProjectDir, evaluation.WorkRequestRef)
 	if err != nil {
@@ -468,7 +494,7 @@ func Decide(ctx context.Context, projectDir, coreDir string, options DecideOptio
 	if acks == nil {
 		acks = []gate.Acknowledgement{}
 	}
-	decision := HumanDecision{SchemaVersion: 1, Artifact: "outcome-human-decision", Version: 1, DecisionID: "outcome-decision-" + digest.Bytes([]byte(evaluationRef.SHA256 + "\x00" + options.Decision + "\x00" + options.DecidedAt))[7:19], IntentID: current.Snapshot.State.IntentID, OutcomeEvaluationRef: evaluationRef, GateRequirementSetRef: evaluation.GateRequirementSetRef, PolicyAcknowledgements: acks, Decision: options.Decision, Reason: options.Reason, DecidedBy: "human", DecidedAt: options.DecidedAt}
+	decision := HumanDecision{SchemaVersion: 1, Artifact: "outcome-human-decision", Version: 1, DecisionID: "outcome-decision-" + digest.Bytes([]byte(evaluationRef.SHA256 + "\x00" + options.Decision + "\x00" + options.DecidedAt))[7:19], IntentID: current.Snapshot.State.IntentID, OutcomeEvaluationRef: evaluationRef, GateRequirementSetRef: evaluation.GateRequirementSetRef, PolicyAcknowledgements: acks, HumanInputReceiptRef: proof.ReceiptReference(), Decision: options.Decision, Reason: options.Reason, DecidedBy: "human", DecidedAt: options.DecidedAt}
 	if options.Decision == "continue-observation" {
 		decision.NotBefore = options.NotBefore
 		decision.Deadline = options.Deadline
@@ -482,7 +508,11 @@ func Decide(ctx context.Context, projectDir, coreDir string, options DecideOptio
 	}
 	if options.Decision == "continue-observation" {
 		parked, err := parkSchedule(ctx, current, "ST-09 Outcome observation continues at "+*options.NotBefore+".", *options.NotBefore, options.Deadline, options.DecidedAt)
-		return DecideResult{Outcome: "continued", Decision: decision, DecisionReference: decisionRef, State: parked}, err
+		if err != nil {
+			return DecideResult{}, err
+		}
+		resolution, resolutionRef, err := humanapproval.Resolve(ctx, current.ProjectDir, current.Snapshot.RecordDir, proof, &decisionRef, "continued", options.DecidedAt)
+		return DecideResult{Outcome: "continued", Decision: decision, DecisionReference: decisionRef, HumanGateResolution: resolution, HumanGateResolutionRef: resolutionRef, State: parked}, err
 	}
 	var followUp *FollowUpBrief
 	var followUpRef *contract.ArtifactReference
@@ -514,7 +544,11 @@ func Decide(ctx context.Context, projectDir, coreDir string, options DecideOptio
 		mode = "human-follow-up"
 	}
 	value, valueRef, completed, err := finalize(ctx, current, evaluation, evaluation.WorkRequestRef, evidenceRef, evaluationRef, &decisionRef, followUpRef, mode, options.Reason, options.DecidedAt, contract.Execute)
-	return DecideResult{Outcome: "completed", Decision: decision, DecisionReference: decisionRef, FollowUp: followUp, FollowUpReference: followUpRef, Current: &value, CurrentReference: &valueRef, State: completed}, err
+	if err != nil {
+		return DecideResult{}, err
+	}
+	resolution, resolutionRef, err := humanapproval.Resolve(ctx, current.ProjectDir, current.Snapshot.RecordDir, proof, &decisionRef, "completed", options.DecidedAt)
+	return DecideResult{Outcome: "completed", Decision: decision, DecisionReference: decisionRef, FollowUp: followUp, FollowUpReference: followUpRef, Current: &value, CurrentReference: &valueRef, HumanGateResolution: resolution, HumanGateResolutionRef: resolutionRef, State: completed}, err
 }
 
 // Reuse accepts only a previously achieved Outcome whose pinned promises,

@@ -36,8 +36,8 @@ Show the current Register with
 risk, submit a strict add-or-increase proposal with
 `./.codex/tools/aidlc intent risk propose . <proposal.json>`.
 AI may add a risk or increase its severity, but may not reduce, dismiss,
-resolve, or reactivate one. Only after an actual human decision may Codex run
-`./.codex/tools/aidlc intent risk decide . <human-decision.json>`.
+resolve, or reactivate one. Risk reduction uses the Human Input Receipt protocol
+below; `intent risk decide` is deliberately disabled.
 Never edit Risk Current or immutable revisions directly.
 
 At ST-04, ST-05, ST-07, ST-08, and a human-decided ST-09, read the Policy section in
@@ -45,6 +45,35 @@ the generated review HTML. For every listed `requirement_id`, create one
 `{"requirement_id":"...","acknowledged":true,"reason":"..."}` entry in a
 JSON array from the human's actual decision. Pass that file to the approval
 command. An old Gate table is invalid after the Risk Register changes.
+
+## Human Input Receipt protocol
+
+All human actions in ST-04, ST-05, ST-07, ST-08, ST-09, and Intent Risk use
+one Core-owned protocol. Never invoke the legacy direct `approve`, `feedback`,
+`authorize`, or `decide` command.
+
+1. Show the original Core review HTML and subject SHA-256 to the human.
+2. Write a strict `human-action-proposal` with the active Intent, scope,
+   subject SHA-256, exact allowed action, human-reviewable reason, typed
+   parameter object, and `proposed_by: "ai"`.
+3. Run `./.codex/tools/aidlc human-gate prepare . <human-action-proposal.json>`.
+4. Show its generated Human Decision Review HTML. Ask the human to send the
+   displayed `/aidlc-confirm ...` line exactly as a new Codex message. Do not
+   run that line in Bash and do not invoke `hook receipt` yourself.
+5. Stop until the `UserPromptSubmit` Hook reports a Human Input Receipt SHA-256.
+6. Apply only that SHA-256 with
+   `./.codex/tools/aidlc human-gate apply . <receipt-sha256>`.
+
+Use `./.codex/tools/aidlc human-gate status .` to inspect a pending Freeze.
+A Receipt is one-time, subject/action-bound, and stale after Graph or Plan
+revision drift. While a Freeze is pending, the Stop Hook blocks continuation.
+The Receipt proves exact Codex Hook delivery, not cryptographic legal identity.
+
+Allowed actions are `approve-architecture-policy` / `request-revision` for
+ST-04, `approve-build-contract` / `request-revision` for ST-05,
+`approve-runnable-candidate` / `request-changes` for ST-07,
+`authorize-release` / `request-revision` for ST-08, the three documented
+Outcome actions for ST-09, and `dismiss` / `resolve` / `set-severity` for Risk.
 
 ## Core Directive
 
@@ -58,7 +87,7 @@ Core can return:
   add a route or authority field.
 - `approval`: Core validated an ST-05 Build Contract candidate, ST-07 Runnable
   Candidate, or ST-08 Release Plan and generated its human review. Show the review and
-  exact SHA-256. Run an approval or feedback command only after an actual human
+  exact SHA-256. Use only the Human Input Receipt protocol after an actual human
   explicitly decides; never infer approval or the feedback route.
 - `decision`: Core validated a non-achieved ST-09 Outcome Evaluation. Show its
   HTML and exact SHA-256. Only an actual human may continue observation, accept
@@ -97,6 +126,15 @@ Execute the assignment topology as follows:
 - `mob`: dispatch the lead for a draft, then dispatch supports independently
   against the same draft. Supports remain mutually blind. Send all
   contributions back to the lead for integration.
+
+Every Stage Agent return must end with the `$aidlc-stage-work`
+`AIDLC_STAGE_RESULT` marker. For each returned Codex Agent ID, run
+`./.codex/tools/aidlc delegation receipt . agent-123` (using the actual ID)
+before using its output.
+If the immutable Receipt is missing, invalid, bound to another Stage/Agent, or
+reports paths outside the exact conversational assignment, discard that return
+and stop. Hook validation proves the fixed return contract and file bindings;
+the Conductor must still compare them with the exact paths it assigned.
 
 If `reviewer_agent` is present, dispatch it after integration with read-only
 scope. `READY` permits submission. On `NOT-READY`, send only the findings and
@@ -199,11 +237,10 @@ proposal to bypass it. Generate the exact human review with:
 
 `./.codex/tools/aidlc architecture policy-review . <proposal.json>`
 
-Show the generated review HTML and Proposal SHA-256 to the human. After the
-human supplies a reason and one acknowledgement for every listed requirement,
-submit:
-
-`./.codex/tools/aidlc architecture policy-approve . <proposal-sha256> "<human reason>" <policy-acknowledgements.json>`
+Show the generated review HTML and Proposal SHA-256 to the human. Prepare an
+`approve-architecture-policy` Action Proposal whose parameters contain
+`policy_acknowledgements`, then use the Human Input Receipt protocol. Use
+`request-revision` with an empty parameter object when the human rejects it.
 
 Core binds this approval to the reviewed Proposal, Effective Policy, and
 current Risk Register. A changed Risk Register makes the old review stale.
@@ -240,9 +277,9 @@ Core validates requirement traceability, repository boundaries, verifier
 references, DAG cycles, cross-Bolt dependencies, and parallel target conflicts.
 It derives execution batches and writes an escaped static
 `review/build-contract-review.html`. When Core returns `approval`, show that
-file and SHA-256. Only after the human explicitly approves, run:
-
-`./.codex/tools/aidlc build-contract approve . <candidate-sha256> <reason> [policy-acknowledgements.json]`
+file and SHA-256. Prepare an `approve-build-contract` Action Proposal whose
+parameters contain `policy_acknowledgements`, then use the Human Input Receipt
+protocol. Use `request-revision` with an empty parameter object when rejected.
 
 Approval is bound to the exact candidate SHA-256. Core then writes the human
 decision, immutable Build Contract revision for `execute` (or an exact reuse/no
@@ -293,14 +330,12 @@ the Review Manifest SHA-256, the changed source revisions, every
 `human-at-st07` check, and known constraints. Do not modify the Candidate while
 it is awaiting a decision.
 
-After an actual human approves every human check, run:
-
-`./.codex/tools/aidlc review approve . <review-manifest-sha256> <reason> [human-checks.json] [policy-acknowledgements.json]`
-
-If the human requests changes, record one or more feedback items with a known
-requirement ID and at least one confirmed impact, then run:
-
-`./.codex/tools/aidlc review feedback . <review-manifest-sha256> <feedback.json> <reason>`
+After an actual human approves every human check, prepare an
+`approve-runnable-candidate` Action Proposal. Its parameters contain
+`policy_acknowledgements`, `human_check_results`, and an empty `feedback_items`
+array. If the human requests changes, use `request-changes` with the same
+collections and one or more feedback items. In both cases use the Human Input
+Receipt protocol.
 
 The four allowed impacts are `requirements_changed`, `architecture_impact`,
 `build_contract_impact`, and `candidate_defect`. AI may explain a classification
@@ -326,9 +361,9 @@ or a destination Stage. Submit the JSON proposal with:
 
 Core re-observes every Target, pins an immutable Release Plan, and generates
 `artifacts/release/review/release.html`. Show that HTML to the human. Only the
-exact Plan SHA-256 can be authorized:
-
-`./.codex/tools/aidlc release authorize . <release-plan-sha256> <reason> [policy-acknowledgements.json]`
+exact Plan SHA-256 can be authorized. Prepare an `authorize-release` Action
+Proposal whose parameters contain `policy_acknowledgements`, then use the Human
+Input Receipt protocol. Use `request-revision` with `{}` when rejected.
 
 Authorization alone performs no external operation. After explicit human
 instruction to execute, run:
@@ -376,9 +411,9 @@ then wait for the human. The three decisions are:
 - `complete-with-outcome`: honestly close with the recorded result.
 - `complete-and-draft-follow-up`: close and create only a Follow-up Brief draft.
 
-Run the human's exact decision with:
-
-`./.codex/tools/aidlc outcome decide . <evaluation-sha256> <decision> <reason> [policy-acknowledgements.json] [not-before] [deadline]`
+Prepare the human's exact action as a Human Action Proposal. Parameters contain
+`policy_acknowledgements`, `not_before`, and `deadline`. Then use the Human
+Input Receipt protocol.
 
 The Follow-up Brief never creates or activates a new Intent. ST-09 has no
 backward Graph edge and rejects `not_applicable`. After terminal completion,

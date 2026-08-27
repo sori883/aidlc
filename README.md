@@ -39,6 +39,7 @@ Codexの親AgentはConductorとしてCore Directiveを受け取り、固定の
 ```bash
 ./.codex/tools/aidlc delegation validate
 ./.codex/tools/aidlc delegation show ST-06 work
+./.codex/tools/aidlc delegation receipt . agent-123
 ```
 
 ## インストール
@@ -86,6 +87,84 @@ InstallerはOSに合うネイティブCLIとCodex用ファイルを取得し、�
 - `parked`: 安全上の理由で停止しています。AIは迂回しません。
 - `done`: Intentが完了しています。
 
+## Codex Hook監査、Human Receipt、コンテキスト注入、Tool Guard、Sensor
+
+Codex Harnessは、セッション、対象Tool、サブエージェント、compaction、Stopの
+メタデータを、active Intentの`hook-audit/*.jsonl`へ記録します。通常の質問を含む
+`UserPromptSubmit`はHook監査へ記録しません。人間ターンはOSの一時領域にある空の
+セッションマーカーを上書き更新するだけで、質問本文、Session ID、Turn ID、質問回数を
+永続化しません。Hook監査は観測証跡であり、Core Audit、Stage遷移、承認状態を変更する
+権限を持ちません。
+
+同じHarnessは`SessionStart`でactive Intentの現在地と再開方法を、
+`SubagentStart`で現在のStage Contract、固定Agent割当、変更可能範囲、必須Skillを
+Codexへ追加コンテキストとして渡します。compaction後も会話上の記憶を推測せず、
+永続化されたStateとPlanを再読込します。Agentの役割が複数候補になる場合は候補を
+すべて示し、Hook自身は役割を決めません。
+
+コンテキスト注入は読み取り専用で、prompt、Agent task、コマンド、patch、Tool出力を
+保存または再注入しません。Tool入力の書き換えやStage遷移も行いません。
+
+ST-04、ST-05、ST-07、ST-08、ST-09、Intent Riskの人間判断では、Coreが対象、
+Review、Gate、Graph、Plan revisionをReview Freezeとして固定します。AIが提案した
+action、reason、parametersはDecision EnvelopeとHTMLに固定され、人間がCodexへ
+生成済みの`/aidlc-confirm ...`を完全一致で送ったときだけ、`UserPromptSubmit` Hookが
+Human Input Receiptを作ります。生のプロンプトは保存しません。
+
+人間判断は次の共通経路だけで適用します。従来の`approve`、`authorize`、`decide`などの
+直接承認コマンドは、人間入力を証明できないため無効です。
+
+```bash
+./.codex/tools/aidlc human-gate status .
+./.codex/tools/aidlc human-gate prepare . human-action-proposal.json
+# 人間が生成済み /aidlc-confirm ... をCodexのメッセージとして送る
+./.codex/tools/aidlc human-gate apply . sha256:...
+```
+
+未解決のReview Freezeがある間、`Stop` Hookは`continue: false`を返します。Receiptは
+対象、action、Session、Turn、Graph、Plan revisionへ固定され、一度だけ使用できます。
+
+`PreToolUse`の別handlerは、`apply_patch`によるCore-ownedな`aidlc/`管理領域への
+直接変更を実行前に拒否します。ST-06では、現在のBolt Work Requestが指定した
+Worktreeとtargetだけを許可します。変更pathを確定できないBash変更コマンドは
+ST-06中に拒否し、path単位で検査できる`apply_patch`を要求します。許可時は何も返さず、
+拒否時だけCodexの`permissionDecision: deny`を返します。
+
+`PreToolUse`入力にはAgent roleがないため、GuardはConductorやStage Agentを推測せず、
+全actorへ同じ規則を適用します。Hookは補助境界であり、Coreのhash、参照、State/Plan
+binding、ST-06 changed-path検証も引き続き正本です。
+
+`PostToolUse`の`apply_patch`では、Go formatとJSON構文を標準ライブラリの決定的Sensorで
+確認します。Human Gateを開く直前には、対象・Review・Gate要件の実ファイルを保存済み
+SHA-256へ強制照合します。書込みSensorは助言、Gate Sensorはblockingです。
+
+Stage Agentは最終応答を単一行の`AIDLC_STAGE_RESULT` JSON markerで終えます。
+`SubagentStop` HookがStage、割当、role、scope、Skill、path、SHA-256を検証し、不変Receiptを
+作ります。不正ならSubagentだけに1回訂正を求め、再失敗時は無限継続を避けてConductorへ
+戻します。ReceiptはCore受入れではなく、return contract検証の証跡です。
+
+永続処理を担当するhandlerはメタデータだけのheartbeatを残します。通常質問のTurn
+Marker更新とReceipt no-opはheartbeat対象外です。`hook status`と`doctor check`は、
+event配送、handler呼出し、Sensor path一致、実発火、terminal結果、Agent Receiptを
+別々に診断します。未観測はwarning/info、設定欠落・重複・改ざんはerrorです。
+
+インストールまたは更新後はCodexの`/hooks`で定義を確認して信頼し、新しいSessionで
+動作を確認します。
+
+```bash
+./.codex/tools/aidlc hook status .
+```
+
+監査の詳細は[docs/codex-hook-audit-design.md](docs/codex-hook-audit-design.md)、
+注入内容は[docs/codex-hook-context-design.md](docs/codex-hook-context-design.md)、
+Guardの計画と境界は[docs/codex-hook-guard-plan.md](docs/codex-hook-guard-plan.md)と
+[docs/codex-hook-guard-design.md](docs/codex-hook-guard-design.md)、Human Receiptは
+[docs/codex-hook-human-approval-plan.md](docs/codex-hook-human-approval-plan.md)と
+[docs/codex-hook-human-approval-design.md](docs/codex-hook-human-approval-design.md)、Sensorは
+[docs/codex-hook-sensor-design.md](docs/codex-hook-sensor-design.md)、Agent return制御は
+[docs/codex-hook-subagent-design.md](docs/codex-hook-subagent-design.md)、診断は
+[docs/codex-hook-health-design.md](docs/codex-hook-health-design.md)を参照してください。
+
 ## 保存場所
 
 ```text
@@ -101,7 +180,7 @@ InstallerはOSに合うネイティブCLIとCodex用ファイルを取得し、�
     ├── memory/                   組織・チーム・プロジェクトのMemory／Policy
     └── spaces/<space>/
         ├── memory/codekb/        Evidence付きの共有System Map
-        └── intents/<intent>/     Plan、State、成果物、Audit
+        └── intents/<intent>/     Plan、State、成果物、Receipt、Sensor、Core Audit、Hook監査・health
 ```
 
 System Mapの正本はJSONです。HTMLは人間から指示された場合だけ生成します。IntentのCurrent Contextは、使用したSystem Map revisionとSHA-256を固定参照します。

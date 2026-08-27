@@ -3,6 +3,8 @@ package doctor
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -20,6 +22,7 @@ import (
 	"github.com/sori883/aidlc/internal/stage/st08release"
 	"github.com/sori883/aidlc/internal/stage/st09outcome"
 	"github.com/sori883/aidlc/internal/workflow/catalog"
+	"github.com/sori883/aidlc/internal/workflow/humanapproval"
 	"github.com/sori883/aidlc/internal/workflow/state"
 )
 
@@ -96,11 +99,21 @@ func Check(projectDir, coreDir string) Report {
 		} else if snapshot.State.CurrentStage != contract.Stage00 || snapshot.State.Status == state.Completed {
 			report.Findings = append(report.Findings, finding(Info, "VNEXT_STAGE_ARTIFACTS_VALID", "All completed Go Stage outputs and their pinned Artifact references are valid.", false))
 		}
+		current, freeze, _, gateErr := humanapproval.ReadCurrent(projectDir, inspection.RecordDir)
+		switch {
+		case gateErr == nil:
+			report.Findings = append(report.Findings, finding(Info, "VNEXT_HUMAN_GATE_VALID", fmt.Sprintf("The %s Human Gate is %s and its immutable bindings are valid.", freeze.Scope, current.Status), false))
+		case errors.Is(gateErr, os.ErrNotExist):
+			// No Human Gate is expected before the first human-review Stage.
+		default:
+			report.Findings = append(report.Findings, finding(Error, "VNEXT_HUMAN_GATE_INVALID", gateErr.Error(), false))
+		}
 	}
 	entries, auditErr := audit.ReadOrdered(inspection.RecordDir)
 	if auditErr != nil || len(entries) == 0 {
 		report.Findings = append(report.Findings, finding(Error, "VNEXT_AUDIT_MISSING", "The Core Audit log is missing.", false))
 	}
+	report.Findings = append(report.Findings, checkHookRuntime(projectDir, inspection.RecordDir)...)
 	return finish(report)
 }
 
@@ -229,11 +242,46 @@ func verifyCompletedStages(projectDir, recordDir string, snapshot state.Snapshot
 
 func verifyReferences(projectDir string, refs ...contract.ArtifactReference) error {
 	for _, ref := range refs {
-		if _, err := stageruntime.ReadReference(projectDir, ref); err != nil {
+		path, err := stageruntime.ReadReference(projectDir, ref)
+		if err != nil {
 			return err
+		}
+		if isHumanDecisionArtifact(ref.Artifact) {
+			content, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			var carrier struct {
+				HumanInputReceiptRef contract.ArtifactReference `json:"human_input_receipt_ref"`
+				Decision             string                     `json:"decision"`
+				Action               string                     `json:"action"`
+			}
+			if decodeErr := json.Unmarshal(content, &carrier); decodeErr != nil {
+				return decodeErr
+			}
+			receipt, receiptErr := humanapproval.VerifyReceipt(projectDir, carrier.HumanInputReceiptRef)
+			if receiptErr != nil {
+				return fmt.Errorf("%s Human Input Receipt: %w", ref.Artifact, receiptErr)
+			}
+			action := carrier.Decision
+			if action == "" {
+				action = carrier.Action
+			}
+			if action == "" || receipt.Action != action {
+				return fmt.Errorf("%s does not bind the same Human action as its Receipt", ref.Artifact)
+			}
 		}
 	}
 	return nil
+}
+
+func isHumanDecisionArtifact(artifact string) bool {
+	switch artifact {
+	case "architecture-policy-approval", "human-decision", "release-authority", "outcome-human-decision", "intent-risk-decision":
+		return true
+	default:
+		return false
+	}
 }
 
 func stageIndex(stageID contract.StageID) int {

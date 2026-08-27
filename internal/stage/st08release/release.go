@@ -22,6 +22,7 @@ import (
 	"github.com/sori883/aidlc/internal/stage/st07review"
 	"github.com/sori883/aidlc/internal/workflow/directive"
 	"github.com/sori883/aidlc/internal/workflow/gate"
+	"github.com/sori883/aidlc/internal/workflow/humanapproval"
 	workflowplan "github.com/sori883/aidlc/internal/workflow/plan"
 	"github.com/sori883/aidlc/internal/workflow/state"
 	"github.com/sori883/aidlc/internal/workspace"
@@ -146,6 +147,7 @@ type Authority struct {
 	AcceptedCandidateRef   contract.ArtifactReference `json:"accepted_candidate_ref"`
 	GateRequirementSetRef  contract.ArtifactReference `json:"gate_requirement_set_ref"`
 	PolicyAcknowledgements []gate.Acknowledgement     `json:"policy_acknowledgements"`
+	HumanInputReceiptRef   contract.ArtifactReference `json:"human_input_receipt_ref"`
 	Decision               string                     `json:"decision"`
 	Reason                 string                     `json:"reason"`
 	DecidedBy              string                     `json:"decided_by"`
@@ -260,13 +262,16 @@ type ReviewResult struct {
 	ReviewReference contract.ArtifactReference `json:"reviewReference"`
 	Gate            gate.RequirementSet        `json:"gate"`
 	GateReference   contract.ArtifactReference `json:"gateReference"`
+	HumanGate       humanapproval.OpenResult   `json:"humanGate"`
 	State           state.IntentState          `json:"state"`
 }
 type AuthorizeResult struct {
-	Authority          Authority                  `json:"authority"`
-	AuthorityReference contract.ArtifactReference `json:"authorityReference"`
-	Attempt            Attempt                    `json:"attempt"`
-	State              state.IntentState          `json:"state"`
+	Authority              Authority                  `json:"authority"`
+	AuthorityReference     contract.ArtifactReference `json:"authorityReference"`
+	Attempt                Attempt                    `json:"attempt"`
+	HumanGateResolution    humanapproval.Resolution   `json:"humanGateResolution"`
+	HumanGateResolutionRef contract.ArtifactReference `json:"humanGateResolutionReference"`
+	State                  state.IntentState          `json:"state"`
 }
 type ExecuteResult struct {
 	Outcome          string                      `json:"outcome"`
@@ -476,15 +481,28 @@ func Review(ctx context.Context, projectDir, coreDir string, proposalBytes []byt
 	}
 	current.Snapshot.Plan = revised
 	current.Snapshot.State.PlanRevision = revised.Revision
+	humanGate, err := humanapproval.Open(ctx, current.ProjectDir, current.Snapshot.RecordDir, humanapproval.OpenOptions{
+		IntentID: current.Snapshot.State.IntentID, Scope: string(contract.Stage08),
+		SubjectRef: ref, ReviewRef: reviewRef, GateRequirementRef: &gateSet.Reference,
+		GraphVersion: current.Snapshot.State.GraphVersion, PlanRevision: current.Snapshot.State.PlanRevision,
+		AllowedActions: []string{"authorize-release", "request-revision"}, OpenedAt: at,
+	})
+	if err != nil {
+		return ReviewResult{}, err
+	}
 	parked, err := stageruntime.Park(ctx, current, "ST-08 is awaiting human authority for the exact Release Plan SHA-256.", at)
 	if err != nil {
 		return ReviewResult{}, err
 	}
 	_, _ = audit.Append(ctx, current.ProjectDir, current.Snapshot.RecordDir, audit.StageAwaitingApproval, []audit.Field{{Name: "Stage", Value: "ST-08"}, {Name: "Release Plan SHA-256", Value: ref.SHA256}, {Name: "Review", Value: reviewRef.SourceOfTruth}, {Name: "Decision Authority", Value: "human"}}, nil)
-	return ReviewResult{Plan: value, PlanReference: ref, ReviewReference: reviewRef, Gate: gateSet.Set, GateReference: gateSet.Reference, State: parked}, nil
+	return ReviewResult{Plan: value, PlanReference: ref, ReviewReference: reviewRef, Gate: gateSet.Set, GateReference: gateSet.Reference, HumanGate: humanGate, State: parked}, nil
 }
 
-func Authorize(ctx context.Context, projectDir, coreDir, planSHA, reason string, acknowledgements []gate.Acknowledgement, at string) (AuthorizeResult, error) {
+type AuthorizationParameters struct {
+	PolicyAcknowledgements []gate.Acknowledgement `json:"policy_acknowledgements"`
+}
+
+func Authorize(ctx context.Context, projectDir, coreDir string, proof humanapproval.Proof) (AuthorizeResult, error) {
 	current, err := stageruntime.Load(projectDir, coreDir, contract.Stage08)
 	if err != nil {
 		return AuthorizeResult{}, err
@@ -493,9 +511,16 @@ func Authorize(ctx context.Context, projectDir, coreDir, planSHA, reason string,
 	if err != nil {
 		return AuthorizeResult{}, err
 	}
-	if ref.SHA256 != planSHA {
-		return AuthorizeResult{}, fmt.Errorf("ST-08 Release: authority SHA-256 does not match pending Plan")
+	if err := proof.Require(string(contract.Stage08), "authorize-release", ref.SHA256); err != nil {
+		return AuthorizeResult{}, fmt.Errorf("ST-08 Release: %w", err)
 	}
+	var parameters AuthorizationParameters
+	if err := proof.Parameters(&parameters); err != nil {
+		return AuthorizeResult{}, fmt.Errorf("ST-08 Release authorization parameters: %w", err)
+	}
+	acknowledgements := parameters.PolicyAcknowledgements
+	reason := proof.Reason()
+	at := proof.Receipt().ObservedAt
 	requestPath, err := stageruntime.ReadReference(current.ProjectDir, value.WorkRequestRef)
 	if err != nil {
 		return AuthorizeResult{}, err
@@ -514,9 +539,6 @@ func Authorize(ctx context.Context, projectDir, coreDir, planSHA, reason string,
 	if err := reobserveTargets(ctx, current.ProjectDir, value); err != nil {
 		return AuthorizeResult{}, err
 	}
-	if at == "" {
-		at = stageruntime.Now()
-	}
 	gateSet, err := gate.Resolve(current.ProjectDir, current.Snapshot.RecordDir, contract.Stage08, value.EffectivePolicyRef, at)
 	if err != nil {
 		return AuthorizeResult{}, err
@@ -527,7 +549,7 @@ func Authorize(ctx context.Context, projectDir, coreDir, planSHA, reason string,
 	if acknowledgements == nil {
 		acknowledgements = []gate.Acknowledgement{}
 	}
-	authority := Authority{SchemaVersion: 1, Artifact: "release-authority", Version: 1, AuthorityID: "release-authority-" + planSHA[7:19], IntentID: current.Snapshot.State.IntentID, ReleasePlanRef: ref, AcceptedCandidateRef: value.AcceptedCandidateRef, GateRequirementSetRef: gateSet.Reference, PolicyAcknowledgements: acknowledgements, Decision: "authorize-release", Reason: reason, DecidedBy: "human", DecidedAt: at}
+	authority := Authority{SchemaVersion: 1, Artifact: "release-authority", Version: 1, AuthorityID: "release-authority-" + ref.SHA256[7:19], IntentID: current.Snapshot.State.IntentID, ReleasePlanRef: ref, AcceptedCandidateRef: value.AcceptedCandidateRef, GateRequirementSetRef: gateSet.Reference, PolicyAcknowledgements: acknowledgements, HumanInputReceiptRef: proof.ReceiptReference(), Decision: "authorize-release", Reason: reason, DecidedBy: "human", DecidedAt: at}
 	authorityRef, authorityBytes, err := stageruntime.WriteCanonical(current.ProjectDir, AuthorityRevisionPath(current.Snapshot.RecordDir, authority.AuthorityID), authority.Artifact, 1, authority, true)
 	if err != nil {
 		return AuthorizeResult{}, err
@@ -540,7 +562,11 @@ func Authorize(ctx context.Context, projectDir, coreDir, planSHA, reason string,
 		return AuthorizeResult{}, err
 	}
 	parked, err := stageruntime.Park(ctx, current, "ST-08 has exact human authority and is ready for Core execution.", at)
-	return AuthorizeResult{Authority: authority, AuthorityReference: authorityRef, Attempt: attempt, State: parked}, err
+	if err != nil {
+		return AuthorizeResult{}, err
+	}
+	resolution, resolutionRef, err := humanapproval.Resolve(ctx, current.ProjectDir, current.Snapshot.RecordDir, proof, &authorityRef, "authorized", at)
+	return AuthorizeResult{Authority: authority, AuthorityReference: authorityRef, Attempt: attempt, HumanGateResolution: resolution, HumanGateResolutionRef: resolutionRef, State: parked}, err
 }
 
 func Execute(ctx context.Context, projectDir, coreDir, at string) (ExecuteResult, error) {

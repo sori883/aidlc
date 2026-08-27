@@ -14,11 +14,20 @@ import (
 	"github.com/sori883/aidlc/internal/audit"
 	"github.com/sori883/aidlc/internal/contract"
 	"github.com/sori883/aidlc/internal/doctor"
+	"github.com/sori883/aidlc/internal/hookapproval"
+	"github.com/sori883/aidlc/internal/hookaudit"
+	"github.com/sori883/aidlc/internal/hookcontext"
+	"github.com/sori883/aidlc/internal/hookguard"
+	"github.com/sori883/aidlc/internal/hookhealth"
+	"github.com/sori883/aidlc/internal/hooksensor"
+	"github.com/sori883/aidlc/internal/hooksubagent"
+	"github.com/sori883/aidlc/internal/hookturn"
 	"github.com/sori883/aidlc/internal/installer"
 	"github.com/sori883/aidlc/internal/intent"
 	"github.com/sori883/aidlc/internal/platform/jsonx"
 	"github.com/sori883/aidlc/internal/platform/lock"
 	"github.com/sori883/aidlc/internal/platform/runtimepath"
+	"github.com/sori883/aidlc/internal/sensor"
 	"github.com/sori883/aidlc/internal/space"
 	"github.com/sori883/aidlc/internal/stage/st00bootstrap"
 	"github.com/sori883/aidlc/internal/stage/st01orient"
@@ -43,7 +52,9 @@ import (
 
 // Options supplies resolved runtime assets for tests and development tooling.
 type Options struct {
-	CoreDir string
+	CoreDir        string
+	HookRuntimeDir string
+	Stdin          io.Reader
 }
 
 type route struct {
@@ -58,8 +69,10 @@ var routes = []route{
 	{Noun: "build", Commands: []string{"prepare", "verify", "reuse"}, Summary: "prepare, verify, or reuse validated ST-06 build work"},
 	{Noun: "doctor", Commands: []string{"check", "repair"}, Summary: "diagnose and repair vNext Core state"},
 	{Noun: "define-intent", Commands: []string{"prepare", "complete"}, Summary: "prepare and validate ST-02 Define Intent work"},
-	{Noun: "delegation", Commands: []string{"show", "validate"}, Summary: "inspect and validate fixed vNext Stage Agent assignments"},
+	{Noun: "delegation", Commands: []string{"receipt", "show", "validate"}, Summary: "inspect Stage Agent assignments and validated result Receipts"},
 	{Noun: "graph", Commands: []string{"show", "catalog", "validate"}, Summary: "inspect the fixed vNext Catalog and Graph"},
+	{Noun: "hook", Commands: []string{"freeze", "guard", "inject", "receipt", "record", "sensor", "status", "subagent", "turn"}, Summary: "enforce Human Gates, Tool and Agent result scope, inject context, observe turns, run Sensors, or record Hook evidence"},
+	{Noun: "human-gate", Commands: []string{"status", "prepare", "apply"}, Summary: "freeze, confirm, and consume explicit Human Gate actions"},
 	{Noun: "intent", Commands: []string{"birth", "list", "switch", "risk"}, Summary: "create and select Intents or manage the active Intent Risk Register"},
 	{Noun: "orchestrate", Commands: []string{"next"}, Summary: "resolve the next Core-owned vNext action"},
 	{Noun: "orient", Commands: []string{"prepare", "complete"}, Summary: "prepare and validate ST-01 Orient work"},
@@ -68,6 +81,7 @@ var routes = []route{
 	{Noun: "requirements", Commands: []string{"prepare", "complete"}, Summary: "prepare and validate ST-03 Requirements work"},
 	{Noun: "release", Commands: []string{"prepare", "review", "authorize", "execute", "reuse"}, Summary: "plan, authorize, execute, or verify reuse of ST-08 Release results"},
 	{Noun: "review", Commands: []string{"prepare", "approve", "feedback"}, Summary: "prepare and decide ST-07 Candidate review work"},
+	{Noun: "sensor", Commands: []string{"list", "describe", "fire", "status"}, Summary: "inspect or explicitly run deterministic vNext Sensors"},
 	{Noun: "space", Commands: []string{"create", "list", "switch"}, Summary: "create and select Spaces"},
 	{Noun: "state", Commands: []string{"show", "resume", "check"}, Summary: "inspect the Core-owned vNext State"},
 	{Noun: "workspace", Commands: []string{"init"}, Summary: "initialize an AI-DLC Workspace"},
@@ -75,7 +89,7 @@ var routes = []route{
 
 // Run executes the Stage 2 Go CLI.
 func Run(args []string, stdout, stderr io.Writer) int {
-	return RunWithOptions(args, stdout, stderr, Options{})
+	return RunWithOptions(args, stdout, stderr, Options{Stdin: os.Stdin})
 }
 
 // RunWithOptions executes the CLI with explicit runtime options.
@@ -141,6 +155,13 @@ func runWithContext(ctx context.Context, args []string, stdout, stderr io.Writer
 	}
 
 	switch {
+	case args[0] == "human-gate":
+		resolvedCore, err := resolveCore()
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		return runHumanGate(ctx, args, stdout, stderr, resolvedCore)
+
 	case args[0] == "graph" && args[1] == "show":
 		if len(args) != 2 {
 			return writeError(stderr, "Usage: aidlc graph <show|catalog|validate>")
@@ -260,6 +281,104 @@ func runWithContext(ctx context.Context, args []string, stdout, stderr io.Writer
 		default:
 			return writeError(stderr, "Delegation CLI assignment: must be work or review")
 		}
+
+	case args[0] == "delegation" && args[1] == "receipt":
+		if len(args) != 4 {
+			return writeError(stderr, "Usage: aidlc delegation receipt <project-dir> <agent-id>")
+		}
+		current, receipt, err := hooksubagent.Inspect(args[2], args[3])
+		if err != nil {
+			return writeError(stderr, "aidlc: Delegation Receipt: "+err.Error())
+		}
+		result := struct {
+			Current hooksubagent.CurrentReceipt `json:"current"`
+			Receipt hooksubagent.Receipt        `json:"receipt"`
+		}{Current: current, Receipt: receipt}
+		return writeJSON(stdout, stderr, result, true)
+
+	case args[0] == "sensor" && args[1] == "list":
+		if len(args) != 2 {
+			return writeError(stderr, "Usage: aidlc sensor list")
+		}
+		return writeJSON(stdout, stderr, sensor.List(), true)
+
+	case args[0] == "sensor" && args[1] == "describe":
+		if len(args) != 3 {
+			return writeError(stderr, "Usage: aidlc sensor describe <sensor-id>")
+		}
+		definition, ok := sensor.Describe(args[2])
+		if !ok {
+			return writeError(stderr, "aidlc: unknown Sensor: "+args[2])
+		}
+		return writeJSON(stdout, stderr, definition, true)
+
+	case args[0] == "sensor" && args[1] == "status":
+		if len(args) != 3 {
+			return writeError(stderr, "Usage: aidlc sensor status <project-dir>")
+		}
+		inspection, err := state.InspectActive(args[2])
+		if err != nil || inspection.Kind != state.InspectionVNext {
+			if err == nil {
+				err = fmt.Errorf("active Intent is not a vNext Intent")
+			}
+			return writeError(stderr, "aidlc: Sensor: "+err.Error())
+		}
+		status, err := sensor.Inspect(inspection.RecordDir)
+		if err != nil {
+			return writeError(stderr, "aidlc: Sensor: "+err.Error())
+		}
+		return writeJSON(stdout, stderr, status, true)
+
+	case args[0] == "sensor" && args[1] == "fire":
+		if len(args) < 5 || len(args) > 6 {
+			return writeError(stderr, "Usage: aidlc sensor fire <project-dir> <sensor-id> <path> [expected-sha256]")
+		}
+		definition, ok := sensor.Describe(args[3])
+		if !ok {
+			return writeError(stderr, "aidlc: unknown Sensor: "+args[3])
+		}
+		inspection, err := state.InspectActive(args[2])
+		if err != nil || inspection.Kind != state.InspectionVNext {
+			if err == nil {
+				err = fmt.Errorf("active Intent is not a vNext Intent")
+			}
+			return writeError(stderr, "aidlc: Sensor: "+err.Error())
+		}
+		snapshot, err := state.Read(inspection.RecordDir)
+		if err != nil {
+			return writeError(stderr, "aidlc: Sensor: "+err.Error())
+		}
+		request := sensor.Request{ProjectDir: args[2], RecordDir: inspection.RecordDir, Stage: string(snapshot.State.CurrentStage), SensorID: definition.ID, Trigger: definition.Trigger, Path: args[4], ObservationID: "manual"}
+		if definition.Trigger == sensor.TriggerGate {
+			if len(args) != 6 {
+				return writeError(stderr, "aidlc: gate Sensor requires expected-sha256")
+			}
+			projectRoot, absErr := filepath.Abs(args[2])
+			inputPath := args[4]
+			if !filepath.IsAbs(inputPath) {
+				inputPath = filepath.Join(projectRoot, inputPath)
+			}
+			portable, relativeErr := filepath.Rel(projectRoot, filepath.Clean(inputPath))
+			if absErr != nil || relativeErr != nil {
+				return writeError(stderr, "aidlc: Sensor: cannot resolve input path")
+			}
+			reference := contract.ArtifactReference{Artifact: "manual-sensor-input", Version: 1, SourceOfTruth: filepath.ToSlash(portable), SHA256: args[5]}
+			request.Path = reference.SourceOfTruth
+			request.ExpectedRef = &reference
+		} else if len(args) != 5 {
+			return writeError(stderr, "aidlc: write Sensor does not accept expected-sha256")
+		}
+		result, err := sensor.Fire(ctx, request, sensor.Options{})
+		if err != nil {
+			return writeError(stderr, "aidlc: Sensor: "+err.Error())
+		}
+		if code := writeJSON(stdout, stderr, result, true); code != 0 {
+			return code
+		}
+		if result.Blocking && !result.Passed {
+			return 1
+		}
+		return 0
 
 	case args[0] == "workspace" && args[1] == "init":
 		if len(args) > 3 {
@@ -474,6 +593,9 @@ func runWithContext(ctx context.Context, args []string, stdout, stderr io.Writer
 			}{Register: register, Reference: reference, Current: current}
 			return writeJSON(stdout, stderr, result, true)
 		}
+		if args[2] == "decide" {
+			return writeError(stderr, "Direct human Risk decisions are disabled; use 'aidlc human-gate prepare' and 'aidlc human-gate apply' with a Codex Human Input Receipt")
+		}
 		content, err := os.ReadFile(args[4])
 		if err != nil {
 			return writeError(stderr, err.Error())
@@ -494,20 +616,7 @@ func runWithContext(ctx context.Context, args []string, stdout, stderr io.Writer
 				Register risk.Register `json:"register"`
 			}{register}, true)
 		}
-		decision, err := risk.DecodeDecision(content)
-		if err != nil {
-			return writeError(stderr, err.Error())
-		}
-		register, err := risk.Decide(ctx, args[3], snapshot.RecordDir, decision, "")
-		if err != nil {
-			return writeError(stderr, err.Error())
-		}
-		if _, err := audit.Append(ctx, args[3], snapshot.RecordDir, audit.DecisionRecorded, []audit.Field{{Name: "Decision", Value: string(decision.Action)}, {Name: "Risk", Value: decision.RiskID}, {Name: "Revision", Value: fmt.Sprint(register.Revision)}, {Name: "Decision Authority", Value: "human"}}, nil); err != nil {
-			return writeError(stderr, err.Error())
-		}
-		return writeJSON(stdout, stderr, struct {
-			Register risk.Register `json:"register"`
-		}{register}, true)
+		return writeError(stderr, "Direct human Risk decisions are disabled; use the Human Gate Receipt flow")
 
 	case args[0] == "state" && (args[1] == "show" || args[1] == "resume" || args[1] == "check"):
 		if len(args) != 3 {
@@ -731,18 +840,7 @@ func runWithContext(ctx context.Context, args []string, stdout, stderr io.Writer
 			}
 			return writeJSON(stdout, stderr, result, true)
 		case "policy-approve":
-			if len(args) < 5 || len(args) > 6 {
-				return writeError(stderr, "Usage: aidlc architecture policy-approve <project-dir> <proposal-sha256> <reason> [acknowledgements.json]")
-			}
-			acks, err := readOptionalJSON[[]gate.Acknowledgement](args, 5)
-			if err != nil {
-				return writeError(stderr, err.Error())
-			}
-			result, err := st04architecture.ApprovePolicy(ctx, args[2], resolvedCore, args[3], args[4], acks, "")
-			if err != nil {
-				return writeError(stderr, err.Error())
-			}
-			return writeJSON(stdout, stderr, result, true)
+			return writeError(stderr, "Direct approval is disabled; use 'aidlc human-gate prepare' and 'aidlc human-gate apply' with a Codex Human Input Receipt")
 		}
 
 	case args[0] == "build-contract":
@@ -777,18 +875,7 @@ func runWithContext(ctx context.Context, args []string, stdout, stderr io.Writer
 			}
 			return writeJSON(stdout, stderr, result, true)
 		case "approve":
-			if len(args) < 5 || len(args) > 6 {
-				return writeError(stderr, "Usage: aidlc build-contract approve <project-dir> <candidate-sha256> <reason> [acknowledgements.json]")
-			}
-			acks, err := readOptionalJSON[[]gate.Acknowledgement](args, 5)
-			if err != nil {
-				return writeError(stderr, err.Error())
-			}
-			result, err := st05buildcontract.Approve(ctx, args[2], resolvedCore, args[3], args[4], acks, "")
-			if err != nil {
-				return writeError(stderr, err.Error())
-			}
-			return writeJSON(stdout, stderr, result, true)
+			return writeError(stderr, "Direct approval is disabled; use the Human Gate Receipt flow")
 		}
 
 	case args[0] == "build":
@@ -856,35 +943,9 @@ func runWithContext(ctx context.Context, args []string, stdout, stderr io.Writer
 			}
 			return writeJSON(stdout, stderr, result, true)
 		case "approve":
-			if len(args) < 5 || len(args) > 7 {
-				return writeError(stderr, "Usage: aidlc review approve <project-dir> <manifest-sha256> <reason> [human-checks.json] [acknowledgements.json]")
-			}
-			checks, err := readOptionalJSON[[]st07review.HumanCheckResult](args, 5)
-			if err != nil {
-				return writeError(stderr, err.Error())
-			}
-			acks, err := readOptionalJSON[[]gate.Acknowledgement](args, 6)
-			if err != nil {
-				return writeError(stderr, err.Error())
-			}
-			result, err := st07review.Approve(ctx, args[2], resolvedCore, args[3], args[4], checks, acks, "")
-			if err != nil {
-				return writeError(stderr, err.Error())
-			}
-			return writeJSON(stdout, stderr, result, true)
+			return writeError(stderr, "Direct approval is disabled; use the Human Gate Receipt flow")
 		case "feedback":
-			if len(args) != 6 {
-				return writeError(stderr, "Usage: aidlc review feedback <project-dir> <manifest-sha256> <feedback.json> <reason>")
-			}
-			items, err := readJSONFile[[]st07review.FeedbackItem](args[4])
-			if err != nil {
-				return writeError(stderr, err.Error())
-			}
-			result, err := st07review.Feedback(ctx, args[2], resolvedCore, args[3], args[5], items, []st07review.HumanCheckResult{}, "")
-			if err != nil {
-				return writeError(stderr, err.Error())
-			}
-			return writeJSON(stdout, stderr, result, true)
+			return writeError(stderr, "Direct feedback is disabled; use the Human Gate Receipt flow")
 		}
 
 	case args[0] == "release":
@@ -923,18 +984,7 @@ func runWithContext(ctx context.Context, args []string, stdout, stderr io.Writer
 			}
 			return writeJSON(stdout, stderr, result, true)
 		case "authorize":
-			if len(args) < 5 || len(args) > 7 {
-				return writeError(stderr, "Usage: aidlc release authorize <project-dir> <plan-sha256> <reason> [acknowledgements.json] [decided-at]")
-			}
-			acks, decidedAt, err := readOptionalAcknowledgementsAndTime(args, 5)
-			if err != nil {
-				return writeError(stderr, err.Error())
-			}
-			result, err := st08release.Authorize(ctx, args[2], resolvedCore, args[3], args[4], acks, decidedAt)
-			if err != nil {
-				return writeError(stderr, err.Error())
-			}
-			return writeJSON(stdout, stderr, result, true)
+			return writeError(stderr, "Direct release authority is disabled; use the Human Gate Receipt flow")
 		case "execute":
 			if len(args) > 4 {
 				return writeError(stderr, "Usage: aidlc release execute <project-dir> [executed-at]")
@@ -1003,36 +1053,7 @@ func runWithContext(ctx context.Context, args []string, stdout, stderr io.Writer
 			}
 			return writeJSON(stdout, stderr, result, true)
 		case "decide":
-			if len(args) < 6 || len(args) > 10 {
-				return writeError(stderr, "Usage: aidlc outcome decide <project-dir> <evaluation-sha256> <decision> <reason> [acknowledgements.json] [not-before] [deadline] [decided-at]")
-			}
-			acks := []gate.Acknowledgement{}
-			optionalIndex := 6
-			if len(args) > optionalIndex {
-				if info, statErr := os.Stat(args[optionalIndex]); statErr == nil && info.Mode().IsRegular() {
-					acks, err = readJSONFile[[]gate.Acknowledgement](args[optionalIndex])
-					if err != nil {
-						return writeError(stderr, err.Error())
-					}
-					optionalIndex++
-				}
-			}
-			var notBefore, deadline *string
-			if len(args) > optionalIndex {
-				notBefore = &args[optionalIndex]
-			}
-			if len(args) > optionalIndex+1 {
-				deadline = &args[optionalIndex+1]
-			}
-			decidedAt := ""
-			if len(args) > optionalIndex+2 {
-				decidedAt = args[optionalIndex+2]
-			}
-			result, err := st09outcome.Decide(ctx, args[2], resolvedCore, st09outcome.DecideOptions{EvaluationSHA256: args[3], Decision: args[4], Reason: args[5], PolicyAcknowledgements: acks, NotBefore: notBefore, Deadline: deadline, DecidedAt: decidedAt})
-			if err != nil {
-				return writeError(stderr, err.Error())
-			}
-			return writeJSON(stdout, stderr, result, true)
+			return writeError(stderr, "Direct Outcome decisions are disabled; use the Human Gate Receipt flow")
 		case "reuse":
 			if len(args) < 5 || len(args) > 6 {
 				return writeError(stderr, "Usage: aidlc outcome reuse <project-dir> <outcome-current.json> <reason> [reused-at]")
@@ -1070,6 +1091,315 @@ func runWithContext(ctx context.Context, args []string, stdout, stderr io.Writer
 			return 1
 		}
 		return 0
+
+	case args[0] == "hook" && args[1] == "guard":
+		if len(args) != 3 && len(args) != 5 {
+			return writeError(stderr, "Usage: aidlc hook guard <project-dir> [--harness codex]")
+		}
+		harness := "codex"
+		if len(args) == 5 {
+			if args[3] != "--harness" || args[4] == "" {
+				return writeError(stderr, "Usage: aidlc hook guard <project-dir> [--harness codex]")
+			}
+			harness = args[4]
+		}
+		if options.Stdin == nil {
+			return writeError(stderr, "aidlc: Hook input is unavailable on standard input")
+		}
+		result, err := hookguard.Guard(ctx, args[2], options.Stdin, hookguard.Options{Harness: harness})
+		outcome := "allowed"
+		if result.Denied {
+			outcome = "denied"
+		}
+		if err != nil {
+			outcome = "handler-failed"
+		}
+		recordHookHealth(ctx, args[2], "guard", "PreToolUse", outcome, err)
+		var content []byte
+		if err != nil {
+			content = hookguard.MarshalFailureResponse()
+		} else {
+			content, err = hookguard.MarshalResponse(result)
+			if err != nil {
+				content = hookguard.MarshalFailureResponse()
+			}
+		}
+		if len(content) == 0 {
+			return 0
+		}
+		if _, err := stdout.Write(content); err != nil {
+			return writeError(stderr, "aidlc: Hook Guard: write response: "+err.Error())
+		}
+		return 0
+
+	case args[0] == "hook" && args[1] == "receipt":
+		if len(args) != 3 && len(args) != 5 {
+			return writeError(stderr, "Usage: aidlc hook receipt <project-dir> [--harness codex]")
+		}
+		harness := "codex"
+		if len(args) == 5 {
+			if args[3] != "--harness" || args[4] == "" {
+				return writeError(stderr, "Usage: aidlc hook receipt <project-dir> [--harness codex]")
+			}
+			harness = args[4]
+		}
+		if options.Stdin == nil {
+			return writeError(stderr, "aidlc: Hook input is unavailable on standard input")
+		}
+		result, err := hookapproval.Capture(ctx, args[2], options.Stdin, hookapproval.Options{Harness: harness})
+		outcome := "no-confirmation"
+		if result.Matched {
+			outcome = "receipt-recorded"
+		}
+		if err != nil {
+			outcome = "handler-failed"
+		}
+		if result.Matched || err != nil {
+			recordHookHealth(ctx, args[2], "human-receipt", "UserPromptSubmit", outcome, err)
+		}
+		var content []byte
+		if err != nil {
+			content = hookapproval.MarshalCaptureFailureResponse()
+		} else {
+			content, err = hookapproval.MarshalCaptureResponse(result)
+			if err != nil {
+				content = hookapproval.MarshalCaptureFailureResponse()
+			}
+		}
+		if len(content) == 0 {
+			return 0
+		}
+		if _, err := stdout.Write(content); err != nil {
+			return writeError(stderr, "aidlc: Human Receipt Hook: write response: "+err.Error())
+		}
+		return 0
+
+	case args[0] == "hook" && args[1] == "turn":
+		if len(args) != 3 && len(args) != 5 {
+			return writeError(stderr, "Usage: aidlc hook turn <project-dir> [--harness codex]")
+		}
+		harness := "codex"
+		if len(args) == 5 {
+			if args[3] != "--harness" || args[4] == "" {
+				return writeError(stderr, "Usage: aidlc hook turn <project-dir> [--harness codex]")
+			}
+			harness = args[4]
+		}
+		if options.Stdin == nil {
+			return writeError(stderr, "aidlc: Hook input is unavailable on standard input")
+		}
+		_, err := hookturn.Observe(ctx, args[2], options.Stdin, hookturn.Options{
+			Harness: harness, RuntimeDir: options.HookRuntimeDir,
+		})
+		if err != nil {
+			return writeError(stderr, "aidlc: Human Turn Hook: "+err.Error())
+		}
+		return 0
+
+	case args[0] == "hook" && args[1] == "freeze":
+		if len(args) != 3 && len(args) != 5 {
+			return writeError(stderr, "Usage: aidlc hook freeze <project-dir> [--harness codex]")
+		}
+		harness := "codex"
+		if len(args) == 5 {
+			if args[3] != "--harness" || args[4] == "" {
+				return writeError(stderr, "Usage: aidlc hook freeze <project-dir> [--harness codex]")
+			}
+			harness = args[4]
+		}
+		if options.Stdin == nil {
+			return writeError(stderr, "aidlc: Hook input is unavailable on standard input")
+		}
+		result, err := hookapproval.Freeze(ctx, args[2], options.Stdin, hookapproval.Options{Harness: harness})
+		outcome := "no-pending-gate"
+		if result.Pending {
+			outcome = "gate-pending"
+		}
+		if err != nil {
+			outcome = "handler-failed"
+		}
+		recordHookHealth(ctx, args[2], "review-freeze", "Stop", outcome, err)
+		var content []byte
+		if err != nil {
+			content = hookapproval.MarshalFreezeFailureResponse()
+		} else {
+			content, err = hookapproval.MarshalFreezeResponse(result)
+			if err != nil {
+				content = hookapproval.MarshalFreezeFailureResponse()
+			}
+		}
+		if _, err := stdout.Write(content); err != nil {
+			return writeError(stderr, "aidlc: Review Freeze Hook: write response: "+err.Error())
+		}
+		return 0
+
+	case args[0] == "hook" && args[1] == "inject":
+		if len(args) != 3 && len(args) != 5 {
+			return writeError(stderr, "Usage: aidlc hook inject <project-dir> [--harness codex]")
+		}
+		harness := "codex"
+		if len(args) == 5 {
+			if args[3] != "--harness" || args[4] == "" {
+				return writeError(stderr, "Usage: aidlc hook inject <project-dir> [--harness codex]")
+			}
+			harness = args[4]
+		}
+		if options.Stdin == nil {
+			return writeError(stderr, "aidlc: Hook input is unavailable on standard input")
+		}
+		resolvedCore, err := resolveCore()
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		result, err := hookcontext.Inject(ctx, args[2], resolvedCore, options.Stdin, hookcontext.Options{Harness: harness})
+		outcome := "no-active-context"
+		if result.Injected {
+			outcome = "injected"
+		}
+		if err != nil {
+			outcome = "handler-failed"
+		}
+		recordHookHealth(ctx, args[2], "context", result.HookEventName, outcome, err)
+		if err != nil {
+			return writeError(stderr, "aidlc: Hook Context: "+err.Error())
+		}
+		content, err := hookcontext.MarshalResponse(result)
+		if err != nil {
+			return writeError(stderr, "aidlc: Hook Context: "+err.Error())
+		}
+		if len(content) == 0 {
+			return 0
+		}
+		if _, err := stdout.Write(content); err != nil {
+			return writeError(stderr, "aidlc: Hook Context: write response: "+err.Error())
+		}
+		return 0
+
+	case args[0] == "hook" && args[1] == "record":
+		if len(args) != 3 && len(args) != 5 {
+			return writeError(stderr, "Usage: aidlc hook record <project-dir> [--harness codex]")
+		}
+		harness := "codex"
+		if len(args) == 5 {
+			if args[3] != "--harness" || args[4] == "" {
+				return writeError(stderr, "Usage: aidlc hook record <project-dir> [--harness codex]")
+			}
+			harness = args[4]
+		}
+		if options.Stdin == nil {
+			return writeError(stderr, "aidlc: Hook input is unavailable on standard input")
+		}
+		recorded, err := hookaudit.Record(ctx, args[2], options.Stdin, hookaudit.RecordOptions{Harness: harness})
+		if err == nil {
+			outcome := "recorded"
+			if !recorded.Recorded {
+				outcome = recorded.Reason
+			}
+			recordHookHealth(ctx, args[2], "audit", recorded.SourceEvent, outcome, nil)
+		}
+		if err != nil {
+			return writeError(stderr, "aidlc: Hook Audit: "+err.Error())
+		}
+		return 0
+
+	case args[0] == "hook" && args[1] == "sensor":
+		if len(args) != 3 && len(args) != 5 {
+			return writeError(stderr, "Usage: aidlc hook sensor <project-dir> [--harness codex]")
+		}
+		harness := "codex"
+		if len(args) == 5 {
+			if args[3] != "--harness" || args[4] == "" {
+				return writeError(stderr, "Usage: aidlc hook sensor <project-dir> [--harness codex]")
+			}
+			harness = args[4]
+		}
+		if options.Stdin == nil {
+			return writeError(stderr, "aidlc: Hook input is unavailable on standard input")
+		}
+		observed, err := hooksensor.Observe(ctx, args[2], options.Stdin, hooksensor.Options{Harness: harness})
+		outcome := "no-match"
+		if observed.Fired > 0 {
+			outcome = "fired"
+		} else if observed.Matched > 0 {
+			outcome = "matched-not-fired"
+		}
+		if err != nil {
+			outcome = "handler-failed"
+		}
+		recordHookHealth(ctx, args[2], "sensor", "PostToolUse", outcome, err)
+		if err != nil {
+			// PostToolUse write Sensors are advisory. A handler failure is reported
+			// to stderr for diagnostics but must not block the completed Tool call.
+			_, _ = fmt.Fprintln(stderr, "aidlc: Sensor Hook advisory failure: "+err.Error())
+		}
+		return 0
+
+	case args[0] == "hook" && args[1] == "subagent":
+		if len(args) != 3 && len(args) != 5 {
+			return writeError(stderr, "Usage: aidlc hook subagent <project-dir> [--harness codex]")
+		}
+		harness := "codex"
+		if len(args) == 5 {
+			if args[3] != "--harness" || args[4] == "" {
+				return writeError(stderr, "Usage: aidlc hook subagent <project-dir> [--harness codex]")
+			}
+			harness = args[4]
+		}
+		if options.Stdin == nil {
+			return writeError(stderr, "aidlc: Hook input is unavailable on standard input")
+		}
+		resolvedCore, err := resolveCore()
+		if err != nil {
+			return writeError(stderr, err.Error())
+		}
+		result, err := hooksubagent.Validate(ctx, args[2], resolvedCore, options.Stdin, hooksubagent.Options{Harness: harness})
+		outcome := string(result.Status)
+		if err != nil {
+			outcome = "handler-failed"
+		}
+		recordHookHealth(ctx, args[2], "subagent", "SubagentStop", outcome, err)
+		content := hooksubagent.MarshalFailureResponse()
+		if err == nil {
+			content, err = hooksubagent.MarshalResponse(result)
+			if err != nil {
+				content = hooksubagent.MarshalFailureResponse()
+			}
+		}
+		if _, err := stdout.Write(content); err != nil {
+			return writeError(stderr, "aidlc: SubagentStop Hook: write response: "+err.Error())
+		}
+		return 0
+
+	case args[0] == "hook" && args[1] == "status":
+		if len(args) != 3 {
+			return writeError(stderr, "Usage: aidlc hook status <project-dir>")
+		}
+		auditStatus, err := hookaudit.Inspect(args[2])
+		if err != nil {
+			return writeError(stderr, "aidlc: Hook Audit: "+err.Error())
+		}
+		result := struct {
+			hookaudit.Status
+			HandlerHealth     hookhealth.Status             `json:"handler_health"`
+			Sensors           sensor.Status                 `json:"sensors"`
+			DelegationResults hooksubagent.ReceiptInventory `json:"delegation_results"`
+		}{Status: auditStatus, HandlerHealth: hookhealth.Status{Entries: []hookhealth.Entry{}}, Sensors: sensor.Status{}}
+		inspection, inspectErr := state.InspectActive(args[2])
+		if inspectErr == nil && inspection.Kind == state.InspectionVNext {
+			result.HandlerHealth, err = hookhealth.Inspect(inspection.RecordDir)
+			if err != nil {
+				return writeError(stderr, "aidlc: Hook Health: "+err.Error())
+			}
+			result.Sensors, err = sensor.Inspect(inspection.RecordDir)
+			if err != nil {
+				return writeError(stderr, "aidlc: Sensor: "+err.Error())
+			}
+			result.DelegationResults, err = hooksubagent.InspectAll(args[2])
+			if err != nil {
+				return writeError(stderr, "aidlc: Delegation Receipt: "+err.Error())
+			}
+		}
+		return writeJSON(stdout, stderr, result, true)
 	default:
 		return writeError(
 			stderr,
@@ -1081,11 +1411,25 @@ func runWithContext(ctx context.Context, args []string, stdout, stderr io.Writer
 
 func stageRuntimeNoun(noun string) bool {
 	switch noun {
-	case "orient", "define-intent", "requirements", "architecture", "build-contract", "build", "review", "release", "outcome", "orchestrate":
+	case "orient", "define-intent", "requirements", "architecture", "build-contract", "build", "review", "release", "outcome", "orchestrate", "human-gate":
 		return true
 	default:
 		return false
 	}
+}
+
+func recordHookHealth(ctx context.Context, projectDir, handler, sourceEvent, outcome string, handlerErr error) {
+	if sourceEvent == "" || outcome == "" {
+		return
+	}
+	failureCode := ""
+	if handlerErr != nil {
+		failureCode = "handler-error"
+	}
+	_ = hookhealth.Record(ctx, projectDir, hookhealth.Observation{
+		Handler: handler, SourceEvent: sourceEvent, Succeeded: handlerErr == nil,
+		Outcome: outcome, FailureCode: failureCode,
+	})
 }
 
 func readStageContracts(directory string) ([]contract.StageContract, error) {
