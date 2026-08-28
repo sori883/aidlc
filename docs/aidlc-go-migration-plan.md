@@ -395,7 +395,7 @@ Go変更を混ぜる前に、未コミット変更を基準Branchへ確定した
 確定した変更は主に次の2系統である。
 
 1. vNext Stage Agent Delegation、Agent persona、共有Stage Skill、Guide、test
-2. 開発用beginner HTML Agent／Skill、Guide、test
+2. 説明HTML（explanatory HTML）Agent／Skill、Guide、test
 
 実行手順:
 

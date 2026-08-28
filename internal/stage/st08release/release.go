@@ -4,7 +4,6 @@ package st08release
 import (
 	"context"
 	"fmt"
-	"html"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/sori883/aidlc/internal/audit"
 	"github.com/sori883/aidlc/internal/contract"
+	"github.com/sori883/aidlc/internal/explanationhtml"
 	"github.com/sori883/aidlc/internal/platform/digest"
 	"github.com/sori883/aidlc/internal/platform/fsx"
 	"github.com/sori883/aidlc/internal/platform/process"
@@ -466,7 +466,11 @@ func Review(ctx context.Context, projectDir, coreDir string, proposalBytes []byt
 	if err != nil {
 		return ReviewResult{}, err
 	}
-	htmlBytes := []byte(renderHTML(value, gateSet.Set))
+	renderedHTML, err := renderHTML(value, gateSet.Set)
+	if err != nil {
+		return ReviewResult{}, err
+	}
+	htmlBytes := []byte(renderedHTML)
 	reviewRef, err := writeRawImmutable(current.ProjectDir, ReviewRevisionPath(current.Snapshot.RecordDir, revision), "release-html", htmlBytes)
 	if err != nil {
 		return ReviewResult{}, err
@@ -1331,8 +1335,98 @@ func stringValue(value *string) string {
 	}
 	return *value
 }
-func renderHTML(plan Plan, set gate.RequirementSet) string {
-	return "<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\"><title>ST-08 Release</title></head><body><main><h1>ST-08 Release</h1><p>" + html.EscapeString(plan.Reason) + "</p><p>Targets: " + fmt.Sprint(len(plan.Targets)) + " / Policy requirements: " + fmt.Sprint(len(set.Requirements)) + "</p></main></body></html>\n"
+func renderHTML(plan Plan, set gate.RequirementSet) (string, error) {
+	targetSection := explanationhtml.Section{
+		Heading: "Releaseする対象",
+		Lead:    "どこへ、何を反映するかを確認します。",
+	}
+	for _, target := range plan.Targets {
+		facts := []explanationhtml.Fact{
+			{Label: "種類", Value: target.TargetKind},
+			{Label: "Provider", Value: target.Provider},
+			{Label: "場所", Value: target.Locator, Code: true},
+			{Label: "現在の状態", Value: target.ObservedBefore, Code: true},
+		}
+		if target.RepositoryID != nil {
+			facts = append(facts, explanationhtml.Fact{Label: "Repository", Value: stringValue(target.RepositoryID), Code: true})
+		}
+		if target.Environment != nil {
+			facts = append(facts, explanationhtml.Fact{Label: "Environment", Value: stringValue(target.Environment), Code: true})
+		}
+		targetSection.Cards = append(targetSection.Cards, explanationhtml.Card{
+			Label:   target.TargetID,
+			Heading: target.TargetKind,
+			Facts:   facts,
+		})
+	}
+
+	stepSection := explanationhtml.Section{
+		Heading: "実行する手順",
+		Lead:    "Coreが固定されたCapabilityを使って実行する順序です。",
+	}
+	for _, step := range plan.Steps {
+		facts := []explanationhtml.Fact{
+			{Label: "対象", Value: step.TargetID, Code: true},
+			{Label: "操作", Value: step.Operation},
+			{Label: "実行後の状態", Value: step.DesiredState},
+			{Label: "実行後の確認", Value: step.PostReleaseCheck},
+			{Label: "失敗時", Value: step.RollbackMode},
+		}
+		if len(step.DependsOn) > 0 {
+			facts = append(facts, explanationhtml.Fact{Label: "先に必要な手順", Value: strings.Join(step.DependsOn, ", "), Code: true})
+		}
+		stepSection.Cards = append(stepSection.Cards, explanationhtml.Card{
+			Label:   step.StepID,
+			Heading: step.Operation,
+			Facts:   facts,
+		})
+	}
+
+	sections := []explanationhtml.Section{
+		{
+			Heading: "このページで決めること",
+			Lead:    "承認すると、表示された対象と手順でReleaseを実行できるようになります。",
+			Ordered: true,
+			Items: []explanationhtml.Item{
+				{Text: "対象のRepository、場所、Environmentが正しいか確認する。"},
+				{Text: "実行手順と実行後の確認、失敗時の扱いを確認する。"},
+				{Text: "問題がなければReleaseを承認し、問題があれば修正を依頼する。"},
+			},
+		},
+	}
+	if len(targetSection.Cards) > 0 {
+		sections = append(sections, targetSection)
+	}
+	if len(stepSection.Cards) > 0 {
+		sections = append(sections, stepSection)
+	}
+	if len(plan.ReleaseNotes) > 0 {
+		noteSection := explanationhtml.Section{Heading: "Release Notes", Lead: "今回のReleaseで人に伝える内容です。"}
+		for _, note := range plan.ReleaseNotes {
+			noteSection.Items = append(noteSection.Items, explanationhtml.Item{Text: note})
+		}
+		sections = append(sections, noteSection)
+	}
+	sections = append(sections, gate.ReviewSection(set))
+
+	return explanationhtml.Render(explanationhtml.Page{
+		Title:   "ST-08 Release Review",
+		Eyebrow: "AI-DLC / ST-08",
+		Heading: "Release前の最終確認",
+		Lead:    plan.Reason,
+		Notice:  "この承認は外部の対象へ変更を反映する許可です。対象、手順、実行後の確認を読み、意図どおりの場合だけ承認してください。",
+		Metrics: []explanationhtml.Metric{
+			{Label: "Release対象", Value: fmt.Sprint(len(plan.Targets)) + "件", Help: "変更を反映する場所"},
+			{Label: "実行手順", Value: fmt.Sprint(len(plan.Steps)) + "件", Help: "Coreが行う操作"},
+			{Label: "追加Policy", Value: fmt.Sprint(len(set.Requirements)) + "件", Help: "PolicyとRiskからの確認"},
+		},
+		Sections: sections,
+		Footer: []explanationhtml.Fact{
+			{Label: "Intent", Value: plan.IntentID, Code: true},
+			{Label: "Accepted Candidate SHA-256", Value: plan.AcceptedCandidateRef.SHA256, Code: true},
+			{Label: "Review SHA-256", Value: plan.ReviewCurrentRef.SHA256, Code: true},
+		},
+	})
 }
 func writeRaw(projectDir, path, artifact string, content []byte) (contract.ArtifactReference, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

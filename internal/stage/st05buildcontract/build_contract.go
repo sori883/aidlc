@@ -4,7 +4,6 @@ package st05buildcontract
 import (
 	"context"
 	"fmt"
-	"html"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/sori883/aidlc/internal/audit"
 	"github.com/sori883/aidlc/internal/contract"
+	"github.com/sori883/aidlc/internal/explanationhtml"
 	"github.com/sori883/aidlc/internal/platform/digest"
 	"github.com/sori883/aidlc/internal/platform/fsx"
 	stageruntime "github.com/sori883/aidlc/internal/stage/runtime"
@@ -373,7 +373,10 @@ func Review(ctx context.Context, projectDir, coreDir string, proposalContent []b
 	if _, _, err := stageruntime.WriteCanonical(current.ProjectDir, GateRefPath(current.Snapshot.RecordDir), resolved.Reference.Artifact, resolved.Reference.Version, resolved.Reference, false); err != nil {
 		return ReviewResult{}, err
 	}
-	reviewHTML := renderReview(candidate, candidateRef, resolved.Set)
+	reviewHTML, err := renderReview(candidate, candidateRef, resolved.Set)
+	if err != nil {
+		return ReviewResult{}, err
+	}
 	if err := ensureParent(current.ProjectDir, ReviewPath(current.Snapshot.RecordDir)); err != nil {
 		return ReviewResult{}, err
 	}
@@ -421,7 +424,10 @@ func PendingReview(projectDir, recordDir string) (Pending, *Candidate, error) {
 	if err != nil {
 		return Pending{}, nil, err
 	}
-	expected := renderReview(candidate, candidateRef, set)
+	expected, err := renderReview(candidate, candidateRef, set)
+	if err != nil {
+		return Pending{}, nil, err
+	}
 	content, err := os.ReadFile(ReviewPath(recordDir))
 	if err != nil || string(content) != expected {
 		return Pending{}, nil, fmt.Errorf("ST-05 Build Contract: review HTML does not match canonical Candidate")
@@ -910,21 +916,112 @@ func dependsTransitively(bolts map[string]Bolt, from, target string, seen map[st
 	}
 	return false
 }
-func renderReview(candidate Candidate, reference contract.ArtifactReference, set gate.RequirementSet) string {
-	var builder strings.Builder
-	fmt.Fprintf(&builder, "<!doctype html><html><head><meta charset=\"utf-8\"><title>ST-05 Build Contract</title></head><body><h1>Build Contract Candidate</h1><p>SHA-256: %s</p><p>%s</p>", html.EscapeString(reference.SHA256), html.EscapeString(candidate.Reason))
+func renderReview(candidate Candidate, reference contract.ArtifactReference, set gate.RequirementSet) (string, error) {
+	targetCount := 0
+	changeSection := explanationhtml.Section{
+		Heading: "変更する内容",
+		Lead:    "変更範囲と、実装時に守ることを確認します。",
+	}
 	for _, change := range candidate.ChangeContracts {
-		for _, target := range change.Targets {
-			fmt.Fprintf(&builder, "<p>%s/%s</p>", html.EscapeString(target.SourceID), html.EscapeString(target.Path))
+		card := explanationhtml.Card{Label: change.ContractID, Heading: change.Title}
+		if len(change.RequirementIDs) > 0 {
+			card.Facts = append(card.Facts, explanationhtml.Fact{Label: "対応する要件", Value: strings.Join(change.RequirementIDs, ", "), Code: true})
 		}
+		if len(change.DependsOnContractIDs) > 0 {
+			card.Facts = append(card.Facts, explanationhtml.Fact{Label: "先に必要な変更", Value: strings.Join(change.DependsOnContractIDs, ", "), Code: true})
+		}
+		for _, target := range change.Targets {
+			targetCount++
+			card.Items = append(card.Items, explanationhtml.Item{Label: "変更対象", Text: target.SourceID + "/" + target.Path})
+		}
+		for _, specification := range change.Specification {
+			card.Items = append(card.Items, explanationhtml.Item{Label: "実装条件", Text: specification})
+		}
+		changeSection.Cards = append(changeSection.Cards, card)
+	}
+
+	acceptanceSection := explanationhtml.Section{
+		Heading: "完成と判断する条件",
+		Lead:    "各条件について、前提・操作・期待結果を確認します。",
+	}
+	for _, criterion := range candidate.AcceptanceCriteria {
+		acceptanceSection.Cards = append(acceptanceSection.Cards, explanationhtml.Card{
+			Label:   criterion.CriterionID,
+			Heading: "受入条件",
+			Facts: []explanationhtml.Fact{
+				{Label: "前提", Value: criterion.Given},
+				{Label: "操作", Value: criterion.When},
+				{Label: "期待結果", Value: criterion.Then},
+				{Label: "検証方法", Value: strings.Join(criterion.VerifierIDs, ", "), Code: true},
+			},
+		})
+	}
+
+	verificationSection := explanationhtml.Section{
+		Heading: "確認方法",
+		Lead:    "実装後に、機械または人がどのように確認するかを示します。",
 	}
 	for _, verifier := range candidate.Verifiers {
-		fmt.Fprintf(&builder, "<p>argv=%s cwd=%s timeout=%dms</p>", html.EscapeString(strings.Join(verifier.Argv, " ")), html.EscapeString(stringValue(verifier.CWD)), verifier.TimeoutMS)
+		facts := []explanationhtml.Fact{
+			{Label: "種類", Value: verifier.Kind},
+			{Label: "作業場所", Value: stringValue(verifier.CWD), Code: true},
+			{Label: "制限時間", Value: fmt.Sprintf("%dms", verifier.TimeoutMS)},
+		}
+		if len(verifier.Argv) > 0 {
+			facts = append(facts, explanationhtml.Fact{Label: "コマンド", Value: strings.Join(verifier.Argv, " "), Pre: true})
+		}
+		if verifier.Expected != "" {
+			facts = append(facts, explanationhtml.Fact{Label: "人が確認すること", Value: verifier.Expected})
+		}
+		verificationSection.Cards = append(verificationSection.Cards, explanationhtml.Card{
+			Label:   verifier.VerifierID,
+			Heading: verifier.Kind,
+			Facts:   facts,
+		})
 	}
-	gateHTML, _ := gate.RenderReviewHTML(set, "Build Contract Candidate")
-	builder.WriteString(gateHTML)
-	builder.WriteString("</body></html>")
-	return builder.String()
+
+	sections := []explanationhtml.Section{
+		{
+			Heading: "まず確認すること",
+			Lead:    "このBuild Contractは、実装を始める前の約束です。",
+			Ordered: true,
+			Items: []explanationhtml.Item{
+				{Text: "変更対象が、今回の目的に必要な範囲だけになっているか。"},
+				{Text: "完成と判断する条件が、実際に確認できる内容になっているか。"},
+				{Text: "機械確認と人の確認が、目的に対して十分か。"},
+			},
+		},
+	}
+	if len(changeSection.Cards) > 0 {
+		sections = append(sections, changeSection)
+	}
+	if len(acceptanceSection.Cards) > 0 {
+		sections = append(sections, acceptanceSection)
+	}
+	if len(verificationSection.Cards) > 0 {
+		sections = append(sections, verificationSection)
+	}
+	sections = append(sections, gate.ReviewSection(set))
+
+	return explanationhtml.Render(explanationhtml.Page{
+		Title:   "ST-05 Build Contract Review",
+		Eyebrow: "AI-DLC / ST-05",
+		Heading: "実装前の約束を確認",
+		Lead:    candidate.Reason,
+		Notice:  "変更範囲、完成条件、確認方法を読み、この内容で実装へ進めてよいかを人が判断します。",
+		Metrics: []explanationhtml.Metric{
+			{Label: "変更契約", Value: fmt.Sprint(len(candidate.ChangeContracts)) + "件", Help: "実装する変更のまとまり"},
+			{Label: "変更対象", Value: fmt.Sprint(targetCount) + "件", Help: "ファイルまたは対象領域"},
+			{Label: "受入条件", Value: fmt.Sprint(len(candidate.AcceptanceCriteria)) + "件", Help: "完成と判断する条件"},
+			{Label: "確認方法", Value: fmt.Sprint(len(candidate.Verifiers)) + "件", Help: "機械確認と人の確認"},
+		},
+		Sections: sections,
+		Footer: []explanationhtml.Fact{
+			{Label: "Candidate SHA-256", Value: reference.SHA256, Code: true},
+			{Label: "Proposal ID", Value: candidate.ProposalID, Code: true},
+			{Label: "Intent", Value: candidate.IntentID, Code: true},
+		},
+	})
 }
 func requirementIDs(value st03requirements.Definition) []string {
 	result := []string{}

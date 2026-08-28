@@ -96,6 +96,19 @@ Core can return:
   invent work outside the fixed Stage Contract.
 - `done`: show the reason and stop.
 
+## Supplementary explanatory HTML
+
+When the human explicitly requests an HTML explanation, or when an assignment
+specifically requires a concise context-free explanation for a first-time
+reader, dispatch `explanatory_html_writer` with the canonical source paths,
+intended reader, output path, and documentation-only mutation scope. Tell that
+Agent to use `$explanatory-html` and its reusable template when appropriate.
+
+This output is supplementary. It must not replace the original Core review,
+change its SHA-256, become a Stage proposal, or imply a human decision. Do not
+dispatch the explanatory Agent for ordinary Stage work solely because Core
+generated an HTML review.
+
 ## Stage Delegation
 
 The fixed assignment source is

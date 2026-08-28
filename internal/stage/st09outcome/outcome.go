@@ -4,16 +4,15 @@ package st09outcome
 import (
 	"context"
 	"fmt"
-	"html"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/sori883/aidlc/internal/audit"
 	"github.com/sori883/aidlc/internal/contract"
+	"github.com/sori883/aidlc/internal/explanationhtml"
 	"github.com/sori883/aidlc/internal/platform/digest"
 	"github.com/sori883/aidlc/internal/platform/fsx"
 	stageruntime "github.com/sori883/aidlc/internal/stage/runtime"
@@ -408,7 +407,11 @@ func Evaluate(ctx context.Context, projectDir, coreDir string, proposalBytes []b
 	if _, err := writeRaw(current.ProjectDir, EvaluationPath(current.Snapshot.RecordDir), evaluation.Artifact, evaluationBytes); err != nil {
 		return EvaluateResult{}, err
 	}
-	htmlBytes := []byte(renderHTML(evaluation, gateSet.Set))
+	renderedHTML, err := renderHTML(evaluation, gateSet.Set)
+	if err != nil {
+		return EvaluateResult{}, err
+	}
+	htmlBytes := []byte(renderedHTML)
 	htmlRef, err := writeRawImmutable(current.ProjectDir, HTMLRevisionPath(current.Snapshot.RecordDir, revision), "outcome-html", htmlBytes)
 	if err != nil {
 		return EvaluateResult{}, err
@@ -619,7 +622,11 @@ func Reuse(ctx context.Context, projectDir, coreDir, sourceCurrentPath, reason, 
 	if len(gateSet.Set.Requirements) != 0 {
 		return ReuseResult{}, fmt.Errorf("ST-09 Outcome Evaluation: current Policy requires human confirmation")
 	}
-	htmlBytes := []byte(renderHTML(priorEvaluation, gateSet.Set))
+	renderedHTML, err := renderHTML(priorEvaluation, gateSet.Set)
+	if err != nil {
+		return ReuseResult{}, err
+	}
+	htmlBytes := []byte(renderedHTML)
 	if _, err := writeRaw(current.ProjectDir, HTMLPath(current.Snapshot.RecordDir), "outcome-html", htmlBytes); err != nil {
 		return ReuseResult{}, err
 	}
@@ -955,16 +962,69 @@ func equivalentPromises(left, right WorkRequest) bool {
 	left.Deadline, right.Deadline = nil, nil
 	return reflect.DeepEqual(left, right)
 }
-func renderHTML(value Evaluation, set gate.RequirementSet) string {
+func renderHTML(value Evaluation, set gate.RequirementSet) (string, error) {
 	rows := append([]Observation{}, value.SignalResults...)
 	sort.Slice(rows, func(i, j int) bool { return rows[i].SignalID < rows[j].SignalID })
-	var body strings.Builder
-	body.WriteString("<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\"><title>ST-09 Outcome</title></head><body><main><h1>ST-09 Outcome Evaluation</h1><p>Overall: " + html.EscapeString(value.OverallResult) + "</p><ul>")
-	for _, item := range rows {
-		body.WriteString("<li>" + html.EscapeString(item.SignalID) + ": " + html.EscapeString(item.Result) + "</li>")
+	resultTone := "warning"
+	notice := "結果と根拠を確認し、観測を続けるか、記録されたOutcomeを受け入れるかを人が判断します。"
+	if value.OverallResult == "achieved" {
+		resultTone = "success"
+		notice = "すべての固定Signalが達成されています。各結果とEvidenceを確認できます。"
 	}
-	body.WriteString("</ul><p>Policy requirements: " + fmt.Sprint(len(set.Requirements)) + "</p></main></body></html>\n")
-	return body.String()
+	resultSection := explanationhtml.Section{
+		Heading: "Signalごとの結果",
+		Lead:    "Signalは、目的を達成できたか判断するために事前に決めた観測項目です。",
+	}
+	for _, observation := range rows {
+		tone := "warning"
+		if observation.Result == "achieved" {
+			tone = "success"
+		}
+		resultSection.Cards = append(resultSection.Cards, explanationhtml.Card{
+			Label:   observation.SignalID,
+			Heading: observation.Result,
+			Text:    observation.Reason,
+			Tone:    tone,
+			Facts: []explanationhtml.Fact{
+				{Label: "Evidence", Value: fmt.Sprint(len(observation.EvidenceRefs)) + "件"},
+				{Label: "観測日時", Value: observation.ObservedAt, Code: true},
+			},
+		})
+	}
+	sections := []explanationhtml.Section{
+		{
+			Heading: "このページでわかること",
+			Items: []explanationhtml.Item{
+				{Text: "今回の目的が全体として達成されたか。"},
+				{Text: "各SignalがどのEvidenceに基づいて評価されたか。"},
+				{Text: "未達の場合に、次の観測やFollow-upを人が判断する必要があるか。"},
+			},
+		},
+	}
+	if len(resultSection.Cards) > 0 {
+		sections = append(sections, resultSection)
+	}
+	sections = append(sections, gate.ReviewSection(set))
+
+	return explanationhtml.Render(explanationhtml.Page{
+		Title:   "ST-09 Outcome Evaluation",
+		Eyebrow: "AI-DLC / ST-09",
+		Heading: "目的を達成できたか確認",
+		Lead:    value.Reason,
+		Notice:  notice,
+		Metrics: []explanationhtml.Metric{
+			{Label: "全体結果", Value: value.OverallResult, Help: "固定Signalをまとめた結果", Tone: resultTone},
+			{Label: "Signal", Value: fmt.Sprint(len(rows)) + "件", Help: "事前に決めた観測項目"},
+			{Label: "Release結果", Value: value.ReleaseOutcome, Help: "Release後に観測した状態"},
+			{Label: "追加Policy", Value: fmt.Sprint(len(set.Requirements)) + "件", Help: "PolicyとRiskからの確認"},
+		},
+		Sections: sections,
+		Footer: []explanationhtml.Fact{
+			{Label: "Evaluation ID", Value: value.EvaluationID, Code: true},
+			{Label: "Intent", Value: value.IntentID, Code: true},
+			{Label: "Outcome Evidence SHA-256", Value: value.OutcomeEvidenceRef.SHA256, Code: true},
+		},
+	})
 }
 func writeRaw(projectDir, path, artifact string, content []byte) (contract.ArtifactReference, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

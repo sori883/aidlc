@@ -4,7 +4,6 @@ package st07review
 import (
 	"context"
 	"fmt"
-	"html"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/sori883/aidlc/internal/audit"
 	"github.com/sori883/aidlc/internal/contract"
+	"github.com/sori883/aidlc/internal/explanationhtml"
 	"github.com/sori883/aidlc/internal/platform/fsx"
 	"github.com/sori883/aidlc/internal/platform/process"
 	stageruntime "github.com/sori883/aidlc/internal/stage/runtime"
@@ -303,7 +303,11 @@ func Prepare(ctx context.Context, projectDir, coreDir, at string) (PrepareResult
 	if err != nil {
 		return PrepareResult{}, err
 	}
-	htmlBytes := []byte(renderHTML(manifest, gateSet.Set))
+	renderedHTML, err := renderHTML(manifest, gateSet.Set)
+	if err != nil {
+		return PrepareResult{}, err
+	}
+	htmlBytes := []byte(renderedHTML)
 	reviewRef, err := writeRawImmutable(current.ProjectDir, ReviewRevisionPath(current.Snapshot.RecordDir, snapshotRef.SHA256), "review-html", htmlBytes)
 	if err != nil {
 		return PrepareResult{}, err
@@ -553,7 +557,11 @@ func readPending(projectDir, recordDir string) (Pending, error) {
 	if err != nil {
 		return Pending{}, err
 	}
-	if string(htmlBytes) != renderHTML(manifest, gateSet.Set) {
+	expectedHTML, err := renderHTML(manifest, gateSet.Set)
+	if err != nil {
+		return Pending{}, err
+	}
+	if string(htmlBytes) != expectedHTML {
 		return Pending{}, fmt.Errorf("ST-07 Human Review: Review HTML differs from its Manifest")
 	}
 	return Pending{Manifest: immutableManifest, ManifestReference: manifestRef, ReviewReference: reviewRef}, nil
@@ -738,18 +746,98 @@ func reviewGit(ctx context.Context, dir string, args ...string) (string, error) 
 	}
 	return strings.TrimSpace(string(result.Stdout)), nil
 }
-func renderHTML(manifest Manifest, requirements gate.RequirementSet) string {
-	var body strings.Builder
-	body.WriteString("<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\"><title>ST-07 Candidate Review</title></head><body><main><h1>ST-07 Candidate Review</h1><p>Intent: " + html.EscapeString(manifest.IntentID) + "</p><h2>Requirements</h2><ul>")
-	for _, item := range manifest.Requirements {
-		body.WriteString("<li><strong>" + html.EscapeString(item.RequirementID) + "</strong> " + html.EscapeString(item.Statement) + "</li>")
+func renderHTML(manifest Manifest, requirements gate.RequirementSet) (string, error) {
+	humanSection := explanationhtml.Section{
+		Heading: "人が実物を見て確認すること",
+		Lead:    "自動テストだけでは判断できない見た目や操作を確認します。",
 	}
-	body.WriteString("</ul><h2>Human checks</h2><ul>")
-	for _, item := range manifest.HumanChecks {
-		body.WriteString("<li>" + html.EscapeString(item.VerifierID) + ": " + html.EscapeString(item.Expected) + "</li>")
+	for _, check := range manifest.HumanChecks {
+		humanSection.Cards = append(humanSection.Cards, explanationhtml.Card{
+			Label:   check.VerifierID,
+			Heading: "人の確認",
+			Text:    check.Expected,
+			Tone:    "warning",
+		})
 	}
-	body.WriteString("</ul><p>Policy requirements: " + fmt.Sprint(len(requirements.Requirements)) + "</p></main></body></html>\n")
-	return body.String()
+
+	requirementSection := explanationhtml.Section{
+		Heading: "満たす必要がある要件",
+		Lead:    "完成候補が満たすべき条件です。IDは正本との対応を確認するために残します。",
+	}
+	for _, requirement := range manifest.Requirements {
+		requirementSection.Cards = append(requirementSection.Cards, explanationhtml.Card{
+			Label:   requirement.RequirementID,
+			Heading: "要件",
+			Text:    requirement.Statement,
+		})
+	}
+
+	acceptanceSection := explanationhtml.Section{
+		Heading: "完成と判断する条件",
+		Lead:    "Build Contractで承認された受入条件です。",
+	}
+	for _, criterion := range manifest.AcceptanceCriteria {
+		acceptanceSection.Cards = append(acceptanceSection.Cards, explanationhtml.Card{
+			Label:   criterion.CriterionID,
+			Heading: "受入条件",
+			Facts: []explanationhtml.Fact{
+				{Label: "前提", Value: criterion.Given},
+				{Label: "操作", Value: criterion.When},
+				{Label: "期待結果", Value: criterion.Then},
+				{Label: "検証方法", Value: strings.Join(criterion.VerifierIDs, ", "), Code: true},
+			},
+		})
+	}
+
+	sections := []explanationhtml.Section{
+		{
+			Heading: "このページで決めること",
+			Lead:    "完成した候補を、次のRelease計画へ進めてよいかを判断します。",
+			Ordered: true,
+			Items: []explanationhtml.Item{
+				{Text: "最初に完成したもの自体を確認する。"},
+				{Text: "人の確認項目と要件を満たしているか確認する。"},
+				{Text: "問題がなければ承認し、問題があれば修正を依頼する。"},
+			},
+		},
+	}
+	if len(humanSection.Cards) > 0 {
+		sections = append(sections, humanSection)
+	}
+	if len(requirementSection.Cards) > 0 {
+		sections = append(sections, requirementSection)
+	}
+	if len(acceptanceSection.Cards) > 0 {
+		sections = append(sections, acceptanceSection)
+	}
+	if len(manifest.KnownConstraints) > 0 {
+		constraintSection := explanationhtml.Section{Heading: "既知の制約", Lead: "承認前に把握しておく制約です。"}
+		for _, constraint := range manifest.KnownConstraints {
+			constraintSection.Items = append(constraintSection.Items, explanationhtml.Item{Text: constraint})
+		}
+		sections = append(sections, constraintSection)
+	}
+	sections = append(sections, gate.ReviewSection(requirements))
+
+	return explanationhtml.Render(explanationhtml.Page{
+		Title:   "ST-07 Candidate Review",
+		Eyebrow: "AI-DLC / ST-07",
+		Heading: "完成したものを確認",
+		Lead:    "このページは、実装と自動テストが終わった候補を、人が実際に確認するためのページです。",
+		Notice:  "要件IDだけを読むのではなく、最初に完成物そのものを開いてください。承認はReleaseの実行ではなく、Release計画へ進める許可です。",
+		Metrics: []explanationhtml.Metric{
+			{Label: "要件", Value: fmt.Sprint(len(manifest.Requirements)) + "件", Help: "候補が満たす条件"},
+			{Label: "人の確認", Value: fmt.Sprint(len(manifest.HumanChecks)) + "件", Help: "実物で確認する項目"},
+			{Label: "機械Evidence", Value: fmt.Sprint(len(manifest.MachineEvidenceRefs)) + "件", Help: "自動確認の記録"},
+			{Label: "追加Policy", Value: fmt.Sprint(len(requirements.Requirements)) + "件", Help: "PolicyとRiskからの確認"},
+		},
+		Sections: sections,
+		Footer: []explanationhtml.Fact{
+			{Label: "Intent", Value: manifest.IntentID, Code: true},
+			{Label: "Runnable Candidate SHA-256", Value: manifest.RunnableCandidateRef.SHA256, Code: true},
+			{Label: "Build Contract SHA-256", Value: manifest.BuildContractRef.SHA256, Code: true},
+		},
+	})
 }
 func writeRaw(projectDir, path, artifact string, content []byte) (contract.ArtifactReference, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

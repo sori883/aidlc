@@ -19,3 +19,16 @@ matching Codex custom Agent. It must not replace a missing Agent with inline
 work. Delegated agents are leaf participants, use `$aidlc-stage-work`, and may
 mutate only their assigned proposal path or ST-06 worktree. Core owns routing,
 State, Audit, acceptance, and every human or release authority boundary.
+
+## Explanatory HTML delegation
+
+Use `explanatory_html_writer` only when the human explicitly asks for an HTML
+explanation or the assigned task specifically requires context-free,
+beginner-friendly explanatory HTML. Give it the canonical source paths, the
+intended reader, the output path, and the exact documentation-only mutation
+scope. Tell it to use `$explanatory-html`.
+
+Explanatory HTML is supplementary. It must not replace a Core-generated review,
+change a reviewed SHA-256, produce a Stage proposal, or bypass any Core or human
+authority boundary. Ordinary Stage work does not invoke this Agent merely
+because a Core review happens to be HTML.
