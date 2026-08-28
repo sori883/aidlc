@@ -71,6 +71,7 @@ func Files(repoRoot string, binaryPaths []string) ([]File, error) {
 	}{
 		{Source: "harness/codex/AGENTS.md", Target: "AGENTS.md", Area: "harness"},
 		{Source: "harness/codex/hooks.json", Target: ".codex/hooks.json", Area: "harness"},
+		{Source: ".codex/agents/explanatory-html-writer.toml", Target: ".codex/agents/explanatory-html-writer.toml", Area: "harness"},
 	} {
 		content, err := read(source.Source)
 		if err != nil {
@@ -90,6 +91,7 @@ func Files(repoRoot string, binaryPaths []string) ([]File, error) {
 		{Source: "core/agents", Target: ".codex/agents", Area: "core"},
 		{Source: "harness/codex/agents", Target: ".codex/agents", Area: "harness"},
 		{Source: "harness/codex/skills", Target: ".agents/skills", Area: "harness"},
+		{Source: ".agents/skills/explanatory-html", Target: ".agents/skills/explanatory-html", Area: "harness"},
 	} {
 		if err := collect(repoRoot, tree.Source, tree.Target, tree.Area, add); err != nil {
 			return nil, err

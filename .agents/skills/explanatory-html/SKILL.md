@@ -1,11 +1,17 @@
 ---
-name: beginner-html
-description: Create or repair self-contained beginner-facing HTML documentation from canonical project sources. Use for non-technical explanations that need concise language, diagrams, responsive layout, or visual QA; do not use for product UI or ordinary Markdown documentation.
+name: explanatory-html
+description: Create or repair self-contained explanatory HTML from canonical project sources. Use when a first-time reader needs a concise, context-free explanation with responsive layout or visual QA; do not use for product UI or ordinary Markdown documentation.
 ---
 
-# Beginner HTML
+# Explanatory HTML
 
 Turn an existing specification or fact set into HTML that a first-time reader can understand without changing its meaning.
+
+## Reusable template
+
+- For a new page, start from [assets/explanation-template.html](assets/explanation-template.html) when it fits the requested output.
+- Keep the template's accessibility and responsive rules, then replace its generic visible content with facts from the current source of truth.
+- Do not force the template onto an existing page when a focused repair preserves the established design more safely.
 
 ## Authority and scope
 

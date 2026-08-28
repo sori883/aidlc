@@ -13,58 +13,100 @@ import (
 	"github.com/sori883/aidlc/internal/platform/jsonx"
 )
 
-func TestDevelopmentOnlyBeginnerHTMLHelper(t *testing.T) {
+func TestDistributedExplanatoryHTMLHelper(t *testing.T) {
 	root := repositoryRoot(t)
-	agent := readRepositoryFile(t, root, ".codex/agents/beginner-html-writer.toml")
+	agent := readRepositoryFile(t, root, ".codex/agents/explanatory-html-writer.toml")
 	for _, marker := range []string{
-		`name = "beginner_html_writer"`,
+		`name = "explanatory_html_writer"`,
 		`sandbox_mode = "workspace-write"`,
-		"$beginner-html",
+		"$explanatory-html",
+		"assets/explanation-template.html",
 		"source of truth",
 		"mobile and desktop",
 		"Runtime, Contract, canonical JSON",
 	} {
 		if !strings.Contains(agent, marker) {
-			t.Fatalf("beginner HTML agent is missing %q", marker)
+			t.Fatalf("explanatory HTML agent is missing %q", marker)
 		}
 	}
 	if strings.Contains(agent, "\nmodel =") {
-		t.Fatal("beginner HTML agent must inherit the parent model")
+		t.Fatal("explanatory HTML agent must inherit the parent model")
 	}
 
-	skill := readRepositoryFile(t, root, ".agents/skills/beginner-html/SKILL.md")
+	skill := readRepositoryFile(t, root, ".agents/skills/explanatory-html/SKILL.md")
 	for _, marker := range []string{
-		"name: beginner-html",
-		"beginner-facing HTML documentation",
+		"name: explanatory-html",
+		"explanatory HTML",
 		"source of truth",
 		"single-file HTML",
+		"assets/explanation-template.html",
 		"390px",
 		"scrollWidth <= clientWidth",
 		"escape",
 		"Runtime, Contract, or canonical JSON",
 	} {
 		if !strings.Contains(strings.ToLower(skill), strings.ToLower(marker)) {
-			t.Fatalf("beginner HTML skill is missing %q", marker)
+			t.Fatalf("explanatory HTML skill is missing %q", marker)
 		}
 	}
 	if strings.Contains(strings.ToUpper(skill), "TODO") || strings.Contains(strings.ToUpper(skill), "PLACEHOLDER") {
-		t.Fatal("beginner HTML skill contains an unfinished placeholder")
+		t.Fatal("explanatory HTML skill contains an unfinished placeholder")
 	}
 
-	for _, excluded := range []string{
-		"harness/codex/agents/beginner-html-writer.toml",
-		"harness/codex/skills/beginner-html/SKILL.md",
+	template := readRepositoryFile(t, root, ".agents/skills/explanatory-html/assets/explanation-template.html")
+	for _, marker := range []string{
+		"<!doctype html>",
+		`<html lang="ja">`,
+		`<meta name="viewport"`,
+		"@media(max-width:680px)",
+		"@media print",
+		"data-explanation-role",
 	} {
-		if _, err := os.Lstat(filepath.Join(root, filepath.FromSlash(excluded))); err == nil {
-			t.Fatalf("development-only helper leaked into harness: %s", excluded)
+		if !strings.Contains(template, marker) {
+			t.Fatalf("explanatory HTML template is missing %q", marker)
+		}
+	}
+	metadata := readRepositoryFile(t, root, ".agents/skills/explanatory-html/agents/openai.yaml")
+	for _, marker := range []string{"説明HTML", "$explanatory-html", "allow_implicit_invocation: true"} {
+		if !strings.Contains(metadata, marker) {
+			t.Fatalf("explanatory HTML metadata is missing %q", marker)
+		}
+	}
+
+	files, err := Files(root, binaryPaths())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{
+		".codex/agents/explanatory-html-writer.toml",
+		".agents/skills/explanatory-html/SKILL.md",
+		".agents/skills/explanatory-html/assets/explanation-template.html",
+		".agents/skills/explanatory-html/agents/openai.yaml",
+	} {
+		fileByPath(t, files, path)
+	}
+
+	for _, legacy := range []string{
+		".codex/agents/beginner-html-writer.toml",
+		".agents/skills/beginner-html/SKILL.md",
+	} {
+		if _, err := os.Lstat(filepath.Join(root, filepath.FromSlash(legacy))); err == nil {
+			t.Fatalf("legacy beginner HTML path remains: %s", legacy)
 		} else if !os.IsNotExist(err) {
 			t.Fatal(err)
 		}
 	}
+
 	harnessInstructions := readRepositoryFile(t, root, "harness/codex/AGENTS.md")
-	for _, marker := range []string{"beginner_html_writer", "Beginner-facing HTML delegation"} {
-		if strings.Contains(harnessInstructions, marker) {
-			t.Fatalf("installed project routes to development-only helper: %s", marker)
+	for _, marker := range []string{"explanatory_html_writer", "Explanatory HTML delegation", "must not replace"} {
+		if !strings.Contains(harnessInstructions, marker) {
+			t.Fatalf("installed project is missing explanatory HTML routing %q", marker)
+		}
+	}
+	conductorSkill := readRepositoryFile(t, root, "harness/codex/skills/aidlc/SKILL.md")
+	for _, marker := range []string{"$explanatory-html", "explanatory_html_writer", "supplementary"} {
+		if !strings.Contains(conductorSkill, marker) {
+			t.Fatalf("Conductor Skill is missing explanatory HTML routing %q", marker)
 		}
 	}
 }

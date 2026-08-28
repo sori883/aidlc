@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"html"
 	"os"
 	"path/filepath"
 	"sort"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/sori883/aidlc/internal/contract"
+	"github.com/sori883/aidlc/internal/explanationhtml"
 	"github.com/sori883/aidlc/internal/platform/digest"
 	"github.com/sori883/aidlc/internal/platform/fsx"
 	"github.com/sori883/aidlc/internal/platform/jsonx"
@@ -310,17 +310,61 @@ func RenderReviewHTML(set RequirementSet, subject string) (string, error) {
 	if err := set.Validate(); err != nil {
 		return "", err
 	}
-	rows := "<p>追加のPolicy確認はありません。固定Human Gateはそのまま実行します。</p>"
-	if len(set.Requirements) > 0 {
-		var builder strings.Builder
-		builder.WriteString("<ol>")
-		for _, item := range set.Requirements {
-			fmt.Fprintf(&builder, "<li><strong>%s</strong><p>%s</p><p>Risk: %s (%s)</p></li>", html.EscapeString(item.RequirementID), html.EscapeString(item.Statement), html.EscapeString(item.RiskStatement), item.Severity)
-		}
-		builder.WriteString("</ol>")
-		rows = builder.String()
+	return explanationhtml.Render(explanationhtml.Page{
+		Title:   string(set.StageID) + " Human Gate",
+		Eyebrow: "AI-DLC / " + string(set.StageID),
+		Heading: string(set.StageID) + " 人間確認",
+		Lead:    "このページは、Policy（追加ルール）とIntent Risk（今回の作業で注意すること）を含めて、対象を承認してよいか確認するためのページです。",
+		Notice:  "対象と追加確認事項を読み、承認または修正依頼を人が決めます。AIはこの判断を代行しません。",
+		Metrics: []explanationhtml.Metric{
+			{Label: "現在のStage", Value: string(set.StageID), Help: "AI-DLCの現在位置"},
+			{Label: "追加確認", Value: fmt.Sprint(len(set.Requirements)) + "件", Help: "PolicyとRiskから導かれた項目"},
+		},
+		Sections: []explanationhtml.Section{
+			{
+				Heading: "今回確認する対象",
+				Lead:    "この対象について、人の判断が必要です。",
+				Cards: []explanationhtml.Card{{
+					Label:   "判断対象",
+					Heading: subject,
+					Text:    "内容が意図と一致し、次へ進めてよいかを確認してください。",
+				}},
+			},
+			ReviewSection(set),
+		},
+		Footer: []explanationhtml.Fact{
+			{Label: "Intent", Value: set.IntentID, Code: true},
+			{Label: "Effective Policy SHA-256", Value: set.EffectivePolicyRef.SHA256, Code: true},
+			{Label: "Risk Register SHA-256", Value: set.RiskRegisterRef.SHA256, Code: true},
+		},
+	})
+}
+
+// ReviewSection returns the Policy and Risk portion of a larger explanatory
+// review page without creating a second HTML document.
+func ReviewSection(set RequirementSet) explanationhtml.Section {
+	section := explanationhtml.Section{
+		Heading: "追加のPolicy確認",
+		Lead:    "固定のHuman Gateに加え、現在のPolicyとIntent Riskから必要になった確認です。",
 	}
-	return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>` + html.EscapeString(string(set.StageID)) + ` Human Gate</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.7;color:#172033;background:#f4f7fb;margin:0}main{width:min(860px,calc(100% - 24px));margin:24px auto;padding:28px;border-radius:18px;background:#fff}li{margin:12px 0;padding:14px;border-radius:12px;background:#eef4ff}p{margin:5px 0;color:#607086}@media(max-width:620px){main{margin:10px auto;padding:18px}}</style></head><body><main><h1>` + html.EscapeString(string(set.StageID)) + ` 人間確認</h1><p>対象: ` + html.EscapeString(subject) + `</p>` + rows + `</main></body></html>`, nil
+	if len(set.Requirements) == 0 {
+		section.Items = []explanationhtml.Item{{Text: "追加の確認項目はありません。固定のHuman Gateは通常どおり実行します。"}}
+		return section
+	}
+	for _, item := range set.Requirements {
+		section.Cards = append(section.Cards, explanationhtml.Card{
+			Label:   item.RequirementID,
+			Heading: item.Statement,
+			Text:    item.RiskStatement,
+			Tone:    "warning",
+			Facts: []explanationhtml.Fact{
+				{Label: "重要度", Value: string(item.Severity)},
+				{Label: "Risk ID", Value: item.RiskID, Code: true},
+				{Label: "Rule ID", Value: item.RuleID, Code: true},
+			},
+		})
+	}
+	return section
 }
 
 func requirementPath(projectDir, recordDir string, set RequirementSet) (string, error) {

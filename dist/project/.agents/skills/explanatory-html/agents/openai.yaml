@@ -1,0 +1,6 @@
+interface:
+  display_name: "説明HTML"
+  short_description: "初めて読む人にも伝わる簡潔な説明HTMLを作成"
+  default_prompt: "Use $explanatory-html to create a concise, self-contained HTML explanation from the current source of truth."
+policy:
+  allow_implicit_invocation: true

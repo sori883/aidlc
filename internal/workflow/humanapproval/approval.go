@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html"
 	"io"
 	"os"
 	"strings"
 
 	"github.com/sori883/aidlc/internal/contract"
+	"github.com/sori883/aidlc/internal/explanationhtml"
 	"github.com/sori883/aidlc/internal/platform/digest"
 	"github.com/sori883/aidlc/internal/platform/jsonx"
 	"github.com/sori883/aidlc/internal/platform/lock"
@@ -87,7 +87,11 @@ func prepareLocked(projectDir, recordDir string, proposal ActionProposal, prepar
 		return PrepareResult{}, err
 	}
 	confirmation := Confirmation(freeze, envelopeRef)
-	reviewBytes := []byte(renderDecisionReview(freeze, envelope, envelopeRef, confirmation))
+	reviewHTML, err := renderDecisionReview(freeze, envelope, envelopeRef, confirmation)
+	if err != nil {
+		return PrepareResult{}, err
+	}
+	reviewBytes := []byte(reviewHTML)
 	reviewPath := DecisionReviewPath(recordDir, freeze.FreezeID, envelopeID)
 	if err := writeImmutable(projectDir, reviewPath, reviewBytes); err != nil {
 		return PrepareResult{}, err
@@ -441,20 +445,67 @@ func contains(values []string, expected string) bool {
 	return false
 }
 
-func renderDecisionReview(freeze Freeze, envelope Envelope, envelopeRef contract.ArtifactReference, confirmation string) string {
-	parameters, _ := json.MarshalIndent(envelope.Parameters, "", "  ")
-	return "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>AI-DLC Human Decision</title>" +
-		"<style>body{font-family:system-ui,sans-serif;max-width:960px;margin:2rem auto;padding:0 1rem;line-height:1.5}" +
-		"code,pre{background:#f4f4f4;padding:.2rem .4rem;overflow:auto}dt{font-weight:700;margin-top:1rem}</style></head><body>" +
-		"<h1>Human Decision Review</h1><p>This page is generated from immutable Core artifacts. Confirm only after reviewing every value.</p><dl>" +
-		"<dt>Intent</dt><dd><code>" + html.EscapeString(envelope.IntentID) + "</code></dd>" +
-		"<dt>Scope</dt><dd><code>" + html.EscapeString(envelope.Scope) + "</code></dd>" +
-		"<dt>Subject SHA-256</dt><dd><code>" + html.EscapeString(freeze.SubjectRef.SHA256) + "</code></dd>" +
-		"<dt>Original Review SHA-256</dt><dd><code>" + html.EscapeString(freeze.ReviewRef.SHA256) + "</code></dd>" +
-		"<dt>Action</dt><dd><code>" + html.EscapeString(envelope.Action) + "</code></dd>" +
-		"<dt>Reason</dt><dd>" + html.EscapeString(envelope.Reason) + "</dd>" +
-		"<dt>Envelope SHA-256</dt><dd><code>" + html.EscapeString(envelopeRef.SHA256) + "</code></dd></dl>" +
-		"<h2>Exact parameters</h2><pre>" + html.EscapeString(string(parameters)) + "</pre>" +
-		"<h2>Explicit confirmation</h2><p>Send this exact one-line message in Codex:</p><pre>" + html.EscapeString(confirmation) + "</pre>" +
-		"</body></html>\n"
+func renderDecisionReview(freeze Freeze, envelope Envelope, envelopeRef contract.ArtifactReference, confirmation string) (string, error) {
+	parameters, err := json.MarshalIndent(envelope.Parameters, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return explanationhtml.Render(explanationhtml.Page{
+		Title:   "AI-DLC Human Decision",
+		Eyebrow: "AI-DLC / Human Gate",
+		Heading: "人の最終確認",
+		Lead:    "このページは、AIが準備した判断内容と、Coreが固定した対象が一致しているか確認するためのページです。",
+		Notice:  "すべての値を確認してください。同意する場合だけ、最後に表示する1行を新しいCodexメッセージとして送ります。",
+		Metrics: []explanationhtml.Metric{
+			{Label: "予定する操作", Value: envelope.Action, Help: "人が承認する操作"},
+			{Label: "対象範囲", Value: envelope.Scope, Help: "この判断が有効な範囲"},
+		},
+		Sections: []explanationhtml.Section{
+			{
+				Heading: "まず確認する内容",
+				Lead:    "操作と理由が、あなたの意図どおりか確認してください。",
+				Cards: []explanationhtml.Card{{
+					Label:   "人が決めること",
+					Heading: envelope.Action,
+					Text:    envelope.Reason,
+					Tone:    "warning",
+				}},
+			},
+			{
+				Heading: "対象が一致していることを確認",
+				Lead:    "SHA-256は、確認した内容が途中で変わっていないことを見分けるための値です。",
+				Cards: []explanationhtml.Card{{
+					Heading: "固定された対象",
+					Facts: []explanationhtml.Fact{
+						{Label: "Intent", Value: envelope.IntentID, Code: true},
+						{Label: "Subject SHA-256", Value: freeze.SubjectRef.SHA256, Code: true},
+						{Label: "Original Review SHA-256", Value: freeze.ReviewRef.SHA256, Code: true},
+						{Label: "Envelope SHA-256", Value: envelopeRef.SHA256, Code: true},
+					},
+				}},
+			},
+			{
+				Heading: "実行パラメータ",
+				Lead:    "操作へ渡される正確な値です。",
+				Details: []explanationhtml.Detail{{
+					Summary: "JSONの内容を見る",
+					Facts:   []explanationhtml.Fact{{Label: "Parameters", Value: string(parameters), Pre: true}},
+				}},
+			},
+			{
+				Heading: "同意する場合に送る1行",
+				Lead:    "この行をコピーし、新しいCodexメッセージとしてそのまま送ってください。Bashでは実行しません。",
+				Cards: []explanationhtml.Card{{
+					Label:   "明示的な確認",
+					Heading: "Codexへ送信",
+					Tone:    "success",
+					Facts:   []explanationhtml.Fact{{Label: "Message", Value: confirmation, Pre: true}},
+				}},
+			},
+		},
+		Footer: []explanationhtml.Fact{
+			{Label: "Freeze ID", Value: freeze.FreezeID, Code: true},
+			{Label: "Envelope ID", Value: envelope.EnvelopeID, Code: true},
+		},
+	})
 }
